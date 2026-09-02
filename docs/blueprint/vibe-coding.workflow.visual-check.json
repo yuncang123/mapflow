@@ -5,9 +5,9 @@
   "status": "skipped",
   "visualReview": "pending",
   "artifact": {
-    "path": "D:\\Develop\\private\\aigineer\\docs\\blueprint\\vibe-coding.workflow.html",
-    "sha256": "c191fbed1771c6133105878fddf1e43f637123af068031d0a8032f25f3137124",
-    "bytes": 720050
+    "path": "D:\\Develop\\private\\mapflow\\docs\\blueprint\\vibe-coding.workflow.html",
+    "sha256": "42367c2c07d26546a8ded7caea0b765e4dc225cd0db0bf11a2a908ba005624aa",
+    "bytes": 720154
   },
   "state": {
     "detail": "read",

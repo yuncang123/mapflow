@@ -1,4 +1,4 @@
-# aigineer
+# mapflow
 
 一套面向个人开发者的地图优先 Agent 辅助工作流。
 
@@ -18,7 +18,7 @@
 
 日常入口只有一句话：
 
-> 说“进入地图优先模式”，告诉 Agent 想达到的结果、约束和已知上下文；在“地图已批准，进入施工”之前，Agent 只勘探和收敛蓝图。
+> 说“启用 mapflow”或“进入地图优先模式”，告诉 Agent 想达到的结果、约束和已知上下文；在“地图已批准，进入施工”之前，Agent 只勘探和收敛蓝图。
 
 ## 目录
 
@@ -35,9 +35,10 @@ docs/blueprint/vibe-coding.workflow.html
                           Archify 生成的交互式阅读投影
 docs/wayfinding/skill-architecture-v0-2/README.md
                           核心 Skill 拆分与落地跟进地图
-skills/aigineer/SKILL.md  地图优先入口 skill
+skills/mapflow/SKILL.md    地图优先入口 skill
 skills/*/SKILL.md         目的地、勘探、成图、切片和节点施工能力
-tools/aigineer.mjs        阶段状态与写入门槛工具
+tools/mapflow.mjs         阶段状态与写入门槛工具
+tools/install.mjs         安装到任意目标仓库的 Node.js 安装器
 templates/map.md          目的地与路线地图模板
 templates/work-item.md    标准/深度任务简报模板
 templates/decision.md     需要长期保留的取舍模板
@@ -70,18 +71,28 @@ templates/blueprint.schema.json
 Agent 使用状态工具时，可以在目标仓库根目录执行：
 
 ```bash
-node tools/aigineer.mjs init --destination "一句话描述目的地"
-node tools/aigineer.mjs status
-node tools/aigineer.mjs approve --node N1
-node tools/aigineer.mjs gate
-node tools/aigineer.mjs verify --node N1 --evidence "定向测试通过"
-node tools/aigineer.mjs arrive --confirm "最终验收和 diff 检查通过"
+node tools/mapflow.mjs init --destination "一句话描述目的地" --nodes N1,N2
+node tools/mapflow.mjs status
+node tools/mapflow.mjs approve --node N1
+node tools/mapflow.mjs gate
+node tools/mapflow.mjs verify --node N1 --evidence "定向测试通过" --command "npm test" --observed "实际输出摘要"
+node tools/mapflow.mjs arrive --confirm "最终验收和 diff 检查通过" --acceptance A1,A2
 ```
 
 `gate` 只在目的地已批准且存在当前地图节点时通过。它是轻量写入门槛，不是沙箱；实际测试、审查和用户授权仍然有效。
+
+## 安装到目标仓库
+
+在 mapflow 仓库根目录执行：
+
+```bash
+node tools/install.mjs --target D:/path/to/your-repo --profile core
+```
+
+安装器会写入目标仓库的 `.mapflow/` 运行时文件和 `.agents/skills/` 核心 Skill。已有文件不会被覆盖；确认后可追加 `--force`。目标仓库的 `AGENTS.md` 不会被自动修改，建议片段会写入 `.mapflow/AGENTS.snippet.md` 供人工合并。
 
 Agent 应先读目标仓库自己的 `AGENTS.md`、README、构建脚本和相关代码，再判断使用小蓝图、任务蓝图还是路线地图。项目自身约定优先于本工作流。
 
 ## 与 CoAgentWorkflow 的关系
 
-`aigineer` 只负责个人开发时的思考、实施和验证节奏。需要多人协作、任务账本、写集声明、Flow 门禁或正式交接时，再进入目标仓库已有的 CoAgentWorkflow 或其他团队流程；这些机制不在本包内默认启动。
+`mapflow` 只负责个人开发时的思考、实施和验证节奏。需要多人协作、任务账本、写集声明、Flow 门禁或正式交接时，再进入目标仓库已有的 CoAgentWorkflow 或其他团队流程；这些机制不在本包内默认启动。`aigineer` 命令和旧目录名仅作为迁移兼容入口保留。

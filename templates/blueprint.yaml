@@ -1,5 +1,5 @@
 # 任务蓝图语义模板。
-# 这是“应该怎样走”的定义，不是当前运行状态；当前状态写入 .aigineer/state.json。
+# 这是“应该怎样走”的定义，不是当前运行状态；当前状态写入 .mapflow/state.json。
 schema_version: 1
 
 destination:
@@ -30,6 +30,13 @@ boundaries:
   authorization:
     - "〈发布、凭证、外部写入或不可逆操作的授权条件〉"
 
+model_policy:
+  recommended_model: gpt-5.6-sol
+  recommended_reasoning: high
+  fallback: gpt-5.6-terra
+  escalate_when:
+    - "结构性变更、复杂调试或最终审计证据相互矛盾"
+
 nodes:
   - id: N1
     kind: decision
@@ -41,6 +48,13 @@ nodes:
     expected_state: "〈节点完成后的状态〉"
     verification:
       - "〈实际执行的验证命令〉"
+    blocked_by: []
+    slice_kind: vertical
+    model_profile:
+      model: gpt-5.6-sol
+      reasoning: medium
+    test_seam: "〈可从公共行为边界验证的 seam〉"
+    deep_module_notes: "〈保持接口小、实现内聚；无则留空〉"
     rollback: "〈回退、替代分支或重规划入口〉"
     on_failure: replan
 
@@ -53,7 +67,7 @@ transitions:
     when: "〈失败或新证据条件〉"
 
 skill_interventions:
-  - skill: aigineer
+  - skill: mapflow
     at: [N1]
     reason: "〈为什么在这里介入〉"
 

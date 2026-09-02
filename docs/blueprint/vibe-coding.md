@@ -52,15 +52,15 @@
 
 | 节点 | 阶段 | 输入 | Skill 介入 | 主要产物 | 写入门槛 | 出口条件 |
 | --- | --- | --- | --- | --- | --- | --- |
-| N0 入口 | `wayfinding` | 用户目标、约束、上下文 | `aigineer` | `.aigineer/state.json` 初始投影 | 无代码写入 | 目标仓库和任务规模已识别 |
+| N0 入口 | `wayfinding` | 用户目标、约束、上下文 | `mapflow` | `.mapflow/state.json` 初始投影 | 无代码写入 | 目标仓库和任务规模已识别 |
 | N1 定形 | `wayfinding` | 用户结果、价值、边界 | `destination-shaping` | Destination Contract | 无代码写入 | 目的地、验收、范围和非目标可判断 |
 | N2 勘探 | `wayfinding` | 目的地、仓库和项目约定 | `repository-recon`；必要时 `domain-modeling` | Recon Report（事实、影响面、未知项） | 无代码写入 | 关键影响面有来源，未知项有探针或阻塞 |
 | N3 成图 | `wayfinding` | 目的地和勘探报告 | `blueprint-planning`；必要时 `grilling`、`wayfinder`、`prior-art` | Blueprint Map、节点顺序、分支、回滚 | 用户批准前不施工 | 第一条可执行路线和唯一第一个节点已写入 |
-| N4 批准 | `wayfinding` -> `implementation` | 地图和当前路线 | `aigineer` | `destination_status=approved`、`current_node` | 用户明确批准 | `gate` 通过，且当前节点唯一 |
+| N4 批准 | `wayfinding` -> `implementation` | 地图和当前路线 | `mapflow` | `destination_status=approved`、`current_node` | 用户明确批准 | `gate` 通过，且当前节点唯一 |
 | N5 切片 | `implementation` | 已批准地图的当前节点 | `node-slicing` | Work Item、声明写集、节点验收 | 仍不写业务代码 | 执行者无需猜测做什么、改哪里和怎样算完成 |
-| N6 施工 | `implementation` | Work Item、写入范围 | `node-delivery`；内部按需 `tdd`、`diagnosing-bugs`、`flow-executor` | 代码、测试、配置或文档改动 | `node tools/aigineer.mjs gate` | 节点改动完成，未超出声明写集 |
-| N7 证明 | `implementation` 内的完成动作 | 节点产物和预期状态 | `node-delivery`；非微小改动追加 `code-review` | Evidence Record、测试/构建/diff/审查证据 | 只接受实际运行结果 | `verify --node N --evidence ...` 成功，或进入重规划 |
-| N8 到达 | `arrived` | 全部节点证据、目的地和风险 | `aigineer`；产品价值按需另行验证 | 到达审计、最终回报、遗留风险 | 不新增未规划功能 | 目标状态出现，验收真实，非目标保持排除 |
+| N6 施工 | `implementation` | Work Item、写入范围 | `node-delivery`；内部按需 `tdd`、`diagnosing-bugs`、`flow-executor` | 代码、测试、配置或文档改动 | `node .mapflow/mapflow.mjs gate` | 节点改动完成，未超出声明写集 |
+| N7 证明 | `implementation` 内的完成动作 | 节点产物和预期状态 | `node-delivery`；非微小改动追加 `code-review` | Evidence Record、测试/构建/diff/审查证据 | 只接受实际运行结果 | `verify --node N --evidence ... --command ... --observed ...` 成功，或进入重规划 |
+| N8 到达 | `arrived` | 全部节点证据、目的地和风险 | `mapflow`；产品价值按需另行验证 | 到达审计、最终回报、遗留风险 | 不新增未规划功能 | 目标状态出现，验收真实，非目标保持排除 |
 
 ### 3.1 N0-N2：入口、定形和勘探
 
@@ -124,6 +124,20 @@ on_failure: "replan"
 
 完成标准：节点预期状态出现；声明写入范围内的改动均有解释；验证命令实际执行；失败、未验证项和风险已进入地图或回报。
 
+### 3.6 模型策略
+
+模型选择是按节点风险调整的执行参数，不是目的地或验收条件。蓝图可以在 `model_policy` 中写推荐值，节点可以用 `model_profile` 覆盖；状态证据另外记录实际使用的模型和推理强度。
+
+默认建议：
+
+| 场景 | 推荐 | 理由 |
+| --- | --- | --- |
+| 目的地定形、关键未知、路线收敛 | `gpt-5.6-sol` + `high` 或 `xhigh` | 需要暴露假设、比较路线并控制遗漏 |
+| 普通节点施工、已有 Work Item 的局部实现 | `gpt-5.6-sol` + `medium` 或 `gpt-5.6-terra` + `medium` | 边界已锁定，降低无关设计和实现漂移 |
+| 复杂调试、结构性 review、验收证据矛盾 | 升级到 `gpt-5.6-sol` + `high` | 先提高诊断和审查质量，再决定是否继续施工 |
+
+模型推荐不能替代证据。记录实际模型时，仍要分别标注真实执行结果、模拟结果、推测和未验证项；较弱模型输出的“完成”不会绕过节点 `verify` 或最终到达审计。
+
 ### 3.5 N8：到达审计
 
 到达审计不是“最后一次聊天总结”，而是四项判定：
@@ -136,7 +150,7 @@ on_failure: "replan"
 四项都能回答时才调用：
 
 ```bash
-node tools/aigineer.mjs arrive --confirm "目标、验收、非目标和遗留风险已审计"
+node .mapflow/mapflow.mjs arrive --confirm "目标、验收、非目标和遗留风险已审计" --acceptance A1
 ```
 
 `arrived` 只表示本轮工程目标和验收已审计，不表示产品价值、生产安全、公开发布或部署成功已被证明。
@@ -157,7 +171,7 @@ node tools/aigineer.mjs arrive --confirm "目标、验收、非目标和遗留�
 
 | Skill | 介入位置 | 它解决什么 | 不应承担什么 |
 | --- | --- | --- | --- |
-| `aigineer` | 全流程入口、状态和门槛 | 阶段路由、地图优先、节点门槛 | 代替领域判断、产品授权或测试 |
+| `mapflow` | 全流程入口、状态和门槛 | 阶段路由、地图优先、节点门槛 | 代替领域判断、产品授权或测试 |
 | `destination-shaping` | N1 定形 | 生成 Destination Contract，收敛价值、验收和边界 | 扫描仓库或选择实现路线 |
 | `repository-recon` | N2 勘探 | 生成 Recon Report，覆盖事实、调用面、契约、生成物和回归面 | 代替产品决策或实施代码 |
 | `blueprint-planning` | N3 成图 | 生成节点路线、转移条件、探针和回退分支 | 代替用户批准或直接施工 |
@@ -184,7 +198,7 @@ node tools/aigineer.mjs arrive --confirm "目标、验收、非目标和遗留�
 | --- | --- | --- | --- |
 | `destination-shaping` | 已实现 | 独立生成 Destination Contract | 观察是否在 Quick 任务中过度增加成本 |
 | `repository-recon`（含 `impact-mapping`） | 已实现 | 统一产出事实、调用方、契约、生成物和回归面 | 观察结构性改动是否仍漏下游 |
-| `node-delivery` + `aigineer`（含 `evidence-auditor`） | 已实现 | 节点证据与到达四问分层，防止测试绿灯被夸大 | 观察证据记录是否足够可审计 |
+| `node-delivery` + `mapflow`（含 `evidence-auditor`） | 已实现 | 节点证据与到达四问分层，防止测试绿灯被夸大 | 观察证据记录是否足够可审计 |
 | `node-slicing`（对应 `map-to-delivery`） | 已实现 | 地图节点转换为声明写集和验收的 Work Item | 观察切片是否稳定而不过度模板化 |
 | `product-validation` | 按需停放 | 产品价值不由工程测试推出；任务命中用户行为或业务指标时加载 `simulate-demanding-users` 或专门验证 | 真实用户/业务证据成为稳定重复需求时再独立拆分 |
 | `release-action` | 停放 | 发布、部署、外部写入和凭证动作暂不进入默认链路 | 出现稳定授权、回执和回滚契约时再设计 |
@@ -202,7 +216,7 @@ blueprint.yaml                 人类编辑的语义真源
         +--> Markdown            决策解释、证据、风险和非目标
         +--> Mermaid              快速草图、评审 diff、临时讨论
         +--> Archify workflow     正式阅读、搜索、主题和导出投影
-        +--> .aigineer/state.json 当前阶段、活动节点和验证投影
+        +--> .mapflow/state.json 当前阶段、活动节点和验证投影
 ```
 
 ### 选择理由
@@ -212,7 +226,7 @@ blueprint.yaml                 人类编辑的语义真源
 - **Markdown** 负责语义解释和证据，保存“为什么这样走”以及哪些内容只是提案；它是决策真源的补充，不重复环境中可直接查到的命令。
 - **Mermaid** 适合快速画草图和讨论，不适合承载复杂布局或执行规则。
 - **Archify HTML** 是可交互的正式投影，适合审查和阅读；它不反向决定阶段、门槛或状态。
-- **`.aigineer/state.json`** 是运行时投影，必须与蓝图定义分离；删除或重建它不应丢失长期地图。
+- **`.mapflow/state.json`** 是运行时投影，必须与蓝图定义分离；删除或重建它不应丢失长期地图。
 
 ### 可扩展约定
 
@@ -255,14 +269,14 @@ extensions:
 ## 9. 运行命令与状态投影
 
 ```bash
-node tools/aigineer.mjs init --destination "一句话描述目的地"
-node tools/aigineer.mjs status
-node tools/aigineer.mjs approve --node N1
-node tools/aigineer.mjs select --node N1
-node tools/aigineer.mjs gate
-node tools/aigineer.mjs verify --node N1 --evidence "定向测试通过"
-node tools/aigineer.mjs replan --reason "新事实改变路线"
-node tools/aigineer.mjs arrive --confirm "最终验收和 diff 检查通过"
+node .mapflow/mapflow.mjs init --destination "一句话描述目的地" --nodes N1,N2
+node .mapflow/mapflow.mjs status
+node .mapflow/mapflow.mjs approve --node N1
+node .mapflow/mapflow.mjs select --node N2
+node .mapflow/mapflow.mjs gate
+node .mapflow/mapflow.mjs verify --node N1 --evidence "定向测试通过" --command "npm test" --observed "实际输出摘要"
+node .mapflow/mapflow.mjs replan --reason "新事实改变路线"
+node .mapflow/mapflow.mjs arrive --confirm "最终验收和 diff 检查通过" --acceptance A1,A2
 ```
 
 命令只维护轻量状态和写入门槛，不是沙箱、测试框架、产品验收器或发布系统。真实验证仍由目标仓库的命令和证据提供。

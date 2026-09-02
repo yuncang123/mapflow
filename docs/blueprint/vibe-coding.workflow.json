@@ -45,9 +45,9 @@
     { "from": "build", "to": "arrive", "variant": "emphasis" }
   ],
   "cards": [
-    { "dot": "cyan", "title": "入口与状态", "items": ["aigineer 识别阶段语句并恢复 .aigineer/state.json", "写入前 gate 检查目的地批准和唯一当前节点", "状态工具是门槛，不是沙箱或产品验收"] },
+    { "dot": "cyan", "title": "入口与状态", "items": ["mapflow 识别明确入口语句并恢复 .mapflow/state.json", "写入前 gate 检查目的地批准和唯一当前节点", "状态工具是门槛，不是沙箱或产品验收"] },
     { "dot": "violet", "title": "决策与探路", "items": ["grilling 解决一个当前 frontier 决策", "wayfinder 持久化目的地、节点、分支和未知项", "research / prior-art / prototype 只处理会改变路线的未知"] },
-    { "dot": "emerald", "title": "节点施工与证明", "items": ["tdd 或 diagnosing-bugs 在节点内部介入", "flow-executor 仅在目标项目采用 Flow 时介入", "verify 记录真实测试、构建、diff 和剩余风险"] },
-    { "dot": "rose", "title": "核心 Skill 分工", "items": ["destination-shaping：生成目的地契约", "repository-recon：生成事实与影响面报告（含 impact-mapping）", "blueprint-planning + node-slicing：把路线收敛为可施工 Work Item", "node-delivery + aigineer：实施节点、记录证据并执行到达审计"] }
+    { "dot": "emerald", "title": "节点施工与证明", "items": ["tdd 或 diagnosing-bugs 在节点内部介入", "flow-executor 仅在目标项目采用 Flow 时介入", "verify 记录真实测试、构建、diff 和剩余风险", "规划用 Sol High，普通施工用 Sol/Terra Medium，实际模型单独留证"] },
+    { "dot": "rose", "title": "核心 Skill 分工", "items": ["destination-shaping：生成目的地契约", "repository-recon：生成事实与影响面报告（含 impact-mapping）", "blueprint-planning + node-slicing：把路线收敛为可施工 Work Item", "node-delivery + mapflow：实施节点、记录证据并执行到达审计"] }
   ]
 }

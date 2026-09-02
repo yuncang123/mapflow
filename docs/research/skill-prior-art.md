@@ -2,7 +2,7 @@
 
 > 调研日期：2026-09-02
 >
-> 结论范围：用于设计 `aigineer` 的个人地图优先 Skill 包。这里只记录与本工作流直接相关的公开一手资料和当前本地 Skill，不把目录数量或社区热度当成需求证据。
+> 结论范围：用于设计 `mapflow` 的个人地图优先 Skill 包。这里只记录与本工作流直接相关的公开一手资料和当前本地 Skill，不把目录数量或社区热度当成需求证据。
 
 ## 1. 检索来源
 
@@ -16,7 +16,7 @@
 - `C:/Users/chaoyuan12/.agents/skills/domain-modeling/SKILL.md`
 - `C:/Users/chaoyuan12/.agents/skills/session-handoff/SKILL.md`
 - `C:/Users/chaoyuan12/.agents/skills/simulate-demanding-users/SKILL.md`
-- `D:/Develop/private/aigineer/docs/blueprint/vibe-coding.md`
+- `D:/Develop/private/mapflow/docs/blueprint/vibe-coding.md`
 
 ### 公开一手资料
 
@@ -36,10 +36,10 @@
 | --- | --- | --- | --- |
 | 目的地收敛 | `absorb + build` | 吸收 Matt `grilling` 的 design tree、frontier、事实/取舍分离；自建 Destination Contract | 不强制“relentless”文风，不把所有问题都问给用户 |
 | 仓库勘探与影响面 | `build` | 吸收本地 `domain-modeling` 的术语纪律、Matt 架构扫描的热点优先和删除测试思想 | 不复制架构报告的 HTML 工作流，不把架构重构当每次任务必做 |
-| 路线地图 | `adapt` | 吸收 Matt `wayfinder` 的目的地先行、地图索引、雾/票、决策与实施分离 | 不依赖 issue tracker；改用本地 Markdown/YAML 和 `aigineer` 状态投影 |
+| 路线地图 | `adapt` | 吸收 Matt `wayfinder` 的目的地先行、地图索引、雾/票、决策与实施分离 | 不依赖 issue tracker；改用本地 Markdown/YAML 和 `mapflow` 状态投影 |
 | 地图到施工 | `absorb` | 吸收 `to-tickets` 的 vertical slice、blocking edges、expand-contract 判据 | 不引入 tracker label、外部 issue 和团队分派 |
 | 节点施工 | `adapt` | 吸收 Matt `implement` 的 spec 驱动、类型/单测节奏和完工 review；组合本地 `tdd`、`diagnosing-bugs`、`code-review` | 不强制每次提交或固定 issue tracker；遵守目标仓库约定 |
-| 节点证据/到达 | `absorb` | 吸收本地 `verify`、`aigineer` 到达四问和 `simulate-demanding-users` 的 observed/inference 边界 | 不创建独立 `evidence-auditor`，因为没有独立用户工作 |
+| 节点证据/到达 | `absorb` | 吸收本地 `verify`、`mapflow` 到达四问和 `simulate-demanding-users` 的 observed/inference 边界 | 不创建独立 `evidence-auditor`，因为没有独立用户工作 |
 | 交接 | `adopt` | 采用本地 `session-handoff` 的目的地证据、检查点和安全边界 | 不改写其协议，不把交接变成正常任务必需步骤 |
 | 复盘 | `adopt` | 采用本地 `retro` 的摩擦/原因/调整结构 | 不在每次小任务后强制复盘 |
 | 产品价值 | `adapt / park` | 需要时使用本地 `simulate-demanding-users` 作为合成用户预检 | 暂不将它升级成通用产品验证 Skill，合成用户不能证明市场或留存 |
@@ -47,7 +47,7 @@
 
 ## 3. 公开生态的分发启示
 
-Matt 的仓库同时支持托管式插件和可编辑文件安装，并明确提醒不要重复安装两套；Anthropic 的仓库采用自包含目录和动态加载。对 `aigineer` 的启示是：
+Matt 的仓库同时支持托管式插件和可编辑文件安装，并明确提醒不要重复安装两套；Anthropic 的仓库采用自包含目录和动态加载。对 `mapflow` 的启示是：
 
 1. 核心 Skill 应该是普通目录 + `SKILL.md`，可脱离特定模型运行。
 2. 编排入口与纪律 Skill 分离，避免一个巨大 Skill 吞掉所有流程。
@@ -60,7 +60,7 @@ Matt 的仓库同时支持托管式插件和可编辑文件安装，并明确提
 这里的“自研”只指具体契约，不是重新发明所有工程实践：
 
 - 把目的地、仓库勘探、路线地图、施工简报和节点证据连接成同一组稳定 artifact。
-- 用 `aigineer` 的轻量状态投影阻止未批准目的地和未选择节点的写入。
+- 用 `mapflow` 的轻量状态投影阻止未批准目的地和未选择节点的写入。
 - 将 issue-tracker 型 wayfinding 改成个人仓库可直接使用的本地文件地图。
 - 把“测试通过”与“目标达到”分成节点证据和到达审计两个层次，同时不增加独立审计 Skill。
 

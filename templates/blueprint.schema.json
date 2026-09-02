@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/aigineer/blueprint.schema.json",
-  "title": "Aigineer Blueprint",
+  "$id": "https://example.invalid/mapflow/blueprint.schema.json",
+  "title": "Mapflow Blueprint",
   "type": "object",
   "required": ["schema_version", "destination", "current_state", "nodes", "transitions"],
   "properties": {
@@ -52,6 +52,16 @@
       }
     },
     "boundaries": { "type": "object" },
+    "model_policy": {
+      "type": "object",
+      "properties": {
+        "recommended_model": { "type": "string", "minLength": 1 },
+        "recommended_reasoning": { "type": "string", "minLength": 1 },
+        "fallback": { "type": "string", "minLength": 1 },
+        "escalate_when": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
     "nodes": {
       "type": "array",
       "minItems": 1,
@@ -69,6 +79,18 @@
           "expected_state": { "type": "string", "minLength": 1 },
           "verification": { "type": "array", "items": { "type": "string" } },
           "rollback": { "type": "string", "minLength": 1 },
+          "blocked_by": { "type": "array", "items": { "type": "string" } },
+          "slice_kind": { "type": "string", "enum": ["vertical", "decision", "probe", "release"] },
+          "model_profile": {
+            "type": "object",
+            "properties": {
+              "model": { "type": "string", "minLength": 1 },
+              "reasoning": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          },
+          "test_seam": { "type": "string" },
+          "deep_module_notes": { "type": "string" },
           "on_failure": { "type": "string", "minLength": 1 }
         },
         "additionalProperties": false

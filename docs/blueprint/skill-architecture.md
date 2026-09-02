@@ -1,4 +1,4 @@
-# Aigineer Skill 能力架构
+# Mapflow Skill 能力架构
 
 > 状态：v0.2 核心能力已实现，正在通过真实任务观察触发成本和边界。
 >
@@ -9,7 +9,7 @@
 核心不应是“每个阶段一个 Skill”，而应是：
 
 ```text
-aigineer                    唯一入口：阶段路由、状态投影、写入门槛、到达协议
+mapflow                    唯一入口：阶段路由、状态投影、写入门槛、到达协议
     |
     +-- destination-shaping  目标契约
     +-- repository-recon     仓库事实与影响面
@@ -30,10 +30,10 @@ node-delivery      --> tdd / diagnosing-bugs / code-review
 
 关键取舍：
 
-1. `aigineer` 是入口，不复制所有子 Skill 的正文。
+1. `mapflow` 是入口，不复制所有子 Skill 的正文。
 2. `destination-shaping`、`repository-recon`、`blueprint-planning`、`node-slicing`、`node-delivery` 各自拥有独立输入、输出和完成条件。
 3. `impact-mapping` 并入 `repository-recon`，因为它依赖同一批仓库事实，单独分发会制造中间状态。
-4. `evidence-auditor` 并入 `node-delivery` 的节点证据和 `aigineer` 的到达审计；它没有稳定的独立用户工作。
+4. `evidence-auditor` 并入 `node-delivery` 的节点证据和 `mapflow` 的到达审计；它没有稳定的独立用户工作。
 5. `arrival-audit` 是入口协议，不是额外 Skill；它决定何时可以宣布到达。
 6. `product-validation` 和 `release-action` 不进入默认链路，分别属于产品价值和外部动作边界；目前按需停放。
 
@@ -41,7 +41,7 @@ node-delivery      --> tdd / diagnosing-bugs / code-review
 
 | 能力 | 用户问题 | 主责 | 不负责 | 输入 | 输出 | 分发形态 | 复用裁决 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `aigineer` | Agent 如何记住当前阶段并阻止过早写入？ | 路由、状态、门槛、到达协议 | 目标判断、测试实现、产品授权 | 用户阶段语句、状态文件 | 状态投影、gate 结果 | 入口 Skill + CLI | `absorb` 现有地图优先规则 |
+| `mapflow` | Agent 如何记住当前阶段并阻止过早写入？ | 路由、状态、门槛、到达协议 | 目标判断、测试实现、产品授权 | 用户阶段语句、状态文件 | 状态投影、gate 结果 | 入口 Skill + CLI | `absorb` 现有地图优先规则 |
 | `destination-shaping` | “做个功能”怎样变成可验收目的地？ | 价值、结果、验收、范围、非目标 | 仓库扫描、代码设计、用户替代决策 | 用户请求、已有上下文 | Destination Contract | 独立 Skill | `absorb` Matt `grilling`，`build` 本地契约 |
 | `repository-recon` | 改动会影响什么，哪些是事实，哪些仍未知？ | 事实清单、影响面、探针候选 | 解决产品取舍、实施代码、盲猜根因 | Destination Contract、仓库 | Recon Report | 独立 Skill | `build`，吸收 `domain-modeling` 和架构扫描思想 |
 | `blueprint-planning` | 从现状到目的地的路线怎样可解释、可恢复？ | 节点、转移、分支、回滚、探针 | 直接实施目的地、替用户批准 | Destination Contract、Recon Report | Blueprint Map | 独立 Skill/本地 Markdown | `adapt` Matt `wayfinder` 到本地文件地图 |
@@ -156,7 +156,7 @@ flowchart LR
   B --> W[Work Item]
   W --> I[Node Delivery]
   I --> E[Evidence Record]
-  E --> A[Aigineer Arrival Audit]
+  E --> A[Mapflow Arrival Audit]
   R -. optional probe .-> P[prior-art / research / prototype]
   B -. optional decision .-> G[grilling / domain-modeling]
   I -. optional mode .-> T[tdd / diagnosing-bugs / code-review]
@@ -168,7 +168,7 @@ flowchart LR
 - 上游只输出契约和证据，不调用下游内部实现。
 - 下游可以拒绝不完整输入，但不能偷偷补全关键缺口。
 - 可选 Skill 是“模式提供者”，不成为核心 Skill 的硬依赖。
-- `aigineer` 维护阶段和状态，但不拥有 Destination/Recon/Work Item 的全部正文。
+- `mapflow` 维护阶段和状态，但不拥有 Destination/Recon/Work Item 的全部正文。
 
 ## 5. 任务分辨率
 
@@ -182,7 +182,7 @@ flowchart LR
 
 ### Deep
 
-架构、数据、安全、迁移、外部动作或跨会话：完整运行五个核心 Skill，使用 `aigineer` gate、检查点和审查；外部动作另走授权门槛。
+架构、数据、安全、迁移、外部动作或跨会话：完整运行五个核心 Skill，使用 `mapflow` gate、检查点和审查；外部动作另走授权门槛。
 
 分辨率可向上升级；不能用降低分辨率规避新证据暴露的风险。
 
@@ -200,10 +200,10 @@ flowchart LR
 按此判定：
 
 - `impact-mapping` 合并进 `repository-recon`；
-- `evidence-auditor` 合并进 `node-delivery + aigineer`；
+- `evidence-auditor` 合并进 `node-delivery + mapflow`；
 - `arrival-audit` 保持入口协议；
 - `product-validation` 和 `release-action` 作为未来按需边界能力；
-- `aigineer` 保留为组合入口，不强迫所有独立 Skill 反向依赖它。
+- `mapflow` 保留为组合入口，不强迫所有独立 Skill 反向依赖它。
 
 ## 7. 最小纵向切片
 
@@ -217,7 +217,7 @@ flowchart LR
   -> 用户批准
   -> node-slicing 生成 N1 Work Item
   -> node-delivery 实施和验证 N1
-  -> aigineer 记录节点证据并进行到达审计
+  -> mapflow 记录节点证据并进行到达审计
 ```
 
 如果这条链在真实任务中不能稳定减少返工，继续拆 Skill 没有价值。

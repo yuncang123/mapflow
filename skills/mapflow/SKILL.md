@@ -1,19 +1,21 @@
 ---
-name: aigineer
-description: "当用户要求先确定目的地、勘探现状、收敛蓝图，再沿地图逐步实现，或明确说进入地图优先模式、批准地图、执行地图节点、重新规划、到达审计时，管理个人 Agent 开发的阶段状态与路由。"
+name: mapflow
+description: "当用户明确说‘启用 mapflow’、‘进入地图优先模式’或使用地图批准、执行节点、重新规划、到达审计语句时，管理个人开发的阶段状态与路由。仅在这些入口语义明确时触发。"
 ---
 
-# aigineer：地图优先的个人开发入口
+# mapflow：地图优先的个人开发入口
 
 这个入口把一次开发工作保持在一个可追踪的状态机里。`docs/workflow.md` 是完整行为真源；本 skill 只负责识别阶段、指向状态工具和阻止过早施工。
 
+安装到目标仓库后，行为真源位于 `.mapflow/workflow.md`，状态投影位于 `.mapflow/state.json`，状态命令为 `node .mapflow/mapflow.mjs`。在本仓库开发时使用 `node tools/mapflow.mjs`。
+
 ## 启动
 
-用户说“进入地图优先模式”或直接给出一个需要先规划的开发目标时：
+用户说“启用 mapflow”“进入地图优先模式”或直接给出一个需要先规划的开发目标并明确要求地图优先时：
 
 1. 读取目标仓库的 `AGENTS.md`、README、构建/测试入口和相关代码。
-2. 读取 `.aigineer/state.json`（若存在）以及当前地图文件。
-3. 没有状态时，先用 `node tools/aigineer.mjs init --destination ...` 建立 `wayfinding + draft` 状态；地图正文由 Agent 按 `templates/map.md` 维护。
+2. 读取 `.mapflow/state.json`（若存在）以及当前地图文件。
+3. 没有状态时，先用 `node .mapflow/mapflow.mjs init --destination ...` 建立 `wayfinding + draft` 状态；地图正文由 Agent 按 `.mapflow/templates/map.md` 维护。
 4. 用事实、目标、非目标、未知项和候选路线形成最小充分蓝图。
 
 地图阶段的完成条件是：目的地可验收、当前现状有证据、关键未知项已解决或被明确列为探针、第一条可执行路线已经写入地图。达到条件后等待用户说“地图已批准，进入施工”。
@@ -35,9 +37,9 @@ description: "当用户要求先确定目的地、勘探现状、收敛蓝图，
 在任何代码、配置或生成物写入前：
 
 1. 确认目的地已批准，且当前节点唯一明确。
-2. 调用 `node tools/aigineer.mjs gate`；返回非零时保持地图阶段。
+2. 调用 `node .mapflow/mapflow.mjs gate`（本仓库开发时调用 `node tools/mapflow.mjs gate`）；返回非零时保持地图阶段。
 3. 只修改当前节点声明的范围。
-4. 完成后运行节点验收，并调用 `verify --node N --evidence "..."`。
+4. 完成后运行节点验收，并调用 `verify --node N --evidence "..." --command "实际命令" --observed "实际输出摘要"`。
 
 如果工具不可用，至少在对话中复述同样的四个条件；工具恢复后补写状态。没有批准目的地或当前节点时，Agent 的工作产出是地图和问题，不是代码。
 

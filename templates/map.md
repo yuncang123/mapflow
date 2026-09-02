@@ -32,6 +32,12 @@ updated: YYYY-MM-DD
 
 - 无 / 待填写
 
+# Model policy
+
+- 规划/关键取舍：gpt-5.6-sol + high（或按风险升级）
+- 普通节点施工：gpt-5.6-sol + medium / gpt-5.6-terra + medium
+- 实际模型与推理强度：在 Evidence Record 中按命令结果记录，不把推荐值当执行事实
+
 # Route
 
 | Node | From | Action | To | Verification | Rollback / branch |

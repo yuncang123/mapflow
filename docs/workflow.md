@@ -58,7 +58,7 @@ arrived         目的地审计通过
 
 “继续”“开始做吧”“按计划来”不改变阶段。收到这类表达时，Agent 先显示当前阶段、目的地状态和下一节点；没有批准的目的地与当前节点时，产出地图，不产出代码。
 
-跨会话工作把地图保存在项目文档中，把当前阶段投影保存在 `.aigineer/state.json`。状态工具可用时，在写入前运行 `node tools/aigineer.mjs gate`；工具不可用时，Agent 必须在回复中复述同样的门槛。地图是长期事实，状态文件可以按项目习惯提交或保持本地。
+跨会话工作把地图保存在项目文档中，把当前阶段投影保存在 `.mapflow/state.json`。状态工具可用时，在写入前运行 `node .mapflow/mapflow.mjs gate`；本仓库开发时运行 `node tools/mapflow.mjs gate`。工具不可用时，Agent 必须在回复中复述同样的门槛。地图是长期事实，状态文件可以按项目习惯提交或保持本地。
 
 ### 2.1 定位
 
@@ -184,7 +184,7 @@ Agent 先读取：
 
 ## 5. Skill 使用规则
 
-Skills 是按需能力，不是默认清单。先用仓库原生事实和命令；只有任务命中触发条件时才加载对应 skill。地图优先入口见 `skills/aigineer/SKILL.md`，具体路由见 [skill-routing.md](skill-routing.md)。
+Skills 是按需能力，不是默认清单。先用仓库原生事实和命令；只有任务命中触发条件时才加载对应 skill。地图优先入口见 `skills/mapflow/SKILL.md`，具体路由见 [skill-routing.md](skill-routing.md)。只有用户明确说“启用 mapflow”或使用阶段触发语时，才加载入口 Skill；普通开发请求不自动套用完整流程。
 
 核心链路可按任务分辨率组合为：`destination-shaping`（目的地契约）→ `repository-recon`（事实与影响面）→ `blueprint-planning`（路线地图）→ `node-slicing`（施工简报）→ `node-delivery`（节点实施与证据）。这些能力通过文件化产物衔接；小任务可以压缩或跳过不必要的中间落盘，但不能跳过目的地、写入门槛和验证。
 
