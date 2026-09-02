@@ -2,3 +2,5 @@ interface:
   display_name: "Mapflow"
   short_description: "按目的地、蓝图和节点证据推进个人开发"
   default_prompt: "仅当用户明确要求启用 mapflow 或进入地图优先模式时，按目的地、仓库勘探、蓝图批准、节点施工、验证和到达审计推进。"
+policy:
+  allow_implicit_invocation: true
