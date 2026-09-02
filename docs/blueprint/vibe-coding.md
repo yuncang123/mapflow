@@ -59,7 +59,7 @@
 | N4 批准 | `wayfinding` -> `implementation` | 地图和当前路线 | `mapflow` | `destination_status=approved`、`current_node` | 用户明确批准 | `gate` 通过，且当前节点唯一 |
 | N5 切片 | `implementation` | 已批准地图的当前节点 | `node-slicing` | Work Item、声明写集、节点验收 | 仍不写业务代码 | 执行者无需猜测做什么、改哪里和怎样算完成 |
 | N6 施工 | `implementation` | Work Item、写入范围 | `node-delivery`；内部按需 `tdd`、`diagnosing-bugs`、`flow-executor` | 代码、测试、配置或文档改动 | `node .mapflow/mapflow.mjs gate` | 节点改动完成，未超出声明写集 |
-| N7 证明 | `implementation` 内的完成动作 | 节点产物和预期状态 | `node-delivery`；非微小改动追加 `code-review` | Evidence Record、测试/构建/diff/审查证据 | 只接受实际运行结果 | `verify --node N --evidence ... --command ... --observed ...` 成功，或进入重规划 |
+| N7 证明 | `implementation` 内的完成动作 | 节点产物和预期状态 | `node-delivery`；非微小改动追加 `code-review` | Evidence Record、测试/构建/diff/审查证据 | 只接受实际运行结果 | `verify --node N --evidence ... --command ... --observed ... --model ... --reasoning ...` 成功，或进入重规划 |
 | N8 到达 | `arrived` | 全部节点证据、目的地和风险 | `mapflow`；产品价值按需另行验证 | 到达审计、最终回报、遗留风险 | 不新增未规划功能 | 目标状态出现，验收真实，非目标保持排除 |
 
 ### 3.1 N0-N2：入口、定形和勘探
