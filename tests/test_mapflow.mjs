@@ -138,6 +138,10 @@ test("installer creates an isolated core layout without touching AGENTS.md", () 
   assert.equal(fs.readFileSync(agents, "utf8"), "# project rules\n");
   assert.ok(fs.existsSync(path.join(target, ".mapflow", "mapflow.mjs")));
   assert.ok(fs.existsSync(path.join(target, ".mapflow", "workflow.md")));
+  const installedWorkflow = fs.readFileSync(path.join(target, ".mapflow", "workflow.md"), "utf8");
+  assert.match(installedWorkflow, /\.mapflow\/templates\/map\.md/);
+  assert.match(installedWorkflow, /\.agents\/skills\/mapflow\/SKILL\.md/);
+  assert.doesNotMatch(installedWorkflow, /`templates\//);
   assert.ok(fs.existsSync(path.join(target, ".agents", "skills", "mapflow", "SKILL.md")));
   assert.match(fs.readFileSync(path.join(target, ".agents", "skills", "blueprint-planning", "SKILL.md"), "utf8"), /\.mapflow\/templates\/map\.md/);
   assert.match(fs.readFileSync(path.join(target, ".agents", "skills", "node-slicing", "SKILL.md"), "utf8"), /\.mapflow\/templates\/work-item\.md/);

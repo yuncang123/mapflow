@@ -79,6 +79,18 @@ function ensureSourceEntries(entries) {
   }
 }
 
+function installableContent(relativeSource) {
+  const source = path.join(SOURCE_ROOT, relativeSource);
+  let content = fs.readFileSync(source, "utf8");
+  if (relativeSource === "docs/workflow.md" || relativeSource === "docs/blueprint/vibe-coding.md") {
+    content = content
+      .replaceAll("templates/", ".mapflow/templates/")
+      .replaceAll("skills/mapflow", ".agents/skills/mapflow")
+      .replaceAll("node tools/mapflow.mjs", "node .mapflow/mapflow.mjs");
+  }
+  return content;
+}
+
 function agentsSnippet() {
   return `# mapflow 使用建议\n\n` +
     `当用户明确说“启用 mapflow”或“进入地图优先模式”时，读取 .mapflow/workflow.md，按目的地、勘探、蓝图批准、节点施工、验证和到达审计推进。\n` +
@@ -114,7 +126,13 @@ function install(targetRoot, options) {
     const source = path.join(SOURCE_ROOT, relativeSource);
     const target = path.join(targetRoot, relativeTarget);
     fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.cpSync(source, target, { recursive: true });
+    if (fs.statSync(source).isDirectory()) {
+      fs.cpSync(source, target, { recursive: true });
+    } else if (relativeSource === "docs/workflow.md" || relativeSource === "docs/blueprint/vibe-coding.md") {
+      fs.writeFileSync(target, installableContent(relativeSource), "utf8");
+    } else {
+      fs.copyFileSync(source, target);
+    }
   }
 
   const generated = {

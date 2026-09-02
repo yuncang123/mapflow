@@ -272,12 +272,15 @@ extensions:
 node .mapflow/mapflow.mjs init --destination "一句话描述目的地" --nodes N1,N2 --acceptance A1,A2
 node .mapflow/mapflow.mjs status
 node .mapflow/mapflow.mjs approve --node N1
-node .mapflow/mapflow.mjs select --node N2
 node .mapflow/mapflow.mjs gate
 node .mapflow/mapflow.mjs verify --node N1 --evidence "定向测试通过" --command "npm test" --observed "实际输出摘要" --model "gpt-5.6-sol" --reasoning "medium"
-node .mapflow/mapflow.mjs replan --reason "新事实改变路线"
+node .mapflow/mapflow.mjs select --node N2
+node .mapflow/mapflow.mjs gate
+node .mapflow/mapflow.mjs verify --node N2 --evidence "第二节点验收通过" --command "npm run scenario" --observed "实际输出摘要" --model "gpt-5.6-sol" --reasoning "medium"
 node .mapflow/mapflow.mjs arrive --confirm "最终验收和 diff 检查通过" --acceptance A1,A2
 ```
+
+发现新事实时，暂停当前节点并另行执行 `node .mapflow/mapflow.mjs replan --reason "新事实改变路线" --nodes N1,N2 --acceptance A1,A2`。
 
 命令只维护轻量状态和写入门槛，不是沙箱、测试框架、产品验收器或发布系统。真实验证仍由目标仓库的命令和证据提供。
 

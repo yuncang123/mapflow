@@ -315,6 +315,16 @@ function commandArrive(statePath, options) {
     const missing = state.nodes.filter((node) => !state.completed_nodes.includes(node));
     if (missing.length > 0) fail(`cannot arrive; declared nodes are not verified: ${missing.join(", ")}`);
   }
+  const evidenceRecords = Array.isArray(state.evidence) ? state.evidence : [];
+  const missingEvidence = state.completed_nodes.filter((node) => !evidenceRecords.some((record) => (
+    record.node === node
+    && Array.isArray(record.checks)
+    && record.checks.some((check) => check.result === "pass")
+    && (!record.limits || !Array.isArray(record.limits.unverified) || record.limits.unverified.length === 0)
+  )));
+  if (missingEvidence.length > 0) {
+    fail(`cannot arrive; completed nodes lack a passing verified evidence record: ${missingEvidence.join(", ")}`);
+  }
   state.phase = "arrived";
   state.last_verification = confirm;
   state.arrival_audit = {
