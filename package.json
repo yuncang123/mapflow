@@ -1,0 +1,13 @@
+{
+  "name": "aigineer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Map-first solo development workflow",
+  "scripts": {
+    "test": "node --test tests/test_aigineer.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

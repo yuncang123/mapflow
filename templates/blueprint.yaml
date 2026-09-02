@@ -1,0 +1,70 @@
+# 任务蓝图语义模板。
+# 这是“应该怎样走”的定义，不是当前运行状态；当前状态写入 .aigineer/state.json。
+schema_version: 1
+
+destination:
+  statement: "〈可观察的最终状态〉"
+  value: "〈谁在什么场景得到什么结果〉"
+  acceptance:
+    - id: A1
+      proof: "〈命令、路径或可观察结果〉"
+
+current_state:
+  verified_facts:
+    - "〈来自代码、配置、测试或运行输出的事实〉"
+  sources:
+    - "〈文件或命令〉"
+
+assumptions: []
+unknowns:
+  - id: U1
+    question: "〈会改变路线的未知〉"
+    probe: "〈research / prior-art / prototype / 直接验证〉"
+    stop_condition: "〈何时可以停止探针〉"
+
+boundaries:
+  in_scope:
+    - "〈本轮允许写入的范围〉"
+  out_of_scope:
+    - "〈明确不做的事〉"
+  authorization:
+    - "〈发布、凭证、外部写入或不可逆操作的授权条件〉"
+
+nodes:
+  - id: N1
+    kind: decision
+    title: "〈节点标题〉"
+    inputs: ["〈前置节点或事实〉"]
+    skills: ["〈按需加载的 skill〉"]
+    writes: ["〈文件、目录或生成物〉"]
+    preconditions: ["〈前置条件〉"]
+    expected_state: "〈节点完成后的状态〉"
+    verification:
+      - "〈实际执行的验证命令〉"
+    rollback: "〈回退、替代分支或重规划入口〉"
+    on_failure: replan
+
+transitions:
+  - from: N1
+    to: N2
+    when: "〈出口条件〉"
+  - from: N1
+    to: replan
+    when: "〈失败或新证据条件〉"
+
+skill_interventions:
+  - skill: aigineer
+    at: [N1]
+    reason: "〈为什么在这里介入〉"
+
+evidence: []
+
+arrival:
+  audit:
+    - destination_reached
+    - acceptance_proven
+    - non_goals_excluded
+    - residual_risks_reported
+
+extensions:
+  x-owner: "〈个人或团队〉"

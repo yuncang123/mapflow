@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "地图优先的个人 Vibe Coding 工作流",
+    "locale": "zh-CN",
+    "output": "docs/blueprint/vibe-coding.workflow.html",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "main-path", "label": "主路径", "focus": ["start", "recon", "decide", "map", "build", "arrive"], "note": "从目标和现状出发，经过蓝图和施工到达审计。" },
+      { "id": "skill-points", "label": "Skill 介入点", "focus": ["probe", "review", "replan", "build"], "note": "Skill 只在当前节点命中时加载，不是固定全家桶。" },
+      { "id": "recovery", "label": "偏差分支", "focus": ["probe", "replan", "decide", "map"], "note": "未知或新事实出现时暂停施工，回到决策和地图阶段。" }
+    ]
+  },
+  "lanes": [
+    { "id": "main", "label": "地图优先主路径" },
+    { "id": "skills", "label": "按需 Skill" },
+    { "id": "evidence", "label": "验证证据" },
+    { "id": "exceptions", "label": "偏差分支", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "orient", "label": "定向", "fromCol": 0, "toCol": 0 },
+    { "id": "discover", "label": "勘探与收敛", "fromCol": 1, "toCol": 1, "variant": "emphasis" },
+    { "id": "plan", "label": "地图与批准", "fromCol": 2, "toCol": 2, "variant": "emphasis" },
+    { "id": "build", "label": "逐节点施工", "fromCol": 3, "toCol": 3 },
+    { "id": "prove", "label": "验证与到达", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["start", "recon", "decide", "map", "build", "arrive"],
+  "nodes": [
+    { "id": "start", "lane": "main", "col": 0, "type": "external", "label": "入口", "sublabel": "目标", "width": 48 },
+    { "id": "recon", "lane": "main", "col": 1, "type": "database", "label": "勘探", "sublabel": "事实", "width": 48 },
+    { "id": "decide", "lane": "main", "col": 2, "type": "backend", "label": "收敛", "sublabel": "grilling", "width": 48 },
+    { "id": "map", "lane": "main", "col": 3, "type": "backend", "label": "蓝图", "sublabel": "路由", "width": 40 },
+    { "id": "build", "lane": "main", "col": 4, "type": "backend", "label": "施工", "sublabel": "节点", "width": 40 },
+    { "id": "arrive", "lane": "main", "col": 5, "type": "external", "label": "到达", "sublabel": "验证审计", "width": 48 },
+    { "id": "probe", "lane": "skills", "col": 2, "type": "cloud", "label": "探针", "sublabel": "research", "tag": "未知" },
+    { "id": "review", "lane": "evidence", "col": 4, "type": "database", "label": "复核", "sublabel": "review" },
+    { "id": "replan", "lane": "exceptions", "col": 3, "type": "security", "label": "重规划", "sublabel": "新事实" }
+  ],
+  "edges": [
+    { "from": "start", "to": "recon", "variant": "emphasis" },
+    { "from": "recon", "to": "decide", "variant": "emphasis" },
+    { "from": "decide", "to": "map", "variant": "emphasis" },
+    { "from": "map", "to": "build", "variant": "emphasis" },
+    { "from": "build", "to": "arrive", "variant": "emphasis" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "入口与状态", "items": ["aigineer 识别阶段语句并恢复 .aigineer/state.json", "写入前 gate 检查目的地批准和唯一当前节点", "状态工具是门槛，不是沙箱或产品验收"] },
+    { "dot": "violet", "title": "决策与探路", "items": ["grilling 解决一个当前 frontier 决策", "wayfinder 持久化目的地、节点、分支和未知项", "research / prior-art / prototype 只处理会改变路线的未知"] },
+    { "dot": "emerald", "title": "节点施工与证明", "items": ["tdd 或 diagnosing-bugs 在节点内部介入", "flow-executor 仅在目标项目采用 Flow 时介入", "verify 记录真实测试、构建、diff 和剩余风险"] },
+    { "dot": "rose", "title": "核心 Skill 分工", "items": ["destination-shaping：生成目的地契约", "repository-recon：生成事实与影响面报告（含 impact-mapping）", "blueprint-planning + node-slicing：把路线收敛为可施工 Work Item", "node-delivery + aigineer：实施节点、记录证据并执行到达审计"] }
+  ]
+}
