@@ -99,7 +99,7 @@ skills: [tdd]
 writes: ["src/auth/**", "tests/auth/**"]
 preconditions: ["destination_status=approved", "current_node=N5"]
 expected_state: "未完成设备验证的请求被拒绝"
-verification: ["npm test -- auth"]
+verification: ["目标仓库的认证定向测试命令"]
 on_failure: "replan"
 ```
 
@@ -273,10 +273,10 @@ node .mapflow/mapflow.mjs init --destination "一句话描述目的地" --nodes 
 node .mapflow/mapflow.mjs status
 node .mapflow/mapflow.mjs approve --node N1
 node .mapflow/mapflow.mjs gate
-node .mapflow/mapflow.mjs verify --node N1 --evidence "定向测试通过" --command "npm test" --observed "实际输出摘要" --model "gpt-5.6-sol" --reasoning "medium"
+node .mapflow/mapflow.mjs verify --node N1 --evidence "定向测试通过" --command "目标仓库定向测试命令" --observed "实际输出摘要" --model "gpt-5.6-sol" --reasoning "medium"
 node .mapflow/mapflow.mjs select --node N2
 node .mapflow/mapflow.mjs gate
-node .mapflow/mapflow.mjs verify --node N2 --evidence "第二节点验收通过" --command "npm run scenario" --observed "实际输出摘要" --model "gpt-5.6-sol" --reasoning "medium"
+node .mapflow/mapflow.mjs verify --node N2 --evidence "第二节点验收通过" --command "目标仓库场景验证命令" --observed "实际输出摘要" --model "gpt-5.6-sol" --reasoning "medium"
 node .mapflow/mapflow.mjs arrive --confirm "最终验收和 diff 检查通过" --acceptance A1,A2
 ```
 
