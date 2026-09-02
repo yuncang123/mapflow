@@ -59,6 +59,12 @@ function validateState(state) {
     fail("nodes must not contain duplicates");
   }
   if ("evidence" in state && !Array.isArray(state.evidence)) fail("evidence must be a list");
+  if ("acceptance" in state && (!Array.isArray(state.acceptance) || state.acceptance.some((item) => typeof item !== "string" || item.trim() === ""))) {
+    fail("acceptance must be a list of non-empty strings");
+  }
+  if (Array.isArray(state.acceptance) && new Set(state.acceptance).size !== state.acceptance.length) {
+    fail("acceptance must not contain duplicates");
+  }
 }
 
 function loadState(statePath) {
@@ -148,6 +154,7 @@ function commandInit(statePath, options) {
     destination: required(options, "destination"),
     map: options.get("map") ?? path.join("docs", "wayfinding", "current", "README.md"),
     nodes: csv(options, "nodes"),
+    acceptance: csv(options, "acceptance"),
     current_node: null,
     completed_nodes: [],
     last_verification: null,
@@ -179,6 +186,9 @@ function commandApprove(statePath, options) {
   const state = loadState(statePath);
   if (state.phase !== "wayfinding" || !new Set(["draft", "changed"]).has(state.destination_status)) {
     fail("approve requires wayfinding phase and a draft/changed destination");
+  }
+  if (!Array.isArray(state.nodes) || state.nodes.length === 0) {
+    fail("approve requires declared nodes; use replan --nodes N1,N2 first");
   }
   const node = required(options, "node");
   declaredNode(state, node);
@@ -216,31 +226,43 @@ function commandVerify(statePath, options) {
   const claim = required(options, "evidence");
   const command = required(options, "command");
   const observed = required(options, "observed");
+  const actualModel = required(options, "model");
+  const actualReasoning = required(options, "reasoning");
   const result = options.get("result") ?? "pass";
   if (!["pass", "fail", "blocked", "skipped"].includes(result)) {
     fail(`invalid verification result: ${result}`);
   }
+  const simulated = csv(options, "simulated");
+  const inferred = csv(options, "inferred");
+  const unverified = csv(options, "unverified");
+  const productUnknowns = csv(options, "product-unknown");
   const evidence = {
     node,
     claim,
     checks: [{ command, result, observed }],
     limits: {
-      simulated: csv(options, "simulated"),
-      inferred: csv(options, "inferred"),
-      unverified: csv(options, "unverified"),
-      product_unknowns: csv(options, "product-unknown"),
+      simulated,
+      inferred,
+      unverified,
+      product_unknowns: productUnknowns,
     },
-    actual_model: options.get("model") ?? null,
-    actual_reasoning: options.get("reasoning") ?? null,
+    actual_model: actualModel,
+    actual_reasoning: actualReasoning,
     recorded_at: now(),
   };
   if (!Array.isArray(state.evidence)) state.evidence = [];
   state.evidence.push(evidence);
   state.last_verification = claim;
-  if (result !== "pass") {
-    record(state, "node_verification_failed", { node, result });
+  if (result !== "pass" || unverified.length > 0) {
+    record(state, "node_verification_incomplete", {
+      node,
+      result,
+      unverified,
+    });
     saveState(statePath, state);
-    fail(`node verification did not pass: ${node}`);
+    fail(result === "pass"
+      ? `node verification has unverified limits: ${node}`
+      : `node verification did not pass: ${node}`);
   }
   if (!state.completed_nodes.includes(node)) state.completed_nodes.push(node);
   state.current_node = null;
@@ -256,6 +278,16 @@ function commandReplan(statePath, options) {
   state.phase = "wayfinding";
   state.destination_status = "changed";
   state.current_node = null;
+  if (options.has("nodes")) {
+    const nodes = csv(options, "nodes");
+    if (nodes.length === 0) fail("--nodes must contain at least one node");
+    state.nodes = nodes;
+  }
+  if (options.has("acceptance")) {
+    const acceptance = csv(options, "acceptance");
+    if (acceptance.length === 0) fail("--acceptance must contain at least one acceptance id");
+    state.acceptance = acceptance;
+  }
   record(state, "replan_requested", { reason });
   saveState(statePath, state);
   process.stdout.write("returned to wayfinding; destination marked changed\n");
@@ -270,6 +302,15 @@ function commandArrive(statePath, options) {
   if (state.completed_nodes.length === 0) fail("cannot arrive before at least one node is verified");
   const confirm = required(options, "confirm");
   const acceptance = required(options, "acceptance");
+  if (!Array.isArray(state.acceptance) || state.acceptance.length === 0) {
+    fail("cannot arrive without a declared acceptance contract; use init/replan --acceptance A1,A2");
+  }
+  const requestedAcceptance = csv(options, "acceptance");
+  const missingAcceptance = state.acceptance.filter((id) => !requestedAcceptance.includes(id));
+  const unknownAcceptance = requestedAcceptance.filter((id) => !state.acceptance.includes(id));
+  if (missingAcceptance.length > 0 || unknownAcceptance.length > 0) {
+    fail(`acceptance ids do not match the declared contract (missing: ${missingAcceptance.join(", ") || "-"}; unknown: ${unknownAcceptance.join(", ") || "-"})`);
+  }
   if (Array.isArray(state.nodes) && state.nodes.length > 0) {
     const missing = state.nodes.filter((node) => !state.completed_nodes.includes(node));
     if (missing.length > 0) fail(`cannot arrive; declared nodes are not verified: ${missing.join(", ")}`);
@@ -277,7 +318,7 @@ function commandArrive(statePath, options) {
   state.phase = "arrived";
   state.last_verification = confirm;
   state.arrival_audit = {
-    acceptance: csv(options, "acceptance"),
+    acceptance: requestedAcceptance,
     non_goals: csv(options, "non-goals"),
     risks: csv(options, "risks"),
     confirm,

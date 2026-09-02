@@ -34,6 +34,7 @@ model_policy:
   recommended_model: gpt-5.6-sol
   recommended_reasoning: high
   fallback: gpt-5.6-terra
+  fallback_reasoning: medium
   escalate_when:
     - "结构性变更、复杂调试或最终审计证据相互矛盾"
 

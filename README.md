@@ -56,30 +56,9 @@ templates/blueprint.schema.json
 验收：新增失败场景测试，现有认证测试全部通过。
 ```
 
-## 阶段切换示例
+## 入口和命令
 
-用户可以直接使用固定语句控制阶段：
-
-```text
-进入地图优先模式
-地图已批准，进入施工
-执行地图节点 N1
-发现偏差，重新规划
-进行到达审计
-```
-
-Agent 使用状态工具时，可以在目标仓库根目录执行：
-
-```bash
-node tools/mapflow.mjs init --destination "一句话描述目的地" --nodes N1,N2
-node tools/mapflow.mjs status
-node tools/mapflow.mjs approve --node N1
-node tools/mapflow.mjs gate
-node tools/mapflow.mjs verify --node N1 --evidence "定向测试通过" --command "npm test" --observed "实际输出摘要"
-node tools/mapflow.mjs arrive --confirm "最终验收和 diff 检查通过" --acceptance A1,A2
-```
-
-`gate` 只在目的地已批准且存在当前地图节点时通过。它是轻量写入门槛，不是沙箱；实际测试、审查和用户授权仍然有效。
+用户说“启用 mapflow”后，Agent 会按 [docs/workflow.md](docs/workflow.md) 路由阶段和 Skill。CLI 可用 `node tools/mapflow.mjs --help` 查看；安装到目标仓库后使用 `node .mapflow/mapflow.mjs --help`。
 
 ## 安装到目标仓库
 

@@ -6,7 +6,8 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const SOURCE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const VERSION = "0.2.0";
+const PACKAGE = JSON.parse(fs.readFileSync(path.join(SOURCE_ROOT, "package.json"), "utf8"));
+const VERSION = PACKAGE.version;
 const CORE_SKILLS = [
   "mapflow",
   "destination-shaping",
@@ -117,7 +118,7 @@ function install(targetRoot, options) {
   }
 
   const generated = {
-    package: "mapflow",
+    package: PACKAGE.name,
     version: VERSION,
     profile,
     installed_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),

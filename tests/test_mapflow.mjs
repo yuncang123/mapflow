@@ -31,13 +31,14 @@ function assertExit(result, expected = 0) {
 test("map to arrival happy path", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-"));
   const state = path.join(directory, ".mapflow", "state.json");
-  assertExit(runCli(state, "init", "--destination", "ship a verified slice", "--nodes", "N1,N2"));
+  assertExit(runCli(state, "init", "--destination", "ship a verified slice", "--nodes", "N1,N2", "--acceptance", "A1,A2"));
   assertExit(runCli(state, "gate"), 1);
   assertExit(runCli(state, "approve", "--node", "N1"));
   assertExit(runCli(state, "gate"));
   assertExit(runCli(state, "verify", "--node", "N1", "--evidence", "unit tests pass", "--command", "npm test -- auth", "--observed", "2 tests passed", "--model", "gpt-5.6-sol", "--reasoning", "medium"));
   assertExit(runCli(state, "select", "--node", "N2"));
-  assertExit(runCli(state, "verify", "--node", "N2", "--evidence", "scenario pass", "--command", "npm run scenario", "--observed", "scenario passed"));
+  assertExit(runCli(state, "verify", "--node", "N2", "--evidence", "scenario pass", "--command", "npm run scenario", "--observed", "scenario passed", "--model", "gpt-5.6-sol", "--reasoning", "medium"));
+  assertExit(runCli(state, "arrive", "--confirm", "wrong acceptance ids", "--acceptance", "A1"), 1);
   assertExit(runCli(state, "arrive", "--confirm", "acceptance and diff audit pass", "--acceptance", "A1,A2", "--non-goals", "deployment", "--risks", "none"));
   const data = JSON.parse(fs.readFileSync(state, "utf8"));
   assert.equal(data.phase, "arrived");
@@ -50,19 +51,20 @@ test("map to arrival happy path", () => {
 test("replan blocks writes until approval", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-"));
   const state = path.join(directory, "state.json");
-  assertExit(runCli(state, "init", "--destination", "test replan"));
+  assertExit(runCli(state, "init", "--destination", "test replan", "--nodes", "N1"));
   assertExit(runCli(state, "approve", "--node", "N1"));
-  assertExit(runCli(state, "replan", "--reason", "new dependency discovered"));
+  assertExit(runCli(state, "replan", "--reason", "new dependency discovered", "--nodes", "N2", "--acceptance", "A1"));
   assertExit(runCli(state, "gate"), 1);
   const data = JSON.parse(fs.readFileSync(state, "utf8"));
   assert.equal(data.phase, "wayfinding");
   assert.equal(data.destination_status, "changed");
+  assert.deepEqual(data.nodes, ["N2"]);
 });
 
 test("invalid transition is rejected", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-"));
   const state = path.join(directory, "state.json");
-  assertExit(runCli(state, "init", "--destination", "invalid transition"));
+  assertExit(runCli(state, "init", "--destination", "invalid transition", "--nodes", "N1"));
   assertExit(runCli(state, "select", "--node", "N1"), 1);
   assertExit(runCli(state, "approve", "--node", "N1"));
   assertExit(runCli(state, "verify", "--node", "N2", "--evidence", "wrong node", "--command", "npm test", "--observed", "wrong node"), 1);
@@ -71,7 +73,7 @@ test("invalid transition is rejected", () => {
 test("arrival requires verified node", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-"));
   const state = path.join(directory, "state.json");
-  assertExit(runCli(state, "init", "--destination", "verified arrival"));
+  assertExit(runCli(state, "init", "--destination", "verified arrival", "--nodes", "N1"));
   assertExit(runCli(state, "approve", "--node", "N1"));
   assertExit(runCli(state, "arrive", "--confirm", "claimed complete"), 1);
 });
@@ -92,15 +94,34 @@ test("duplicate declared nodes are rejected", () => {
   assert.equal(fs.existsSync(state), false);
 });
 
-test("declared nodes are enforced and failed evidence does not complete a node", () => {
+test("approval requires a declared route", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-"));
   const state = path.join(directory, "state.json");
-  assertExit(runCli(state, "init", "--destination", "bounded nodes", "--nodes", "N1,N2"));
+  assertExit(runCli(state, "init", "--destination", "route required"));
+  assertExit(runCli(state, "approve", "--node", "N1"), 1);
+  const data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.phase, "wayfinding");
+});
+
+test("verification requires actual model metadata", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-"));
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--destination", "model evidence", "--nodes", "N1", "--acceptance", "A1"));
   assertExit(runCli(state, "approve", "--node", "N1"));
-  assertExit(runCli(state, "verify", "--node", "N1", "--evidence", "failed check", "--command", "npm test", "--observed", "1 failed", "--result", "fail", "--unverified", "integration"), 1);
+  assertExit(runCli(state, "verify", "--node", "N1", "--evidence", "tests pass", "--command", "npm test", "--observed", "1 passed"), 1);
+  const data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.deepEqual(data.completed_nodes, []);
+});
+
+test("declared nodes are enforced and unverified evidence does not complete a node", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-"));
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--destination", "bounded nodes", "--nodes", "N1,N2", "--acceptance", "A1"));
+  assertExit(runCli(state, "approve", "--node", "N1"));
+  assertExit(runCli(state, "verify", "--node", "N1", "--evidence", "unverified check", "--command", "npm test", "--observed", "not run", "--result", "pass", "--unverified", "integration", "--model", "gpt-5.6-sol", "--reasoning", "medium"), 1);
   let data = JSON.parse(fs.readFileSync(state, "utf8"));
   assert.deepEqual(data.completed_nodes, []);
-  assert.equal(data.evidence[0].checks[0].result, "fail");
+  assert.equal(data.evidence[0].checks[0].result, "pass");
   assertExit(runCli(state, "replan", "--reason", "failed node needs a new route"));
   assertExit(runCli(state, "approve", "--node", "N3"), 1);
   assertExit(runCli(state, "verify", "--node", "N2", "--evidence", "wrong node", "--command", "npm test", "--observed", "not active"), 1);
@@ -118,6 +139,8 @@ test("installer creates an isolated core layout without touching AGENTS.md", () 
   assert.ok(fs.existsSync(path.join(target, ".mapflow", "mapflow.mjs")));
   assert.ok(fs.existsSync(path.join(target, ".mapflow", "workflow.md")));
   assert.ok(fs.existsSync(path.join(target, ".agents", "skills", "mapflow", "SKILL.md")));
+  assert.match(fs.readFileSync(path.join(target, ".agents", "skills", "blueprint-planning", "SKILL.md"), "utf8"), /\.mapflow\/templates\/map\.md/);
+  assert.match(fs.readFileSync(path.join(target, ".agents", "skills", "node-slicing", "SKILL.md"), "utf8"), /\.mapflow\/templates\/work-item\.md/);
   const manifest = JSON.parse(fs.readFileSync(path.join(target, ".mapflow", "install-manifest.json"), "utf8"));
   assert.equal(manifest.package, "mapflow");
   assert.equal(manifest.version, "0.2.0");

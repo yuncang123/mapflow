@@ -58,6 +58,7 @@
         "recommended_model": { "type": "string", "minLength": 1 },
         "recommended_reasoning": { "type": "string", "minLength": 1 },
         "fallback": { "type": "string", "minLength": 1 },
+        "fallback_reasoning": { "type": "string", "minLength": 1 },
         "escalate_when": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false

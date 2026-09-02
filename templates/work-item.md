@@ -37,7 +37,7 @@ updated: YYYY-MM-DD
 - 节点类型：vertical / decision / probe / release
 - 阻塞节点：无 / N...
 - 测试 seam：从哪个公共行为边界观察结果
-- 推荐模型：gpt-5.6-sol + medium（可按风险调整）
+- 推荐模型：gpt-5.6-sol + medium / gpt-5.6-terra + medium（可按风险调整）
 - 深模块备注：接口保持小而稳定；无则写“无”
 
 # 验收

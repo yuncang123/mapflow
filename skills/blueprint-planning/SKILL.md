@@ -11,7 +11,7 @@ description: "把目的地契约和仓库勘探报告收敛成可解释、可验
 
 - 已批准或待批准的 Destination Contract。
 - `repository-recon` 产出的事实、影响面、未知项和探针结果。
-- 项目约定的地图位置；没有约定时可用 `templates/map.md` 或 `templates/blueprint.yaml`。
+- 项目约定的地图位置；没有约定时，本仓库可用 `templates/map.md` 或 `templates/blueprint.yaml`，安装目标仓库使用 `.mapflow/templates/map.md` 或 `.mapflow/templates/blueprint.yaml`。
 
 缺少目的地或关键现状证据时，先回到上游 Skill；不要在地图中猜测关键前提。
 

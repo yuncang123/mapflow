@@ -17,7 +17,7 @@ description: "把已批准蓝图中的一个节点切成可施工的 Work Item�
 
 ## 产出
 
-形成 Work Item（可使用 `templates/work-item.md`），至少包含：
+形成 Work Item（本仓库可使用 `templates/work-item.md`，安装目标仓库使用 `.mapflow/templates/work-item.md`），至少包含：
 
 ```yaml
 kind: work-item

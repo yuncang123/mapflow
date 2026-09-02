@@ -60,6 +60,8 @@ arrived         目的地审计通过
 
 跨会话工作把地图保存在项目文档中，把当前阶段投影保存在 `.mapflow/state.json`。状态工具可用时，在写入前运行 `node .mapflow/mapflow.mjs gate`；本仓库开发时运行 `node tools/mapflow.mjs gate`。工具不可用时，Agent 必须在回复中复述同样的门槛。地图是长期事实，状态文件可以按项目习惯提交或保持本地。
 
+状态 CLI 的严格边界：`approve` 只能选择 `init`/`replan --nodes` 声明过的节点；`verify` 必须记录实际命令、观察结果、实际模型和推理强度，带有 `unverified` 限制时不能完成节点；`arrive` 必须提供并匹配已声明的验收 ID，且所有已声明节点都已通过验证。CLI 记录的是执行者报告的证据，不会替你执行命令或证明命令字符串真实运行过。
+
 ### 2.1 定位
 
 Agent 先读取：
