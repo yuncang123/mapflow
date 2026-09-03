@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Mapflow Board</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/vendor/cytoscape.min.js" defer></script>
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <a class="skip-link" href="#inspector">跳到地图检查器</a>
+  <div id="source-banner" class="source-banner" role="status" hidden></div>
+
+  <header class="masthead">
+    <div class="brand-block">
+      <div class="brand-mark" aria-hidden="true"><span></span><span></span></div>
+      <div>
+        <p class="eyebrow">MAPFLOW / FIELD VIEW</p>
+        <h1 id="destination-title">正在读取地图…</h1>
+      </div>
+    </div>
+    <div class="status-rack" aria-label="地图状态摘要">
+      <div class="status-cell">
+        <span class="status-label">阶段</span>
+        <strong id="phase-value">—</strong>
+      </div>
+      <div class="status-cell">
+        <span class="status-label">可达性</span>
+        <strong id="reachability-value">—</strong>
+      </div>
+      <div class="status-cell">
+        <span class="status-label">实际到达</span>
+        <strong id="arrival-value">—</strong>
+      </div>
+      <div class="status-cell status-cell-wide">
+        <span class="status-label">真相版本</span>
+        <strong id="revision-value" class="mono">—</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="workbench">
+    <aside class="route-lens" aria-labelledby="route-lens-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">ROUTE LENS</p>
+          <h2 id="route-lens-title">路线镜头</h2>
+        </div>
+        <span id="sync-state" class="sync-state">连接中</span>
+      </div>
+
+      <label class="search-field" for="map-search">
+        <span>搜索地图</span>
+        <input id="map-search" type="search" placeholder="节点、边或 Predicate" autocomplete="off">
+        <kbd>/</kbd>
+      </label>
+
+      <div class="lens-switch" role="group" aria-label="地图视图">
+        <button type="button" class="lens-button is-active" data-lens="proven" aria-pressed="true">当前路线</button>
+        <button type="button" class="lens-button" data-lens="all" aria-pressed="false">全部候选</button>
+        <button type="button" class="lens-button" data-lens="fog" aria-pressed="false">迷雾与缺口</button>
+      </div>
+
+      <div id="map-counts" class="map-counts" aria-label="地图计数"></div>
+
+      <div class="element-list-heading">
+        <span>可导航对象</span>
+        <span id="visible-count" class="mono">0</span>
+      </div>
+      <div id="element-list" class="element-list" aria-live="polite"></div>
+    </aside>
+
+    <section class="map-stage" aria-labelledby="map-stage-title">
+      <div class="map-toolbar">
+        <div>
+          <p class="eyebrow">SURVEY CANVAS</p>
+          <h2 id="map-stage-title">当前地图</h2>
+        </div>
+        <div class="toolbar-actions">
+          <button id="fit-map" type="button" class="quiet-button">适配视野</button>
+          <button id="relayout-map" type="button" class="quiet-button">重新布图</button>
+        </div>
+      </div>
+      <div class="canvas-frame">
+        <div class="bearing bearing-top" aria-hidden="true">N · 000°</div>
+        <div class="bearing bearing-side" aria-hidden="true">E · 090°</div>
+        <div id="cy" role="application" aria-label="Mapflow 状态节点和工作边地图"></div>
+        <div id="canvas-empty" class="canvas-empty" hidden>当前镜头没有匹配对象。</div>
+        <div class="map-legend" aria-label="地图图例">
+          <span><i class="legend-line active"></i>活动边</span>
+          <span><i class="legend-line verified"></i>已验证</span>
+          <span><i class="legend-node fog"></i>迷雾</span>
+          <span><i class="legend-node gap"></i>缺口</span>
+        </div>
+      </div>
+    </section>
+
+    <aside id="inspector" class="inspector" tabindex="-1" aria-labelledby="inspector-title">
+      <div class="panel-heading inspector-heading">
+        <div>
+          <p class="eyebrow">FIELD LEDGER</p>
+          <h2 id="inspector-title">证据检查器</h2>
+        </div>
+        <span class="read-only-chip">只读</span>
+      </div>
+      <div id="inspector-content" class="inspector-content"></div>
+    </aside>
+  </main>
+
+  <footer class="soundings" aria-labelledby="soundings-title">
+    <div class="soundings-heading">
+      <div>
+        <p class="eyebrow">CHANGE SOUNDINGS</p>
+        <h2 id="soundings-title">变化测深</h2>
+      </div>
+      <p id="freshness" class="freshness">等待第一次同步</p>
+    </div>
+    <div id="timeline" class="timeline"></div>
+  </footer>
+
+  <div id="announcer" class="sr-only" aria-live="polite"></div>
+</body>
+</html>

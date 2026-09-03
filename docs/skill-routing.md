@@ -1,29 +1,27 @@
-# 可选 Skill 路由
+# Skill 路由
 
-这张表只回答“什么时候值得加载一个额外 skill”。它不是必装清单，也不要求所有宿主拥有同名能力。
+Mapflow 只加载当前模型边界需要的能力；各 Skill 通过明确产物衔接。
 
-开发工作的默认入口是 `mapflow`：先维护目的地和路线，再按当前地图节点加载下面的能力。
+| 当前需要 | Skill | 产物 | 完成条件 |
+| --- | --- | --- | --- |
+| 把模糊愿望变成目标谓词 | `destination-shaping` | Destination Contract | 目标、验收、不变量和授权可判断 |
+| 勘探仓库型工作的起始地 | `repository-recon` | 四值 Fact 与代码影响面 | 关键仓库事实有来源或探针 |
+| 找路、证明、修图 | `blueprint-planning` | State Node、Work Edge、proof gaps | 结构完整且逻辑/条件可达 |
+| 让一条边可独立执行 | `edge-slicing` | 语义化 Task Brief | 执行面、证据和失败边界完整 |
+| 执行当前工作边 | `edge-delivery` | 产物与 Evidence Record | effects 有实际证据并更新 Fact |
 
-核心链路 Skill 通过文件化产物低耦合衔接；不需要为小任务一次性加载全部能力。
+旁路能力：
 
-| 任务信号 | 加载 | 产出或作用 |
-| --- | --- | --- |
-| 明确说“启用 mapflow”或要求维护目的地、地图、节点施工 | `mapflow` | 管理阶段状态、实施门槛和到达审计 |
-| 目标、价值、验收、范围或非目标仍含歧义 | `destination-shaping` | 生成 Destination Contract |
-| 目的地已明确，但仓库事实、影响面或未知项不清 | `repository-recon` | 生成 Recon Report，覆盖调用方、契约、生成物和回归面 |
-| 需要把现状到目的地变成节点路线 | `blueprint-planning` | 生成 Blueprint Map、转移条件和重规划分支 |
-| 地图已批准，但当前节点还不能直接施工 | `node-slicing` | 生成 Work Item，锁定写入范围和节点验收 |
-| 当前 Work Item 已批准且需要实施一个节点 | `node-delivery` | 实施、验证、审查并生成 Evidence Record |
-| 目标、范围或架构取舍不清 | `grilling` | 收敛关键决策，避免带着假设编码 |
-| 新工具、脚本、CLI、集成或方案 | `prior-art` | 先检索现成方案，再决定采用、改造或自研 |
-| 明确的 bug、回归或性能问题 | `diagnosing-bugs` | 以证据定位原因，再实施修复 |
-| 行为变化且测试形状清楚 | `tdd` | 先建立失败测试，再实现和重构 |
-| 共享接口、结构性改动或非微小改动 | `code-review` | 检查规范、需求、耦合和回归 |
-| 修改 `AGENTS.md`、skill 或 Agent 文档 | `writing-for-agents` | 保持入口、指针、步骤和完成条件可执行 |
-| 领域术语、上下文或长期架构决定 | `domain-modeling` | 维护术语表、CONTEXT 或 ADR |
-| 大型、跨会话且路线仍有迷雾 | `wayfinder` | 先形成路线票，再转成可实施任务 |
-| 会话中断、换工具或换仓库 | `session-handoff` | 保存目标、状态、改动、验证、风险和下一步 |
-| 一轮工作后发现流程摩擦 | `retro` | 记录一次可执行的流程改进 |
-| 第二个 Agent 进入同一仓库 | `coagent-bridge` | 仅在多人同仓时处理共同事实和归因 |
+非仓库工作直接按行为真源从文档、会议、人员或外部系统固定起始 Fact，不加载 `repository-recon`。
 
-以下能力默认不加载：团队 Flow 门禁、多人桥接、看板、runner、消息系统和浏览器自动化。它们属于具体项目或协作场景，不是个人开发的每次开工成本。
+- 关键意图取舍：`grilling`；
+- 外部一手事实：`research`；
+- 现成方案与组件：`prior-art`；
+- 一次性设计疑问：`prototype`；
+- 术语与不可逆架构取舍：`domain-modeling`；
+- 行为测试先行：`tdd`；
+- 已知故障：`diagnosing-bugs`；
+- 非微小改动复核：`code-review`；
+- 跨会话或工具交接：`session-handoff`。
+
+普通请求不自动进入 Mapflow。用户明确启用后，从当前 proof gap 或 active edge 选择最窄 Skill；不把所有能力一次加载。

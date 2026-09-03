@@ -1,85 +1,186 @@
-# 任务蓝图语义模板。
-# 这是“应该怎样走”的定义，不是当前运行状态；当前状态写入 .mapflow/state.json。
-schema_version: 1
+# Mapflow v0.3 Blueprint 示例。Blueprint 是定义真源，运行事实写入 .mapflow/state.json。
+schema_version: 2
+map_id: publish-article
 
 destination:
-  statement: "〈可观察的最终状态〉"
-  value: "〈谁在什么场景得到什么结果〉"
+  statement: 文章已公开发布且敏感内容已经检查
+  requires:
+    - article-published
+    - public-url-exists
+    - sensitive-content-checked
+  invariants:
+    - approval-before-publish
   acceptance:
-    - id: A1
-      proof: "〈命令、路径或可观察结果〉"
+    - id: public-page-readable
+      proves: [article-published, public-url-exists]
+      proof: 公开 URL 可以读取文章正文
+    - id: sensitive-review-recorded
+      proves: [sensitive-content-checked]
+      proof: 检查记录能够回指候选稿
 
-current_state:
-  verified_facts:
-    - "〈来自代码、配置、测试或运行输出的事实〉"
-  sources:
-    - "〈文件或命令〉"
+predicates:
+  - id: source-exists
+    fact: source-exists
+    equals: "true"
+    kind: state
+  - id: audience-unknown
+    fact: audience-known
+    equals: unknown
+    kind: state
+  - id: audience-known
+    fact: audience-known
+    equals: "true"
+    kind: state
+  - id: article-drafted
+    fact: article-drafted
+    equals: "true"
+    kind: state
+  - id: sensitive-content-checked
+    fact: sensitive-content-checked
+    equals: "true"
+    kind: state
+  - id: owner-approved
+    fact: owner-approved
+    equals: "true"
+    kind: authorization
+  - id: article-published
+    fact: article-published
+    equals: "true"
+    kind: state
+  - id: public-url-exists
+    fact: public-url-exists
+    equals: "true"
+    kind: state
+
+initial_state:
+  facts:
+    - id: source-exists
+      value: "true"
+      evidence:
+        - kind: document
+          ref: notes/source.md
+    - id: audience-known
+      value: unknown
+      evidence: []
+    - id: article-drafted
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: initial inspection
+    - id: sensitive-content-checked
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: initial inspection
+    - id: owner-approved
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: no approval receipt
+    - id: article-published
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: publication lookup
+    - id: public-url-exists
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: publication lookup
 
 assumptions: []
-unknowns:
-  - id: U1
-    question: "〈会改变路线的未知〉"
-    probe: "〈research / prior-art / prototype / 直接验证〉"
-    stop_condition: "〈何时可以停止探针〉"
+
+invariants:
+  - id: approval-before-publish
+    applies_to: [publish-article]
+    requires: [owner-approved]
 
 boundaries:
-  in_scope:
-    - "〈本轮允许写入的范围〉"
-  out_of_scope:
-    - "〈明确不做的事〉"
-  authorization:
-    - "〈发布、凭证、外部写入或不可逆操作的授权条件〉"
-
-model_policy:
-  recommended_model: gpt-5.6-sol
-  recommended_reasoning: high
-  fallback: gpt-5.6-terra
-  fallback_reasoning: medium
-  escalate_when:
-    - "结构性变更、复杂调试或最终审计证据相互矛盾"
+  in_scope: [写作、审阅和发布路线]
+  out_of_scope: [自动决定文章受众]
+  authorization: [公开发布必须由 Owner 明确授权]
 
 nodes:
-  - id: N1
-    kind: decision
-    title: "〈节点标题〉"
-    inputs: ["〈前置节点或事实〉"]
-    skills: ["〈按需加载的 skill〉"]
-    writes: ["〈文件、目录或生成物〉"]
-    preconditions: ["〈前置条件〉"]
-    expected_state: "〈节点完成后的状态〉"
-    verification:
-      - "〈实际执行的验证命令〉"
-    blocked_by: []
-    slice_kind: vertical
-    model_profile:
-      model: gpt-5.6-sol
-      reasoning: medium
-    test_seam: "〈可从公共行为边界验证的 seam〉"
-    deep_module_notes: "〈保持接口小、实现内聚；无则留空〉"
-    rollback: "〈回退、替代分支或重规划入口〉"
-    on_failure: replan
+  - id: material-present-audience-unknown
+    kind: fog
+    label: 素材存在，读者未知
+    predicates: [source-exists, audience-unknown]
+  - id: writing-ready
+    kind: state
+    label: 素材和读者已明确
+    predicates: [source-exists, audience-known]
+  - id: candidate-ready
+    kind: join
+    label: 候选稿与敏感检查均完成
+    predicates: [article-drafted, sensitive-content-checked]
+  - id: candidate-approved
+    kind: state
+    label: 候选稿已批准
+    predicates: [article-drafted, sensitive-content-checked, owner-approved]
+  - id: article-live
+    kind: destination
+    label: 文章已发布
+    predicates: [article-published, public-url-exists, sensitive-content-checked]
 
-transitions:
-  - from: N1
-    to: N2
-    when: "〈出口条件〉"
-  - from: N1
-    to: replan
-    when: "〈失败或新证据条件〉"
+edges:
+  - id: settle-audience
+    from: material-present-audience-unknown
+    to: writing-ready
+    brief_ref: briefs/settle-audience.md
+    preconditions: [source-exists, audience-unknown]
+    effects: [audience-known]
+    invariants: []
+    certainty: expected
+    evidence_contract:
+      - id: audience-decision-record
+        proves: [audience-known]
+        required: true
+    on_failure:
+      action: replan
+  - id: write-candidate
+    from: writing-ready
+    to: candidate-ready
+    brief_ref: briefs/write-candidate.md
+    preconditions: [source-exists, audience-known]
+    effects: [article-drafted, sensitive-content-checked]
+    invariants: []
+    certainty: expected
+    evidence_contract:
+      - id: candidate-and-review-record
+        proves: [article-drafted, sensitive-content-checked]
+        required: true
+    on_failure:
+      action: replan
+  - id: obtain-owner-approval
+    from: candidate-ready
+    to: candidate-approved
+    brief_ref: briefs/obtain-owner-approval.md
+    preconditions: [article-drafted, sensitive-content-checked]
+    effects: [owner-approved]
+    invariants: []
+    certainty: conditional
+    evidence_contract:
+      - id: owner-approval-receipt
+        proves: [owner-approved]
+        required: true
+    on_failure:
+      action: stop
+  - id: publish-article
+    from: candidate-approved
+    to: article-live
+    brief_ref: briefs/publish-article.md
+    preconditions: [article-drafted, sensitive-content-checked, owner-approved]
+    effects: [article-published, public-url-exists]
+    invariants: [approval-before-publish]
+    certainty: expected
+    evidence_contract:
+      - id: publication-readback
+        proves: [article-published, public-url-exists]
+        required: true
+    on_failure:
+      action: replan
 
-skill_interventions:
-  - skill: mapflow
-    at: [N1]
-    reason: "〈为什么在这里介入〉"
-
-evidence: []
-
-arrival:
-  audit:
-    - destination_reached
-    - acceptance_proven
-    - non_goals_excluded
-    - residual_risks_reported
+loops: []
 
 extensions:
-  x-owner: "〈个人或团队〉"
+  x-owner: personal

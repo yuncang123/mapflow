@@ -1,25 +1,38 @@
 ---
-id: CP-YYYYMMDD-短名
-task: 任务或目标
+id: semantic-checkpoint
+map: 路线地图
 status: paused
 updated: YYYY-MM-DD
 ---
 
-# 目标
+# Destination and proof
 
-# 当前状态
+- 当前目的地：
+- 最近一次可达性结论：
+- 尚未修复的 proof gaps：
 
-已经完成什么，正在做什么？
+# Runtime projection
 
-# 改动
+- Phase：
+- Active edge：
+- Verified edges：
+- Satisfied nodes（由事实派生）：
+- Candidate edges（反向候选）：
+- Proven edges（抵达路线）：
+- Loop iterations（当前计数 / 最大预算）：
 
-列出已修改、未提交和已提交的文件或提交。
+# Facts and evidence
 
-# 验证
+列出本次新增或变化的 Fact、四值状态和 Evidence Record；历史证据只追加。
 
-列出已运行的命令、结果和未运行的检查。
+# Map changes
 
-# 风险与下一步
+- Proof gap / 新观察：
+- Repair scope：
+- Declared change refs：
+- Actual change refs：
+- 被保留的 verified edge / Evidence Record：
 
-下一次会话从哪里开始？需要用户决定什么？
+# Next edge
 
+下一次从哪条 Work Edge 开始？它的 Task Brief、前置条件和授权是否仍成立？

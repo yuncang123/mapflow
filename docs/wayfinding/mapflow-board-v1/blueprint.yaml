@@ -1,0 +1,184 @@
+schema_version: 2
+map_id: mapflow-dynamic-board
+
+destination:
+  statement: Mapflow 拥有可离线分发、动态刷新、可解释且经过浏览器验收的只读地图看板
+  requires:
+    - projection-truth-preserved
+    - board-live-refreshes
+    - board-explorable
+    - board-distributable
+    - board-automated-checks-pass
+    - board-browser-accepted
+  invariants: [projection-remains-read-only]
+  acceptance:
+    - id: truth-boundary-visible
+      proves: [projection-truth-preserved]
+      proof: 看板只投影注册版本，并区分 current、stale 和 invalid
+    - id: current-map-refreshes
+      proves: [board-live-refreshes]
+      proof: API 通过 ETag 轮询刷新且状态更新不重新布局
+    - id: map-is-explainable
+      proves: [board-explorable]
+      proof: 节点和边均可下钻到 Brief、Evidence、Acceptance 和 Proof Gap
+    - id: board-installs-offline
+      proves: [board-distributable]
+      proof: 项目级安装包含服务、UI、Cytoscape bundle 和许可证
+    - id: board-quality-audited
+      proves: [board-automated-checks-pass, board-browser-accepted]
+      proof: 自动化测试与真实浏览器关键旅程均通过
+
+predicates:
+  - id: runtime-contract-present
+    fact: runtime-contract-present
+    equals: "true"
+    kind: state
+  - id: board-model-missing
+    fact: board-model-ready
+    equals: "false"
+    kind: state
+  - id: projection-truth-preserved
+    fact: projection-truth-preserved
+    equals: "true"
+    kind: state
+  - id: board-model-ready
+    fact: board-model-ready
+    equals: "true"
+    kind: state
+  - id: board-live-refreshes
+    fact: board-live-refreshes
+    equals: "true"
+    kind: state
+  - id: board-explorable
+    fact: board-explorable
+    equals: "true"
+    kind: state
+  - id: board-distributable
+    fact: board-distributable
+    equals: "true"
+    kind: state
+  - id: board-automated-checks-pass
+    fact: board-automated-checks-pass
+    equals: "true"
+    kind: state
+  - id: board-browser-accepted
+    fact: board-browser-accepted
+    equals: "true"
+    kind: state
+
+initial_state:
+  facts:
+    - id: runtime-contract-present
+      value: "true"
+      evidence: [{ kind: document, ref: docs/blueprint/map-model.md }]
+    - id: board-model-ready
+      value: "false"
+      evidence: [{ kind: observation, ref: no active BoardModel compiler }]
+    - id: projection-truth-preserved
+      value: "false"
+      evidence: [{ kind: observation, ref: board not implemented }]
+    - id: board-live-refreshes
+      value: "false"
+      evidence: [{ kind: observation, ref: board not implemented }]
+    - id: board-explorable
+      value: "false"
+      evidence: [{ kind: observation, ref: board not implemented }]
+    - id: board-distributable
+      value: "false"
+      evidence: [{ kind: observation, ref: installer has no board assets }]
+    - id: board-automated-checks-pass
+      value: "false"
+      evidence: [{ kind: observation, ref: board tests do not exist }]
+    - id: board-browser-accepted
+      value: "false"
+      evidence: [{ kind: observation, ref: browser acceptance not run }]
+
+assumptions: []
+
+invariants:
+  - id: projection-remains-read-only
+    applies_to: [compile-board-model, build-interactive-board, wire-board-distribution, audit-board-in-browser]
+    requires: [runtime-contract-present]
+
+boundaries:
+  in_scope: [BoardModel、本地服务、浏览器 UI、安装分发和验收]
+  out_of_scope: [业务写入、远程托管、多人同步和超大图优化]
+  authorization: [仅修改 mapflow 仓库并运行本地只读服务]
+
+nodes:
+  - id: board-unbuilt
+    kind: state
+    label: v0.3 真相模型存在，看板尚未实现
+    predicates: [runtime-contract-present, board-model-missing]
+  - id: board-model-established
+    kind: state
+    label: BoardModel 与真相边界成立
+    predicates: [projection-truth-preserved, board-model-ready]
+  - id: board-interactive
+    kind: join
+    label: 看板可刷新并可解释探索
+    predicates: [projection-truth-preserved, board-live-refreshes, board-explorable]
+  - id: board-installable
+    kind: state
+    label: 看板可离线安装
+    predicates: [projection-truth-preserved, board-live-refreshes, board-explorable, board-distributable]
+  - id: board-accepted
+    kind: destination
+    label: 看板已完成质量审计
+    predicates: [projection-truth-preserved, board-live-refreshes, board-explorable, board-distributable, board-automated-checks-pass, board-browser-accepted]
+
+edges:
+  - id: compile-board-model
+    from: board-unbuilt
+    to: board-model-established
+    brief_ref: briefs/compile-board-model.md
+    preconditions: [runtime-contract-present, board-model-missing]
+    effects: [projection-truth-preserved, board-model-ready]
+    invariants: [projection-remains-read-only]
+    certainty: expected
+    evidence_contract:
+      - id: board-model-tests
+        proves: [projection-truth-preserved, board-model-ready]
+        required: true
+    on_failure: { action: replan }
+  - id: build-interactive-board
+    from: board-model-established
+    to: board-interactive
+    brief_ref: briefs/build-interactive-board.md
+    preconditions: [projection-truth-preserved, board-model-ready]
+    effects: [board-live-refreshes, board-explorable]
+    invariants: [projection-remains-read-only]
+    certainty: expected
+    evidence_contract:
+      - id: board-api-and-ui-tests
+        proves: [board-live-refreshes, board-explorable]
+        required: true
+    on_failure: { action: replan }
+  - id: wire-board-distribution
+    from: board-interactive
+    to: board-installable
+    brief_ref: briefs/wire-board-distribution.md
+    preconditions: [board-live-refreshes, board-explorable]
+    effects: [board-distributable]
+    invariants: [projection-remains-read-only]
+    certainty: expected
+    evidence_contract:
+      - id: installed-board-smoke
+        proves: [board-distributable]
+        required: true
+    on_failure: { action: replan }
+  - id: audit-board-in-browser
+    from: board-installable
+    to: board-accepted
+    brief_ref: briefs/audit-board-in-browser.md
+    preconditions: [board-distributable, board-live-refreshes, board-explorable]
+    effects: [board-automated-checks-pass, board-browser-accepted]
+    invariants: [projection-remains-read-only]
+    certainty: expected
+    evidence_contract:
+      - id: automated-and-browser-audit
+        proves: [board-automated-checks-pass, board-browser-accepted]
+        required: true
+    on_failure: { action: replan }
+
+loops: []

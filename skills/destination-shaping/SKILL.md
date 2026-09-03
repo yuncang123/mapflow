@@ -1,57 +1,34 @@
 ---
 name: destination-shaping
-description: "把模糊的开发请求收敛为可观察、可验收的目的地契约；当目标、价值、范围或非目标会改变实现方向时使用。"
+description: "把模糊请求收敛为目标 Predicate、不变量、验收证据和授权边界；当目标、价值、范围或非目标会改变路线时使用。"
 ---
 
-# destination-shaping：定形目的地
+# destination-shaping：目的地定形
 
-把用户想做的事情变成一个可以被后续勘探和施工引用的 Destination Contract。这个 Skill 只解决“要到哪里”，不负责扫描仓库、设计代码或开始实施。
-
-## 输入
-
-- 用户请求、已知上下文和约束。
-- 用户已经明确的优先级、授权边界或不可接受结果。
-- 若存在，读取当前地图中的目的地草稿；不要把旧草稿当成事实。
-
-## 产出
-
-用 Markdown 或 YAML 写出一份 Destination Contract，至少包含：
-
-```yaml
-kind: destination
-schema_version: 1
-statement: "可观察的最终状态"
-value: "谁在什么场景得到什么结果"
-acceptance:
-  - id: A1
-    proof: "命令、路径或可观察结果"
-scope:
-  in_scope: []
-  out_of_scope: []
-boundaries: []
-```
+把愿望变成可证明的 Destination Contract，不提前决定工作边或实现结构。
 
 ## 步骤
 
-1. **结果**：把“做一个功能”改写成用户或系统最终能观察到的状态。区分交付物名称和真正的结果。
-2. **价值**：说明谁在什么场景因这个状态受益；无法判断时保留为待决定事项，不用技术实现替代价值判断。
-3. **验收**：为每个关键结果写出可执行命令、测试、界面观察或其他可复现证据。避免使用“看起来没问题”这类不可检查表述。
-4. **边界**：列出本轮允许触及的范围、明确不做的内容，以及发布、凭证、外部写入和不可逆操作的授权条件。
-5. **收敛**：只提出会改变目的地或验收的最上游问题，一次处理一个。需要批判性取舍时可加载 `grilling`；不要用它替代用户决定。
+1. **目标 Predicate**：把最终必须成立的结果写成语义化 Predicate。完成条件：每一项都能由事实观察判断，不是动作或任务标题。
+2. **验收映射**：为每项目标指定 acceptance ID、所证明的 Predicate 和可观察证据。完成条件：所有目标 Predicate 至少被一项验收覆盖。
+3. **不变量**：记录路线中不能被破坏的约束，并指出适用工作边或外部动作。完成条件：授权、安全、成本和时间边界都有明确所有者。
+4. **范围收敛**：列出 in scope、out of scope 和需要用户决定的最上游取舍。完成条件：剩余歧义不会导向两张不同地图；否则一次只问一个关键问题。
 
-## 完成条件
+## 产出
 
-只有同时满足以下条件才宣布目的地已定形：
+```yaml
+destination:
+  statement: "可观察的目的地"
+  requires: [target-predicate]
+  invariants: [named-invariant]
+  acceptance:
+    - id: observable-proof
+      proves: [target-predicate]
+      proof: "实际证据"
+boundaries:
+  in_scope: []
+  out_of_scope: []
+  authorization: []
+```
 
-- `statement` 能描述一个可观察的最终状态；
-- `value`、`acceptance`、`in_scope`、`out_of_scope` 均已填写，或每个缺口都标为待用户决定；
-- 高风险外部动作有明确授权边界；
-- 仍未决定的事项已经列出，且不会被默默带入后续路线；
-- 没有因目标未定形而开始写代码。
-
-## 边界
-
-- 不扫描仓库事实；把仓库现状交给 `repository-recon`。
-- 不决定模块、API、数据结构或具体实现路线；把路线交给 `blueprint-planning`。
-- 不把“测试通过”直接写成目的地达成；工程证据和产品价值分别记录。
-- 目的地发生实质变化时，废弃或标记旧契约，要求重新批准，不在旧地图上悄悄施工。
+不把 expected effect 写成 observed fact，不替用户授权发布、凭证、外部写入或不可逆动作。

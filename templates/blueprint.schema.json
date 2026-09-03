@@ -1,24 +1,28 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/mapflow/blueprint.schema.json",
-  "title": "Mapflow Blueprint",
+  "title": "Mapflow Blueprint v0.3",
   "type": "object",
-  "required": ["schema_version", "destination", "current_state", "nodes", "transitions"],
+  "required": ["schema_version", "map_id", "destination", "predicates", "initial_state", "assumptions", "invariants", "boundaries", "nodes", "edges", "loops"],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "const": 2 },
+    "map_id": { "$ref": "#/$defs/id" },
     "destination": {
       "type": "object",
-      "required": ["statement", "acceptance"],
+      "required": ["statement", "requires", "invariants", "acceptance"],
       "properties": {
         "statement": { "type": "string", "minLength": 1 },
-        "value": { "type": "string" },
+        "requires": { "$ref": "#/$defs/nonEmptyIdList" },
+        "invariants": { "$ref": "#/$defs/idList" },
         "acceptance": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "type": "object",
-            "required": ["id", "proof"],
+            "required": ["id", "proves", "proof"],
             "properties": {
               "id": { "$ref": "#/$defs/id" },
+              "proves": { "$ref": "#/$defs/nonEmptyIdList" },
               "proof": { "type": "string", "minLength": 1 }
             },
             "additionalProperties": false
@@ -27,39 +31,66 @@
       },
       "additionalProperties": false
     },
-    "current_state": {
-      "type": "object",
-      "required": ["verified_facts"],
-      "properties": {
-        "verified_facts": { "type": "array", "items": { "type": "string" } },
-        "sources": { "type": "array", "items": { "type": "string" } }
-      },
-      "additionalProperties": false
-    },
-    "assumptions": { "type": "array", "items": { "type": "string" } },
-    "unknowns": {
+    "predicates": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "question", "probe", "stop_condition"],
+        "required": ["id", "fact", "equals", "kind"],
         "properties": {
           "id": { "$ref": "#/$defs/id" },
-          "question": { "type": "string", "minLength": 1 },
-          "probe": { "type": "string", "minLength": 1 },
-          "stop_condition": { "type": "string", "minLength": 1 }
+          "fact": { "$ref": "#/$defs/id" },
+          "equals": { "$ref": "#/$defs/truthValue" },
+          "kind": { "enum": ["state", "authorization", "resource", "progress"] }
         },
         "additionalProperties": false
       }
     },
-    "boundaries": { "type": "object" },
-    "model_policy": {
+    "initial_state": {
       "type": "object",
+      "required": ["facts"],
       "properties": {
-        "recommended_model": { "type": "string", "minLength": 1 },
-        "recommended_reasoning": { "type": "string", "minLength": 1 },
-        "fallback": { "type": "string", "minLength": 1 },
-        "fallback_reasoning": { "type": "string", "minLength": 1 },
-        "escalate_when": { "type": "array", "items": { "type": "string" } }
+        "facts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fact" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "predicate", "source", "status"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "predicate": { "$ref": "#/$defs/id" },
+          "source": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["accepted", "unverified"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "invariants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "applies_to", "requires"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "applies_to": { "$ref": "#/$defs/nonEmptyIdList" },
+          "requires": { "$ref": "#/$defs/nonEmptyIdList" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "boundaries": {
+      "type": "object",
+      "required": ["in_scope", "out_of_scope", "authorization"],
+      "properties": {
+        "in_scope": { "$ref": "#/$defs/stringList" },
+        "out_of_scope": { "$ref": "#/$defs/stringList" },
+        "authorization": { "$ref": "#/$defs/stringList" }
       },
       "additionalProperties": false
     },
@@ -68,55 +99,134 @@
       "minItems": 1,
       "items": {
         "type": "object",
-      "required": ["id", "kind", "title", "inputs", "skills", "writes", "preconditions", "expected_state", "verification", "on_failure"],
+        "required": ["id", "kind", "label", "predicates"],
         "properties": {
           "id": { "$ref": "#/$defs/id" },
-          "kind": { "type": "string", "minLength": 1 },
-          "title": { "type": "string", "minLength": 1 },
-          "inputs": { "type": "array", "items": { "type": "string" } },
-          "skills": { "type": "array", "items": { "type": "string" } },
-          "writes": { "type": "array", "items": { "type": "string" } },
-          "preconditions": { "type": "array", "items": { "type": "string" } },
-          "expected_state": { "type": "string", "minLength": 1 },
-          "verification": { "type": "array", "items": { "type": "string" } },
-          "rollback": { "type": "string", "minLength": 1 },
-          "blocked_by": { "type": "array", "items": { "type": "string" } },
-          "slice_kind": { "type": "string", "enum": ["vertical", "decision", "probe", "release"] },
-          "model_profile": {
-            "type": "object",
-            "properties": {
-              "model": { "type": "string", "minLength": 1 },
-              "reasoning": { "type": "string", "minLength": 1 }
-            },
-            "additionalProperties": false
-          },
-          "test_seam": { "type": "string" },
-          "deep_module_notes": { "type": "string" },
-          "on_failure": { "type": "string", "minLength": 1 }
+          "kind": { "enum": ["state", "decision", "fog", "join", "destination"] },
+          "label": { "type": "string", "minLength": 1 },
+          "predicates": { "$ref": "#/$defs/nonEmptyIdList" },
+          "realization_refs": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/evidenceRef" }
+          }
         },
         "additionalProperties": false
       }
     },
-    "transitions": {
+    "edges": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "from", "to", "brief_ref", "preconditions", "effects", "invariants", "certainty", "evidence_contract", "on_failure"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "from": { "$ref": "#/$defs/id" },
+          "to": { "$ref": "#/$defs/id" },
+          "brief_ref": { "type": "string", "minLength": 1 },
+          "preconditions": { "$ref": "#/$defs/idList" },
+          "effects": { "$ref": "#/$defs/nonEmptyIdList" },
+          "invariants": { "$ref": "#/$defs/idList" },
+          "certainty": { "enum": ["expected", "conditional"] },
+          "evidence_contract": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "proves", "required"],
+              "properties": {
+                "id": { "$ref": "#/$defs/id" },
+                "proves": { "$ref": "#/$defs/nonEmptyIdList" },
+                "required": { "type": "boolean" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "on_failure": {
+            "type": "object",
+            "required": ["action"],
+            "properties": {
+              "action": { "enum": ["replan", "branch", "stop"] },
+              "to": { "$ref": "#/$defs/id" }
+            },
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": { "properties": { "action": { "const": "branch" } }, "required": ["action"] },
+                "then": { "required": ["to"] },
+                "else": { "not": { "required": ["to"] } }
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "loops": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["from", "to", "when"],
+        "required": ["id", "edges", "progress_predicate", "exit_predicate", "max_iterations"],
         "properties": {
-          "from": { "type": "string", "minLength": 1 },
-          "to": { "type": "string", "minLength": 1 },
-          "when": { "type": "string", "minLength": 1 }
+          "id": { "$ref": "#/$defs/id" },
+          "edges": { "$ref": "#/$defs/nonEmptyIdList" },
+          "progress_predicate": { "$ref": "#/$defs/id" },
+          "exit_predicate": { "$ref": "#/$defs/id" },
+          "max_iterations": { "type": "integer", "minimum": 1 }
         },
         "additionalProperties": false
       }
     },
-    "skill_interventions": { "type": "array" },
-    "evidence": { "type": "array" },
-    "arrival": { "type": "object" },
-    "extensions": { "type": "object" }
+    "extensions": {
+      "type": "object",
+      "propertyNames": { "pattern": "^x-" }
+    }
   },
+  "additionalProperties": false,
   "$defs": {
-    "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" }
-  },
-  "additionalProperties": false
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "truthValue": {
+      "enum": ["true", "false", "unknown", "conflict"]
+    },
+    "idList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/id" },
+      "uniqueItems": true
+    },
+    "nonEmptyIdList": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/id" },
+      "uniqueItems": true
+    },
+    "stringList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "evidenceRef": {
+      "type": "object",
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "enum": ["git", "document", "command", "receipt", "meeting", "note", "observation", "external"] },
+        "ref": { "type": "string", "minLength": 1 },
+        "observed_at": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "fact": {
+      "type": "object",
+      "required": ["id", "value", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "value": { "$ref": "#/$defs/truthValue" },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceRef" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
 }

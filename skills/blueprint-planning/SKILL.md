@@ -1,64 +1,25 @@
 ---
 name: blueprint-planning
-description: "把目的地契约和仓库勘探报告收敛成可解释、可验证、可回滚的节点路线；当需要跨文件、跨会话或存在路线取舍时使用。"
+description: "把目的地契约和四值起始事实收敛为状态节点、独立工作边和可达性证明；当路线需要反向拆解、存在迷雾/决策或正向推演失败时使用。"
 ---
 
-# blueprint-planning：绘制路线地图
+# blueprint-planning：目标回归与可达性证明
 
-把当前状态到目的地的路径写成一张可以逐节点执行和重算的 Blueprint Map。地图是决策和转移的模型，不是实施代码，也不是把所有未来可能性预先设计完。
-
-## 输入
-
-- 已批准或待批准的 Destination Contract。
-- `repository-recon` 产出的事实、影响面、未知项和探针结果。
-- 项目约定的地图位置；没有约定时，本仓库可用 `templates/map.md` 或 `templates/blueprint.yaml`，安装目标仓库使用 `.mapflow/templates/map.md` 或 `.mapflow/templates/blueprint.yaml`。
-
-缺少目的地或关键现状证据时，先回到上游 Skill；不要在地图中猜测关键前提。
-
-## 产出
-
-写出 Blueprint Map，至少为每个节点记录：
-
-```yaml
-kind: blueprint
-schema_version: 1
-destination_ref: "目的地契约"
-status: draft
-nodes:
-  - id: N1
-    from: "当前状态"
-    action: "一次可执行动作"
-    to: "预期状态"
-    writes: ["声明写入范围"]
-    preconditions: ["前置条件"]
-    verification: ["验证命令或可观察结果"]
-    rollback: "回退或替代分支"
-    on_failure: replan
-transitions:
-  - from: N1
-    to: N2
-    when: "出口条件"
-```
+核心循环是：**反向目标回归 → 正向可达性证明 → 反例驱动修图**。
 
 ## 步骤
 
-1. **建模现状**：从 Recon Report 的已验证事实出发，列出目的地所需但当前尚未具备的状态；把 assumptions 和 unknowns 显式放进地图。
-2. **切节点**：每个节点只做一次能产生可观察状态变化的动作，优先选择最小可验证切片。为节点声明输入、写入面、前置条件、验收、回滚和失败分支。
-3. **连转移**：说明节点完成后何时进入下一个节点，何时回到探针、决策或 `replan`。路线必须能解释“为什么下一步成立”，不能只列任务名称。
-4. **处理取舍**：路线涉及产品选择、既有架构取舍、现成方案或实验时，分别按需加载 `grilling`、`domain-modeling`、`prior-art`、`research` 或 `prototype`；把结论和证据回填地图。
-5. **批准边界**：地图保持 `draft` 直到用户确认目的地、范围和第一条路线。用户批准后只锁定当前节点，不把未来节点当作已授权写集。
+1. **反向闭包**：从每个 Destination Predicate 反问“哪条独立 Work Edge 能产生它，执行前哪些 Predicate 必须成立”。完成条件：每个目标已在起始事实成立，或至少有一条产生边。
+2. **状态建图**：State Node 只包含 Predicate；AND 使用多 Predicate 的 State/Join Node，OR 使用多条替代边，必要事实未知时使用 Fog Node，真实路线取舍才使用 Decision Node。完成条件：边 B 依赖边 A 的效果时已经插入中间状态，不存在同源边隐藏耦合。
+3. **边合同**：每条 Work Edge 关联语义化 `brief_ref`、前置 Predicate、expected effects、不变量、certainty、失败分支和 Evidence Contract。完成条件：每个 effect 被必需证据覆盖，Task Brief 可独立施工。
+4. **正向证明**：运行 `mapflow prove --map <blueprint.yaml>`，从有证据的起始事实搜索彼此隔离的事实世界；同一 Fact 在一个世界中只有一个值，OR 备选只需一条完整路线。完成条件：同时得到 `structural`、`reachability`、反向回归的 `candidate_edges` 和至少位于一条抵达路线上的 `proven_edges`，并明确 expected effect 不是 observed fact。
+5. **局部修图**：对每个 proof gap 记录 `type/at_edge/missing/caused_by/repair_scope`，只替换受影响子图。完成条件：已验证 Fact、Work Edge 和 Evidence Record 得到保留，修图后重新执行反向闭包与正向证明。
 
-## 完成条件
+## 停止条件
 
-- 地图同时包含当前状态、目的地、范围、非目标和会改变路线的未知项；
-- 至少有一个节点具有明确的 `from`、`action`、`to`、`writes`、前置条件和验证；
-- 每个节点都有失败后重规划、回退或替代分支；
-- 转移条件可观察，能说明从一个节点为何进入下一个节点；
-- 用户批准前没有代码、配置或生成物写入；批准后仍只授权当前节点。
+- 结构完整，且路线为 `logical` 或 `conditional`；
+- 决策、迷雾、授权、外部依赖和循环预算均已显式化；
+- 每项验收能追溯到目标 Predicate 和产生它的 Work Edge；
+- 剩余未知不阻塞首条可执行边。
 
-## 边界
-
-- 不替用户批准目的地，不把 `draft` 地图当施工许可。
-- 不把节点拆成没有独立状态变化的待办清单；需要施工边界时交给 `node-slicing`。
-- 不实施代码、不运行发布或外部写入动作。
-- 新证据改变目标、范围、依赖或验收时保留已验证节点，标记旧路线并重新规划，不强行沿用。
+只允许表述：“在当前事实、约束和显式假设下，该路线通过正向可达性证明。”逻辑可达不表示现实已经到达。

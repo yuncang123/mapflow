@@ -1,11 +1,11 @@
 {
   "name": "mapflow",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "Map-first solo development workflow",
+  "description": "Evidence-driven state-node and work-edge mapping workflow",
   "scripts": {
-    "test": "node --test tests/test_mapflow.mjs"
+    "test": "node --test tests/*.mjs"
   },
   "bin": {
     "mapflow": "./tools/mapflow.mjs"

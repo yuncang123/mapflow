@@ -1,56 +1,53 @@
 ---
-map: short-name
-status: in-progress
+map: semantic-map-name
+status: draft
 updated: YYYY-MM-DD
 ---
 
 # Destination
 
-用可观察结果描述最终要抵达的状态，不提前锁死代码结构。
+- 目标 Predicate：
+- 不变量：
+- 验收及其证明对象：
 
-# Current state
+# Initial state
 
-## Verified facts
+| Fact | Value (`true/false/unknown/conflict`) | Evidence |
+| --- | --- | --- |
+| 待填写 | unknown | 无 |
 
-- 待填写
+# Backward regression
 
-## Assumptions
+从每个目标 Predicate 反向记录能够产生它的独立 Work Edge，以及该边需要的前置 Predicate。AND 使用多 Predicate 的 State/Join Node；OR 使用多条替代边。
 
-- 待填写
+# Forward proof
 
-## Unknowns that can change the route
-
-- 待填写
-
-# Boundaries
-
-## In scope
-
-- 待填写
-
-## Out of scope
-
-- 无 / 待填写
-
-# Model policy
-
-- 规划/关键取舍：gpt-5.6-sol + high（或按风险升级）
-- 普通节点施工：gpt-5.6-sol + medium / gpt-5.6-terra + medium
-- 实际模型与推理强度：在 Evidence Record 中按命令结果记录，不把推荐值当执行事实
+- 结构：complete / incomplete
+- 可达性：logical / conditional / unreachable
+- Candidate edges（反向回归得到的候选集合）：
+- Proven edges（至少位于一条抵达路线上的边）：
+- 证明依赖的显式假设、迷雾或授权：
 
 # Route
 
-| Node | From | Action | To | Verification | Rollback / branch |
+| From state | Work edge / Task Brief | To state | Preconditions | Effects | Evidence contract |
 | --- | --- | --- | --- | --- | --- |
-| N1 | 现状 | 待填写 | 预期状态 | 待填写 | 待填写 |
+| 待填写 | `semantic-edge` / `briefs/semantic-edge.md` | 待填写 | 待填写 | 待填写 | 待填写 |
 
-# Decisions
+# Loops
 
-- 待填写
+| Loop | Edges | Progress predicate | Exit predicate | Max iterations | Runtime iterations |
+| --- | --- | --- | --- | --- | --- |
+| 无 | - | - | - | - | 0 |
+
+# Proof gaps and repairs
+
+记录 `type`、`at_edge`、`missing`、`caused_by` 和 `repair_scope`。修图保留已验证事实和 Evidence Record，只替换受影响子图。
 
 # Arrival audit
 
-- [ ] 目的地状态已出现
-- [ ] 验收证据已记录
-- [ ] 非目标没有被误带入
-- [ ] 剩余风险和未验证项已回报
+- [ ] 每个目标 Predicate 在实际事实中成立
+- [ ] 每项验收均能回指通过的 Work Edge 证据
+- [ ] 不变量未被破坏
+- [ ] 非目标保持排除
+- [ ] 剩余风险和未知项已回报

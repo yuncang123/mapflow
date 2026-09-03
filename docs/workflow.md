@@ -1,213 +1,190 @@
-# 单人开发工作流
+# Mapflow 工作流
 
-详细阶段契约、Skill 介入矩阵和蓝图表达建议见 [vibe-coding.md](blueprint/vibe-coding.md)；交互式阅读投影见 [vibe-coding.workflow.html](blueprint/vibe-coding.workflow.html)。本文件仍是行为规则的唯一真源，蓝图文档负责把规则展开成可执行的节点模型。
+完整数据合同和推理规则见 [map-model.md](blueprint/map-model.md)。本文件是行为唯一真源；README 只导航，Skills 只路由当前动作。
 
-## 0. 这套流程的承诺
+## 1. 承诺与边界
 
-一个人负责方向，一个 Agent 负责把方向变成可检查的工作。Agent 可以在同一会话里兼任分析、编码和验证；所有任务先形成与规模匹配的蓝图，再决定怎样施工。用户不需要充当命令执行员，也不需要为小修改创建厚重的项目管理制品。
+Mapflow 为尚未拥有明确地图的目的地建模，适用于编码、调研、写作、采购、会议、发布和运营。它把人的意图、Agent 对话、工具输出和外部回执转成候选变化；只有被确认的 Fact、Blueprint 修改和实际 Evidence Record 才改变正式地图。
 
-流程的默认目标是：
-
-1. 开工前明确要抵达的可验收状态。
-2. 让每一步路径都有事实依据、前置条件和验证结果。
-3. 新证据出现时重算路线，而不是机械执行旧计划。
-4. 任务变复杂时增加记录，而不是让所有任务一开始都背负同样成本。
-
-## 1. 角色与边界
-
-### 用户
-
-- 提供目标、约束、优先级和已有上下文。
-- 回答会改变实现方向的取舍。
-- 对产品价值、外部发布、不可逆操作和敏感权限做最终判断。
-
-### Agent
-
-- 读取仓库事实，识别影响面和未知项。
-- 选择合适的路径，提出最少且最上游的问题。
-- 实施改动，运行定向验证，检查实际 diff。
-- 用简短结果回报完成项、证据和遗留风险。
-
-Agent 不替用户做产品授权、外部发布、凭证使用或不可逆清理。项目根目录的 `AGENTS.md`、安全约束和现有工程约定始终优先。
-
-## 2. 每个任务的共同动作
-
-无论蓝图大小如何，都经过以下动作。小蓝图把它们压缩在一次会话中，任务蓝图和路线地图把中间状态写进文件。
-
-### 2.0 阶段状态与触发语
-
-工作始终处于一个阶段：
+Mapflow 维护四层边界：
 
 ```text
-wayfinding      勘探、决策收敛、绘制路线
-implementation  执行已批准的一个地图节点
-arrived         目的地审计通过
+Definition（Blueprint） → Run（active edge） → Evidence（observed facts） → Projection（看板/图）
+```
+Projection 可以动态刷新，但不反向宣布事实。逻辑可达只表示模型内存在路线，不表示现实已经到达。
+
+## 2. 阶段与入口语句
+
+```text
+wayfinding      固定起始事实、目的地、反向闭包、正向证明和修图
+implementation  执行已批准的一条 Work Edge，并以证据更新事实
+arrived         目标 Predicate 和逐项验收已经完成实际审计
 ```
 
-验证不是可跳过的持久阶段，而是 `implementation` 中每个节点的完成动作，以及进入 `arrived` 前的最终审计。
-
-推荐使用固定的正向阶段语句：
-
-| 语句 | 作用 |
+| 用户语句 | 行为 |
 | --- | --- |
-| `进入地图优先模式` | 建立或恢复地图，当前只产出事实、决策和路线 |
-| `地图已批准，进入施工` | 锁定目的地和当前路线，允许选择第一个节点 |
-| `执行地图节点 N` | 只执行 N，并在完成后验证 |
-| `发现偏差，重新规划` | 回到地图阶段，记录新事实并重算路线 |
-| `进行到达审计` | 对照目的地、验收和遗留风险确认是否到达 |
+| `进入地图优先模式` | 建立或恢复 Blueprint，只勘探和证明 |
+| `地图已批准，执行工作边 <edge>` | 批准目的地并激活一条 ready edge |
+| `执行工作边 <edge>` | 只执行已批准地图中的指定边 |
+| `发现偏差，重新规划` | 保留事实与证据，回到 wayfinding 并局部修图 |
+| `进行到达审计` | 检查实际目标事实、验收证据、不变量和遗留风险 |
 
-“继续”“开始做吧”“按计划来”不改变阶段。收到这类表达时，Agent 先显示当前阶段、目的地状态和下一节点；没有批准的目的地与当前节点时，产出地图，不产出代码。
+“继续”“开始做吧”“按计划来”不改变阶段。没有批准的 Destination、唯一 `active_edge` 和通过的 gate 时，不产生业务写入。
 
-跨会话工作把地图保存在项目文档中，把当前阶段投影保存在 `.mapflow/state.json`。状态工具可用时，在写入前运行 `node .mapflow/mapflow.mjs gate`；本仓库开发时运行 `node tools/mapflow.mjs gate`。工具不可用时，Agent 必须在回复中复述同样的门槛。地图是长期事实，状态文件可以按项目习惯提交或保持本地。
+## 3. 五步建模循环
 
-状态 CLI 的严格边界：`approve` 只能选择 `init`/`replan --nodes` 声明过的节点；`verify` 必须记录实际命令、观察结果、实际模型和推理强度，带有 `unverified` 限制时不能完成节点；`arrive` 必须提供并匹配已声明的验收 ID，且所有已声明节点都已通过验证。CLI 记录的是执行者报告的证据，不会替你执行命令或证明命令字符串真实运行过。
+### 3.1 勘探起始状态
 
-### 2.1 定位
+读取工作环境的权威来源，把起始地固定为 Fact 集。每项 Fact 只取：
 
-Agent 先读取：
+- `true`：有证据支持；
+- `false`：有证据否定；
+- `unknown`：尚未确认，形成迷雾；
+- `conflict`：证据相互矛盾。
 
-- 项目根 `AGENTS.md`、README 和贡献说明；
-- 包管理器脚本、构建/测试入口和相关配置；
-- 当前 Git 状态、最近相关改动和已有任务文档（若项目有）。
+`unknown` 既不是 `false`，也不能被模型补成 `true`。完成条件：会改变路线的事实均有值、来源，或拥有可执行探针与停止条件。
 
-完成条件：能用一句话说清当前仓库、目标、可能改动的范围和验证入口。
+### 3.2 定形 Destination
 
-### 2.2 定形
+Destination 包含目标 Predicate、适用不变量、范围/授权边界，以及 `acceptance → proves predicates` 映射。完成条件：每项目标 Predicate 至少被一项验收覆盖；成本、时间、外部动作和不可逆边界的所有者明确。
 
-把任务压缩成一个最小蓝图：
+### 3.3 反向目标回归
 
-```text
-目标：要让谁在什么场景得到什么结果？
-范围：本轮要改什么，不改什么？
-验收：什么可观察结果能证明完成？
-风险：什么情况会让我停下来问你？
+从每个目标 Predicate 反问：什么独立 Work Edge 能产生它？执行前哪些 Predicate 必须成立？
+
+- AND：使用包含多个 Predicate 的 State/Join Node；
+- OR：使用多条替代 Work Edge；只有真实路线取舍才建立 Decision Node；
+- 迷雾：建立 Fog Node 和 probe edge；
+- 边 B 依赖边 A 的 effect：插入中间 State Node，禁止同源边隐藏耦合。
+
+每条边必须关联语义化 Task Brief、preconditions、expected effects、invariants、certainty、Evidence Contract 和失败分支。完成条件：每个目标有产生边或已在起始事实成立，每个 effect 都被 required evidence 覆盖。
+
+### 3.4 正向可达性证明
+
+从实际起始 Fact 出发搜索可达的事实世界，逐边检查 source state、preconditions、授权/资源、不变量和 effects。每个世界中的同一 Fact 始终只有一个值；边的 effect 会在该世界中替换这个值，不会把相反 Predicate 累加成伪状态。多个生产边按 OR 处理，只要存在一条完整路线即可。搜索直到没有新的事实世界。使用：
+
+```bash
+node tools/mapflow.mjs prove --map path/to/blueprint.yaml
 ```
 
-对于需要持久化的任务，再补充地图节点。每个节点都写清“从什么状态、执行什么动作、预期到什么状态、如何验证、失败后走哪条分支”。
+结论同时包含：
 
-目标有歧义时，使用批判性提问收敛；问题应一次只处理一个会改变实现的决策。路线已经清楚时，不为了形式创建方案地图。
+- `structural: complete/incomplete`；
+- `reachability: logical/conditional/unreachable`；
+- `candidate_edges`：反向目标回归得到的全部候选边；
+- `proven_edges`：至少位于一条 Destination-reaching 事实世界路径上的边。
 
-### 2.3 实施
+批准或选择只能指向 `proven_edges`。因此局部 ready、但最终通往死路的候选边不能进入实施。
 
-- 先做最小可验证切片，再扩大范围。
-- 使用仓库已有的抽象、命令、测试和数据结构。
-- 改动前确认实际文件范围；实施中若影响面扩大，重新选择路径。
-- 不因“以后可能需要”预先加入 provider、适配器、插件钩子、兼容层或通用抽象。
-- 写入前确认目的地已批准、当前节点唯一明确，并通过写入门槛；没有门槛就停留在地图阶段。
-- 完成一个节点后先验证，再选择下一个节点；验证失败或新事实改变路线时进入重新规划。
+运行投影另行报告 `actual_arrival: audited/not-audited`；它只能由到达审计改变，不能由逻辑推演推出。
 
-### 2.4 验证
+使用 accepted assumption 或 `certainty: conditional` 的路线只能标为 `conditional`。Expected effect 只进入推演，不能更新运行 Fact。
 
-验证顺序从便宜到昂贵：
+### 3.5 反例驱动修图
 
-1. 语法、类型或格式检查。
-2. 受影响模块的定向测试。
-3. 必要时运行集成、构建或真实界面检查。
-4. 检查 `git diff`、未跟踪文件、配置和生成物是否在预期范围。
+证明失败时生成结构化 proof gap：`type`、`at_edge`、`missing`、`caused_by`、`repair_scope`。常见类型包括：
 
-只报告实际运行过的检查。测试通过不等于产品价值、生产安全或外部发布已被证明。
+- `unproduced-goal`、`unsatisfied-precondition`；
+- `blocking-fog`、`conflicting-fact`、`unsupported-assumption`；
+- `hidden-edge-coupling`、`invariant-conflict`；
+- `missing-authorization`、`missing-evidence-contract`；
+- `incompatible-world-state`、`insufficient-edge-effect`；
+- `loop-without-progress-contract`、`loop-progress-not-produced`、`loop-exit-not-produced`、`loop-budget-exhausted`。
 
-### 2.5 收尾
+不可达时只报告最接近 Destination 的最佳 OR 分支上的首个缺口；不会把已经走过但后来状态变化的边重新报成阻塞。只替换 `repair_scope` 指向的最小子图；Blueprint 修改后必须用 `replan --scope ... --changes ...` 接纳精确 diff，无修改也显式写 `--changes none`。后续 `prove/approve` 遇到未登记变化会阻塞。已到达地图不再刷新状态证明，需开启新地图。已验证 Fact 和 Evidence Record 只追加、不覆盖；已验证 Work Edge 的 source/target Node、引用 Predicate、适用 Invariant、所属 loop 和绑定 Brief 合同不得删除或重定义。修图后重新执行反向闭包与正向证明。
 
-完成后回报：
+## 4. 地图可批准的停止条件
 
-```text
-完成：一句话说明用户目标是否达成
-改动：关键文件和行为变化
-验证：实际执行的命令及结果
-决策：本轮需要用户知道的取舍；没有则写“无”
-遗留：未完成项、未验证项或风险；没有则写“无”
-```
+同时满足以下条件才允许进入 implementation：
 
-标准和深度任务还要把对应文件的状态和实现说明补齐。快速任务至少留下最终回报；涉及长期取舍时，应补一份决策记录。
+1. 每个目标 Predicate 已在起始状态成立，或至少有一条产生边。
+2. 每个 AND 前置均可达；OR 备选中至少存在一条完整路线，不可达的未选备选不拖垮可行路线。
+3. 决策、迷雾、授权、外部依赖和假设均已显式化。
+4. 同源边不存在隐藏产出依赖。
+5. 每条边拥有独立 Task Brief、出口条件和 Evidence Contract。
+6. 每项验收能追溯到目标 Predicate 和产生它的边。
+7. 每个循环都有 progress predicate、exit predicate 和最大预算。
+8. 剩余未知不阻塞首条路线；否则结论只能是 conditional。
 
-到达审计至少回答四个问题：目标状态是否出现、验收证据是否真实执行、非目标是否保持排除、剩余风险是否已经回报。四项都能回答时，才把阶段标为 `arrived`。
+批准语义是：“在当前事实、约束和显式假设下，该路线通过正向可达性证明。”它不是成功保证。
 
-## 3. 蓝图分辨率
+## 5. Work Edge 执行与证据
 
-蓝图分辨率不是永久标签。开始时选择一个足够小的版本，实施中可升级，不能降级来规避风险。
-
-### 小蓝图
-
-适用于：目标明确、范围局部、无协议/数据/安全/部署/迁移变化，且能在当前仓库内立即定向验证。
-
-动作：
-
-1. 定位仓库和现状。
-2. 用四句话定形目标、范围、验收和风险。
-3. 直接实施一个小切片。
-4. 运行最小充分验证并检查 diff。
-5. 按统一格式回报。
-
-小蓝图不要求落盘地图或任务文件，但必须在当前对话中明确目的地、路径和验收。它仍然必须验证；无法验证的修改自动升级为任务蓝图。
-
-### 任务蓝图
-
-适用于：行为变化、多个文件、一次以上取舍、需要跨会话续接，或小蓝图的验收不够可靠。
-
-动作：
-
-1. 使用 `templates/map.md` 形成目的地、现状、未知项和节点路线。
-2. 使用 `templates/work-item.md` 把当前可施工切片写成简报，至少写目标、范围、非目标、验收、写入范围和依赖。
-3. 实施前确认地图和简报仍然准确；必要时先做小型调研或实验。
-4. 按一个节点实施，完成可回滚的小提交或等价检查点，跑完节点验收并回填证据。
-5. 检查调用方、被调用方、共享契约、镜像/生成物和回归边界，再选择下一个节点或进行到达审计。
-
-标准路径不要求把每次命令都包装成平台流程；简报的价值是保存上下文和边界。
-
-### 路线地图
-
-适用于：架构或数据模型变化、安全边界、删除/迁移、部署和外部系统、公开接口、共享契约，或者路线不清且预计跨多个会话。
-
-动作：
-
-1. 先写路线地图或使用 `wayfinder` 收敛路线，不急于编码。
-2. 对长期有效的取舍使用 `templates/decision.md` 记录背景、选项、决定和影响。
-3. 把地图拆成可独立验收的任务，每个任务只拥有明确的改动范围。
-4. 实施前固定基线；每完成一个重要节点，按项目要求检查规范、需求、耦合和回归。
-5. 使用 `templates/checkpoint.md` 保存跨会话状态，确保下次能从文件继续。
-6. 对外部动作、凭证、发布和不可逆步骤逐项获得用户授权。
-
-深度路径的目的不是增加仪式，而是让高代价错误在编码前暴露。
-
-## 4. 升级条件
-
-出现以下任一情况，立即暂停当前实现，重新定形并升级蓝图分辨率：
-
-- 目标或验收存在会改变实现的歧义；
-- 改动超出原先范围，或新增跨模块/跨仓库耦合；
-- 触及协议、数据、公开接口、依赖、安全、部署、删除或迁移；
-- 需要使用凭证、写入外部系统、推送、发布或改变共享环境；
-- 没有可靠的机器验证，或验证结果与预期矛盾；
-- 需要换会话、换工具或让第二个 Agent 进入同一仓库。
-- 收到实施请求，但目的地尚未批准或当前地图节点尚未明确。
-
-只问一个最上游问题，并说明建议、理由和不做决定的后果。用户未授权时，停在可回滚状态。
-
-## 5. Skill 使用规则
-
-Skills 是按需能力，不是默认清单。先用仓库原生事实和命令；只有任务命中触发条件时才加载对应 skill。地图优先入口见 `skills/mapflow/SKILL.md`，具体路由见 [skill-routing.md](skill-routing.md)。只有用户明确说“启用 mapflow”或使用阶段触发语时，才加载入口 Skill；普通开发请求不自动套用完整流程。
-
-核心链路可按任务分辨率组合为：`destination-shaping`（目的地契约）→ `repository-recon`（事实与影响面）→ `blueprint-planning`（路线地图）→ `node-slicing`（施工简报）→ `node-delivery`（节点实施与证据）。这些能力通过文件化产物衔接；小任务可以压缩或跳过不必要的中间落盘，但不能跳过目的地、写入门槛和验证。
-
-默认不启动浏览器看板、多人桥接、消息系统、任务 runner 或独立数据库。它们只有在当前任务明确需要时才进入范围。
-
-## 6. Git 与证据
-
-- 遵循目标仓库既有分支和提交约定；没有约定时，标准/深度任务使用小步提交，快速任务保持小而可回滚。
-- 不改写已有提交历史，不使用破坏性命令清理用户文件。
-- 事实优先级通常是：代码/配置/测试输出 > 运行日志 > 文档描述 > 口头假设。
-- 明确区分已验证、来源说明、模拟结果、计划和未验证项。
-- 历史日志只追加，不用新结论覆盖旧记录。
-
-## 7. 复盘与交接
-
-正常任务不强制复盘。只有发现流程让你绕路、重复询问、遗漏验证或文档难以续接时，才记录一条简短复盘：
+Blueprint 是定义，`.mapflow/state.json` 是运行投影。运行状态使用：
 
 ```text
-摩擦：哪里浪费了时间或造成误解？
-原因：是入口、指针、命令、文档还是工具问题？
-调整：下一次删掉、合并或新增什么？
+active_edge       当前唯一允许执行的工作边
+verified_edges    已由通过证据支持的历史边
+facts             实际观察的四值事实
+satisfied_nodes   每次从 facts 和 node predicates 派生
+loop_iterations   每个 loop 已实际执行的循环边次数
 ```
 
-会话中断、目的地变化或需要另一个工具继续时，使用 `templates/checkpoint.md`；正常连续工作不生成交接包。
+实施顺序：
+
+1. 用 `templates/task-brief.md` 固定当前边的执行面、非目标、授权和 Evidence Contract；`brief_ref` 必须指向以 Blueprint 文件为基准、真实存在且 frontmatter `edge` 正确绑定的独立相对文件。Task Brief 是批准时冻结的定义合同，实际执行记录写入 runtime Evidence Record，不回写 Brief。
+2. 运行 `gate`，确认 Blueprint 与绑定 Task Brief 的联合 digest 未变化，source、preconditions 和 invariants 在实际事实中成立。
+3. 只执行当前边；新事实改变路线时停止并 replan。
+4. 运行真实检查，用 `verify --edge ... --proves ... --executor kind:identity` 留下 Evidence Record。人工、Agent、工具或外部系统都可作为 executor；Agent executor 另需成对记录 `--model` 与 `--reasoning`。
+5. 只有 `pass` 且没有 `unverified` 限制时，才把已证明 Predicate 应用到 Fact，并重新派生 State Node。
+
+Loop 中的每条边都必须产出 progress predicate；从循环节点出发还必须存在能产出 exit predicate 的退出边。每完成一条 loop edge，`loop_iterations` 增加一次；同一边可以在预算内重复选择，达到 `max_iterations` 后 gate 阻塞。正向证明使用同一预算语义，不能靠无限展开证明可达。
+
+Git 只是 realization/evidence adapter 之一。编码工作可以引用 repository、commit 和 paths；非编码工作可以引用文档、会议记录、决策、日历或外部回执。
+
+## 6. 到达审计
+
+`arrive` 必须同时证明：
+
+1. 所有 Destination Predicate 在实际 Fact 中成立；
+2. 每项 acceptance 的全部 Predicate 可回指通过的 Work Edge Evidence Record；
+3. 适用不变量未被破坏，非目标仍排除；
+4. 剩余风险、未验证项和外部动作已明确回报。
+
+到达只证明本地图的目标与验收，不自动证明产品价值、生产安全或发布效果。
+
+## 7. 蓝图分辨率
+
+- 小蓝图：一次对话内仍使用状态—边—证据语义，可以不落盘；但执行前必须在对话中复述 Destination、当前 Fact、唯一 active edge、readiness、授权和 Evidence Contract，并明确给出与 CLI `gate` 等价的“通过/阻塞”结论。无法完整复述时升级为任务蓝图。
+- 任务蓝图：跨文件、跨工具或需要复用，保存 Blueprint 与当前 Task Brief。
+- 路线地图：架构、迁移、安全、外部系统或跨会话工作，额外保存决策和 Checkpoint。
+
+新证据扩大风险时向上升级分辨率；不能通过降级隐藏约束。多人协作、任务账本和团队门禁属于目标项目的协作流程，不是 Mapflow 默认依赖。
+
+## 8. CLI 最小路径
+
+```bash
+node tools/mapflow.mjs validate --map path/to/blueprint.yaml
+node tools/mapflow.mjs init --map path/to/blueprint.yaml
+node tools/mapflow.mjs prove
+node tools/mapflow.mjs approve --edge settle-audience
+node tools/mapflow.mjs gate
+node tools/mapflow.mjs verify --edge settle-audience --evidence "决策记录存在" --command "读取记录" --observed "读者已明确" --proves audience-known --outcome-ref "document:notes/audience-decision.md" --executor "human:owner"
+node tools/mapflow.mjs select --edge write-candidate
+node tools/mapflow.mjs replan --reason "新事实改变路线" --scope "subgraph:candidate-ready:article-live" --changes "edge:publish-article,node:article-live"
+node tools/mapflow.mjs arrive --confirm "目标、验收、非目标和风险已审计" --acceptance public-page-readable,sensitive-review-recorded
+```
+
+看板只读取正式地图，不能代替上述命令确认事实或登记证据：
+
+```bash
+# 只查看 Blueprint 的定义态
+node tools/mapflow.mjs board --map path/to/blueprint.yaml
+
+# 查看绑定 Blueprint、Evidence 和历史的当前运行态
+node tools/mapflow.mjs --state .mapflow/state.json board
+```
+
+服务只绑定 `127.0.0.1`，默认端口为 `4173`，可用 `--port` 修改。浏览器通过 ETag 轮询：同一拓扑的 Fact、edge、evidence 与 acceptance 变化只更新样式和检查器，节点或边的增删与重连才触发重新布图。当前文件无效、半写入或与运行态登记 digest 不一致时，看板保留最近有效或 state 中冻结的 Blueprint，并明确标记 `stale`，不能把错误内容显示成新事实。
+
+安装到目标仓库后把 `node tools/mapflow.mjs` 换成 `node .mapflow/mapflow.mjs`。
+
+## 9. 收尾回报
+
+```text
+完成：目的地是否实际达到
+改动：状态、工作边和产物变化
+证明：结构与可达性结论、实际验证命令和 Evidence Record
+决策：本轮关键取舍；无则写“无”
+遗留：proof gaps、未验证项或风险；无则写“无”
+```
