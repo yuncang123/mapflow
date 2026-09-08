@@ -1,6 +1,11 @@
-# Mapflow v0.3 Blueprint 示例。Blueprint 是定义真源，运行事实写入 .mapflow/state.json。
+# Mapflow v0.5 Blueprint 示例。Blueprint 是定义真源；实际使用时由用户级 runtime 保存到仓库外 Workspace Sidecar。
 schema_version: 2
 map_id: publish-article
+
+intent:
+  statement: 把已有素材变成一篇可以安全公开分享的文章
+  status: shaped
+  open_questions: []
 
 destination:
   statement: 文章已公开发布且敏感内容已经检查
@@ -181,6 +186,8 @@ edges:
       action: replan
 
 loops: []
+
+submaps: []
 
 extensions:
   x-owner: personal

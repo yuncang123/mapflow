@@ -1,0 +1,88 @@
+{
+  "schema": "mapflow.benchmark-segment-evidence/v1",
+  "date": "2026-09-07",
+  "case": "library-system-greenfield",
+  "segment": "arrival-audit",
+  "contract_case_version": "1.3.11",
+  "runtime_version": "0.5.1",
+  "source_checkpoint": {
+    "id": "implementation-verified",
+    "event_revision": 17,
+    "event_head_digest": "03faad83d563e6c25a909406676cd64d03fe058d18af9c332e06976272448631"
+  },
+  "expected_event_types": [
+    "mapflow.arrival.audited.v1"
+  ],
+  "runs": [
+    {
+      "run_id": "library-system-greenfield-arrival-audit-20260907143451-07b0df",
+      "case_version": "1.3.9",
+      "sandbox": "workspace-write",
+      "public_recovery_entry": false,
+      "duration_seconds": 115,
+      "tool_steps": 3,
+      "file_changes": 0,
+      "events_after_source": [],
+      "outcome": "infrastructure-failed",
+      "evidence": "Windows tools returned CreateProcessWithLogonW failed: 1385; the Codex process reported the failure without changing Mapflow."
+    },
+    {
+      "run_id": "library-system-greenfield-arrival-audit-20260907143730-ece78c",
+      "case_version": "1.3.9",
+      "sandbox": "danger-full-access",
+      "public_recovery_entry": false,
+      "duration_seconds": 211,
+      "tool_steps": 6,
+      "file_changes": 0,
+      "events_after_source": [],
+      "outcome": "harness-invalid",
+      "evidence": "The fresh Codex session inspected the target repository but was never told to enable Mapflow and did not recover the Sidecar."
+    },
+    {
+      "run_id": "library-system-greenfield-arrival-audit-20260907144205-60652b",
+      "case_version": "1.3.10",
+      "sandbox": "danger-full-access",
+      "public_recovery_entry": true,
+      "duration_seconds": 541,
+      "tool_steps": 30,
+      "file_changes": 0,
+      "target_checkpoint": "arrived",
+      "target_checkpoint_passed": true,
+      "events_after_source": [
+        "mapflow.arrival.audited.v1"
+      ],
+      "event_head_digest": "3ab9d44aa6bfecb5a91c769f06d90b37c9ab1584e6d0010cc1e68e89c2d51b23",
+      "outcome": "segment-passed"
+    },
+    {
+      "run_id": "library-system-greenfield-arrival-audit-20260907152317-f032e2",
+      "case_version": "1.3.11",
+      "sandbox": "danger-full-access",
+      "public_recovery_entry": true,
+      "duration_seconds": 346,
+      "tool_steps": 23,
+      "file_changes": 0,
+      "target_checkpoint": "arrived",
+      "target_checkpoint_passed": true,
+      "events_after_source": [
+        "mapflow.arrival.audited.v1"
+      ],
+      "expected_event_types": [
+        "mapflow.arrival.audited.v1"
+      ],
+      "event_sequence_passed": true,
+      "outcome": "segment-passed"
+    }
+  ],
+  "deterministic_checks": {
+    "syntax": "PASS",
+    "full_tests": "93/93 PASS in about 53 seconds",
+    "benchmark_doctor": "7/7 cases and impact map PASS",
+    "impact_selection": "oracle only; no agent segment or release",
+    "readme_links": "PASS",
+    "json_documents": "3/3 PASS",
+    "diff_check": "PASS with pre-existing line-ending warnings only"
+  },
+  "release_evidence_eligible": false,
+  "boundary": "Each passing run covers one real Codex stage from a frozen checkpoint. It does not cover a complete journey, real users, release readiness, or production behavior."
+}

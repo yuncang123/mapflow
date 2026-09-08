@@ -1,0 +1,18 @@
+{
+  "schema": "mapflow.benchmark-case/v1",
+  "id": "order-timeout-diagnosis",
+  "version": "1.3.4",
+  "tier": "core",
+  "title": "用探针定位并修复订单查询超时",
+  "target_user": "面对可复现但根因未定故障的服务维护者",
+  "core_job": "把故障假设保持为迷雾，以探针取得证据后局部修图并验证恢复合同",
+  "critical_journey": ["复现失败", "区分事实与假设", "批准诊断边", "根因证据触发最小修图", "修复与回退验收"],
+  "expected_first_value": "用户看到失败事实、根因 unknown 和下一探针之间的明确关系",
+  "budget": { "max_turns": 12, "max_minutes": 75 },
+  "allowed_writes": ["目标仓库中的诊断记录、代码和测试", "目标仓库外的 Mapflow Sidecar"],
+  "human_only_unknowns": ["真实生产流量分布", "发布窗口"],
+  "primary_risks": ["未复现先修复", "把超时症状当根因", "丢弃失败证据", "逻辑可达冒充恢复完成"],
+  "fixture": "subject/fixture",
+  "operator_mainline": "operator/mainline.md",
+  "required_checkpoints": ["prepared", "surveyed", "destination-shaped", "route-approved", "cause-proven", "repaired", "arrived"]
+}

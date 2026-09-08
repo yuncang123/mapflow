@@ -7,11 +7,13 @@ import {
   deriveSatisfiedNodes,
   edgeReadiness,
   initialFacts,
+  buildGoalRegression,
   predicateSatisfied,
   proveBlueprint,
   readBlueprint,
   validateBlueprint,
 } from "./mapflow-core.mjs";
+import { readWayfinding } from "./mapflow-wayfinding.mjs";
 
 export class BoardError extends Error {}
 
@@ -41,6 +43,589 @@ function asArray(value, label) {
   return value;
 }
 
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+
+function emptyBoardModel() {
+  const intent = {
+    statement: "尚未记录 Intent",
+    status: "draft",
+    open_questions: ["目的地尚未通过 grilling 定形"],
+  };
+  const destination = {
+    statement: "尚未定形目的地",
+    requires: [],
+    invariants: [],
+    acceptance: [],
+  };
+  const proof = {
+    structural: "not-started",
+    reachability: "not-started",
+    destination_reachable: false,
+    required_predicates: [],
+    candidate_edges: [],
+    proven_edges: [],
+    reachable_nodes: [],
+    applied_edges: [],
+    assumptions_used: [],
+    proof_gaps: [],
+  };
+  const revision = hash("empty-workspace");
+  return {
+    schema: 1,
+    projection: {
+      revision,
+      generated_at: now(),
+      source_status: "empty",
+      source_error: null,
+      map_digest: null,
+      state_updated_at: null,
+      mode: "empty",
+      read_only: true,
+    },
+    map: {
+      id: "unshaped-workspace",
+      intent,
+      destination,
+      boundaries: { in_scope: [], out_of_scope: [], authorization: [] },
+      phase: "wayfinding",
+      destination_status: "draft",
+      actual_arrival: "not-audited",
+      runtime_status: "empty",
+      current_route_approval: null,
+    },
+    summary: {
+      structural: "not-started",
+      reachability: "not-started",
+      nodes: 0,
+      satisfied_nodes: 0,
+      edges: 0,
+      verified_edges: 0,
+      active_edge: null,
+      active_run: null,
+      route_approved: false,
+      pending_route_approvals: 0,
+      pending_authorizations: 0,
+      pending_arrival_audits: 0,
+      proof_gaps: 0,
+      acceptance_passed: 0,
+      acceptance_total: 0,
+      facts: { true: 0, false: 0, unknown: 0, conflict: 0 },
+      submaps: 0,
+      stale_submaps: 0,
+      pending_proposals: 0,
+      pending_regression_candidates: 0,
+      goal_regression_steps: 0,
+      goal_regression_edges: 0,
+      goal_regression_confirmed: 0,
+    },
+    proof,
+    goal_regression: {
+      roots: [],
+      origin_nodes: [],
+      destination: { node_id: null, label: destination.statement, status: "fog" },
+      steps: [],
+      edge_ids: [],
+      complete_chain: false,
+      terminal_nodes: [],
+      unclosed_terminals: [],
+      generated_from: "not-started",
+      confirmation_policy: "formal-blueprint-only",
+      confirmation_note: "先定形 Intent 和目的地；没有人工确认的 Blueprint 节点和工作边不会进入正式地图。",
+      unconfirmed_candidates: [],
+    },
+    acceptance: [],
+    predicates: [],
+    nodes: [],
+    edges: [],
+    facts: {},
+    loops: [],
+    proof_gaps: [],
+    evidence: [],
+    edge_runs: [],
+    decisions: [],
+    route_approval_requests: [],
+    route_approvals: [],
+    authorization_requests: [],
+    arrival_audit_requests: [],
+    proposals: [],
+    work_events: [],
+    submaps: [],
+    timeline: [],
+    empty_state: {
+      title: "地图尚未建立",
+      next_steps: [
+        "读取工作区和外部权威来源，固定四值起始事实",
+        "通过 grilling 将模糊诉求收敛为 Intent 和 Destination Contract",
+        "经人确认后，才把里程碑节点、工作边和独立 Brief 写入 Blueprint",
+      ],
+    },
+  };
+}
+
+// Wayfinding drafts do not have the formal planner's predicate graph yet. The
+// board still needs to show the human reasoning surface: start at the goal,
+// walk incoming candidate edges backwards, and keep prefix reachability
+// separate from the suffix proof supplied by the candidate contract.
+function buildWayfindingRegression({ draft, nodes, edges }) {
+  const destination = draft.destination;
+  if (!destination) {
+    return {
+      roots: [],
+      origin_nodes: [draft.origin.id],
+      destination: { node_id: null, label: "尚未定形目的地", status: "fog" },
+      steps: [],
+      edge_ids: [],
+      complete_chain: false,
+      terminal_nodes: [],
+      unclosed_terminals: [],
+      generated_from: "wayfinding-draft",
+    };
+  }
+
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  const incoming = new Map();
+  const outgoing = new Map();
+  for (const edge of edges) {
+    const list = incoming.get(edge.to) ?? [];
+    list.push(edge);
+    incoming.set(edge.to, list);
+    const next = outgoing.get(edge.from) ?? [];
+    next.push(edge);
+    outgoing.set(edge.from, next);
+  }
+
+  const steps = [];
+  const seenDepth = new Map();
+  const queue = [{ id: destination.id, depth: 0 }];
+  while (queue.length) {
+    const current = queue.shift();
+    const previousDepth = seenDepth.get(current.id);
+    if (previousDepth !== undefined && previousDepth <= current.depth) continue;
+    seenDepth.set(current.id, current.depth);
+    const node = nodeMap.get(current.id) ?? {
+      id: current.id,
+      label: destination.label,
+      kind: destination.kind,
+      facts: [],
+      status: destination.status ?? "pending",
+    };
+    const producers = (incoming.get(current.id) ?? []).slice().sort((left, right) => left.id.localeCompare(right.id));
+    const nextSteps = (outgoing.get(current.id) ?? [])
+      .map((edge) => ({ edge, step: steps.find((item) => item.target_node === edge.to) }))
+      .filter((item) => item.step);
+    const suffixStatuses = nextSteps.map(({ edge, step }) => [edge.proof?.status ?? "unreachable", step.suffix_proof?.status ?? "unreachable"]);
+    const suffixStatus = current.id === destination.id && destination.status !== "confirmed" && destination.status !== "destination"
+      ? "fog"
+      : current.id === destination.id
+        ? "logical"
+        : suffixStatuses.filter(([edgeStatus, targetStatus]) => !["unreachable", "fog"].includes(edgeStatus) && !["unreachable", "fog"].includes(targetStatus)).length === 0
+          ? "unreachable"
+          : suffixStatuses.some(([edgeStatus, targetStatus]) => [edgeStatus, targetStatus].includes("conditional"))
+              ? "conditional"
+              : "logical";
+    const facts = node.predicates ?? node.facts ?? [];
+    const hasUnknown = facts.some((fact) => ["unknown", "conflict"].includes(fact.actual ?? fact.value));
+    const prefixStatus = current.id === draft.origin.id
+      ? hasUnknown || facts.length === 0 ? "fog" : "observed"
+      : hasUnknown
+        ? "fog"
+        : node.status === "confirmed" ? "model-only" : "awaiting-prefix";
+    // Node and edge confirmations are independent decisions. A milestone can
+    // be accepted while its incoming work is still being negotiated.
+    const humanConfirmed = current.id === destination.id
+      ? destination.status === "confirmed" || destination.status === "destination"
+      : node.status === "confirmed";
+    const bridgeStatus = suffixStatus === "unreachable"
+      ? "suffix-unproven"
+      : current.id === draft.origin.id && prefixStatus === "observed"
+        ? "connected"
+        : "awaiting-prefix";
+    const incomingEdges = producers.map((edge) => ({
+      edge_id: edge.id,
+      from: edge.from,
+      to: edge.to,
+      required_predicates: [...(edge.preconditions ?? [])],
+      effects: [...(edge.effects ?? [])],
+      brief_ref: edge.brief_ref ?? null,
+      certainty: edge.certainty ?? "expected",
+      acceptance_contract: clone(edge.evidence_contract ?? []),
+      acceptance: clone(edge.acceptance ?? []),
+      non_goals: [...(edge.non_goals ?? [])],
+      // This edge leads into the node currently being built. Its target-side
+      // suffix is therefore the suffix computed for the current node; the
+      // target step is not in `steps` yet while its incoming edges are built.
+      suffix_proven: !["unreachable", "fog"].includes(edge.proof?.status)
+        && !["unreachable", "fog"].includes(suffixStatus),
+      confirmed: edge.status === "confirmed",
+      human_confirmed: edge.status === "confirmed",
+      formal: false,
+      confirmation_source: edge.status === "confirmed" ? "human-wayfinding" : null,
+    }));
+    steps.push({
+      depth: current.depth,
+      target_node: node.id,
+      target_label: node.label,
+      target_kind: node.kind,
+      required_predicates: [...facts.map((fact) => fact.id)],
+      prefix_reachability: {
+        status: prefixStatus,
+        observed: prefixStatus === "observed",
+        modeled: prefixStatus === "model-only",
+      },
+      suffix_proof: {
+        status: suffixStatus,
+        structural: "candidate",
+        destination_reachable: !["unreachable", "fog"].includes(suffixStatus),
+        proven_edges: nextSteps.filter(({ edge, step }) => !["unreachable", "fog"].includes(edge.proof?.status) && !["unreachable", "fog"].includes(step.suffix_proof?.status)).map(({ edge }) => edge.id),
+        proof_gaps: producers.flatMap((edge) => edge.proof?.missing ?? []),
+        seeded_predicates: [...facts.map((fact) => fact.id)],
+        target_node: node.id,
+      },
+      bridge_status: bridgeStatus,
+      confirmed: false,
+      human_confirmed: humanConfirmed,
+      formal: false,
+      confirmation_source: humanConfirmed ? "human-wayfinding" : null,
+      incoming_edges: incomingEdges,
+    });
+    for (const edge of producers) {
+      if (nodeMap.has(edge.from)) queue.push({ id: edge.from, depth: current.depth + 1 });
+    }
+  }
+  steps.sort((left, right) => left.depth - right.depth || left.target_node.localeCompare(right.target_node));
+  const edgeIds = [...new Set(steps.flatMap((step) => step.incoming_edges.map((edge) => edge.edge_id)))];
+  const originStep = steps.find((step) => step.target_node === draft.origin.id);
+  const terminalNodes = steps
+    .filter((step) => step.incoming_edges.length === 0)
+    .map((step) => step.target_node);
+  const unclosedTerminals = terminalNodes.filter((nodeId) => nodeId !== draft.origin.id);
+  return {
+    roots: [destination.id],
+    origin_nodes: [draft.origin.id],
+    destination: {
+      node_id: destination.id,
+      label: destination.label,
+      status: destination.status === "confirmed" || destination.status === "destination" ? "defined" : "fog",
+    },
+    steps,
+    edge_ids: edgeIds,
+    complete_chain: Boolean(
+      steps.some((step) => step.target_node === destination.id)
+      && originStep
+      && originStep.incoming_edges.length === 0
+      && unclosedTerminals.length === 0,
+    ),
+    terminal_nodes: terminalNodes,
+    unclosed_terminals: unclosedTerminals,
+    generated_from: "destination-backward-regression",
+  };
+}
+
+function compileWayfindingBoardModel({ draft, digest, sourceStatus = "current", sourceError = null }) {
+  const destinationConfirmed = draft.destination
+    && ["confirmed", "destination"].includes(draft.destination.status);
+  const originFacts = draft.origin.facts ?? [];
+  const originSettled = originFacts.length > 0
+    && originFacts.every((fact) => ["true", "false"].includes(fact.value));
+  const regressionDraft = draft.destination && draft.destination.kind !== "destination" && destinationConfirmed
+    ? {
+      ...draft,
+      destination: { ...draft.destination, kind: "destination" },
+    }
+    : draft;
+  const draftNodes = [
+    {
+      id: draft.origin.id,
+      kind: draft.origin.kind,
+      label: draft.origin.label,
+      purpose: "现场勘探固定的始发状态候选",
+      status: draft.origin.kind === "fog" || !originSettled ? "fog" : "satisfied",
+      draft: true,
+      formal: false,
+      predicates: (draft.origin.facts ?? []).map((fact) => ({
+        id: fact.id,
+        fact: fact.id,
+        equals: fact.value,
+        actual: fact.value,
+        satisfied: ["true", "false"].includes(fact.value),
+        evidence: clone(fact.evidence ?? []),
+      })),
+      proof_gaps: [],
+      satisfied: originSettled,
+      goal_regression: null,
+    },
+    ...(regressionDraft.destination ? [{
+      id: regressionDraft.destination.id,
+      kind: regressionDraft.destination.kind,
+      label: regressionDraft.destination.label,
+      purpose: "等待 Intent 和 Destination Contract 定形",
+      status: destinationConfirmed ? "confirmed" : "destination-fog",
+      draft: true,
+      formal: false,
+      predicates: (regressionDraft.destination.requires ?? []).map((predicateId) => ({
+        id: predicateId,
+        fact: predicateId,
+        equals: "true",
+        actual: "unknown",
+        satisfied: false,
+        evidence: [],
+      })),
+      proof_gaps: [],
+      satisfied: false,
+      goal_regression: null,
+    }] : []),
+    ...(draft.nodes ?? []).map((node) => ({
+      ...clone(node),
+      status: node.status ?? "candidate",
+      draft: true,
+      formal: false,
+      predicates: (node.facts ?? []).map((fact) => ({
+        id: fact.id,
+        fact: fact.id,
+        equals: fact.value,
+        actual: fact.value,
+        satisfied: fact.value === "true",
+        evidence: clone(fact.evidence ?? []),
+      })),
+      proof_gaps: [],
+      satisfied: false,
+      goal_regression: null,
+    })),
+  ];
+  const draftEdges = (draft.edges ?? []).map((edge) => ({
+    ...clone(edge),
+    title: edge.label,
+    status: edge.status ?? "candidate",
+    candidate: true,
+    proven: false,
+    ready: false,
+    missing: [],
+    draft: true,
+    formal: false,
+    brief: { ref: edge.brief_ref ?? "待人确认后创建 Task Brief", metadata: null, content: null },
+    preconditions: clone(edge.preconditions ?? []),
+    effects: clone(edge.effects ?? []),
+    invariants: clone(edge.invariants ?? []),
+    applicable_invariants: clone(edge.invariants ?? []),
+    evidence_contract: clone(edge.evidence_contract ?? []),
+    acceptance: clone(edge.acceptance ?? []),
+    non_goals: clone(edge.non_goals ?? []),
+    certainty: edge.certainty ?? "expected",
+    proof: clone(edge.proof ?? null),
+    evidence: [],
+    proof_gaps: [],
+    runs: [],
+    decisions: [],
+    loops: [],
+    submap: null,
+    goal_regression: [],
+    on_failure: clone(edge.on_failure ?? "确认后补齐"),
+  }));
+  const destination = draft.destination
+    ? {
+      statement: draft.destination.statement,
+      requires: clone(draft.destination.requires ?? []),
+      invariants: clone(draft.destination.invariants ?? []),
+      acceptance: clone(draft.destination.acceptance ?? []),
+    }
+    : { statement: "尚未定形目的地", requires: [], invariants: [], acceptance: [] };
+  const facts = Object.fromEntries((draft.origin.facts ?? []).map((fact) => [fact.id, {
+    value: fact.value,
+    evidence: clone(fact.evidence ?? []),
+  }]));
+  const factCounts = { true: 0, false: 0, unknown: 0, conflict: 0 };
+  for (const fact of Object.values(facts)) {
+    if (fact.value in factCounts) factCounts[fact.value] += 1;
+  }
+  const proof = {
+    structural: "not-started",
+    reachability: "not-started",
+    destination_reachable: false,
+    required_predicates: [],
+    candidate_edges: draftEdges.map((edge) => edge.id),
+    proven_edges: [],
+    reachable_nodes: [],
+    applied_edges: [],
+    assumptions_used: [],
+    proof_gaps: [],
+  };
+  const questions = clone(draft.questions ?? []);
+  // An answered question remains in the ledger, but it must not keep the
+  // workflow cursor pinned to an object that no longer needs a decision.
+  const currentQuestion = questions.find((question) => (question.status ?? "pending") === "pending") ?? null;
+  const pendingRegressionCandidates = [...(draft.nodes ?? []), ...(draft.edges ?? [])]
+    .filter((item) => item.status !== "confirmed");
+  const goalRegression = buildWayfindingRegression({ draft: regressionDraft, nodes: draftNodes, edges: draftEdges });
+  const regressionStepByNode = new Map(goalRegression.steps.map((step) => [step.target_node, step]));
+  for (const node of draftNodes) {
+    const step = regressionStepByNode.get(node.id);
+    if (step) node.goal_regression = clone(step);
+  }
+  const regressionEdgeById = new Map(goalRegression.steps.flatMap((step) => step.incoming_edges.map((edge) => [edge.edge_id, edge])));
+  for (const edge of draftEdges) {
+    const regression = regressionEdgeById.get(edge.id);
+    if (regression) {
+      const targetStep = goalRegression.steps.find((step) => step.target_node === edge.to);
+      const sourceStep = goalRegression.steps.find((step) => step.target_node === edge.from);
+      edge.goal_regression = [{
+        depth: targetStep?.depth ?? null,
+        target_node: edge.to,
+        suffix_proof: clone(targetStep?.suffix_proof ?? {
+          status: regression.suffix_proven ? "logical" : "unreachable",
+          destination_reachable: regression.suffix_proven,
+        }),
+        prefix_reachability: clone(sourceStep?.prefix_reachability ?? {}),
+        bridge_status: targetStep?.bridge_status ?? "awaiting-prefix",
+        acceptance: clone(edge.acceptance ?? []),
+        non_goals: clone(edge.non_goals ?? []),
+        confirmed: regression.confirmed === true,
+        human_confirmed: edge.status === "confirmed",
+        formal: false,
+        confirmation_source: edge.status === "confirmed" ? "human-wayfinding" : null,
+      }];
+    }
+  }
+  const revision = hash(`wayfinding:${digest}:${sourceStatus}:${sourceError ?? ""}`);
+  return {
+    schema: 1,
+    projection: {
+      revision,
+      generated_at: now(),
+      source_status: sourceStatus,
+      source_error: sourceError,
+      map_digest: digest,
+      state_updated_at: draft.updated_at ?? null,
+      mode: "wayfinding",
+      read_only: true,
+    },
+    map: {
+      id: "wayfinding-draft",
+      intent: clone(draft.intent),
+      destination: regressionDraft.destination
+        ? {
+          id: regressionDraft.destination.id,
+          kind: regressionDraft.destination.kind,
+          label: regressionDraft.destination.label,
+          statement: regressionDraft.destination.statement,
+          status: regressionDraft.destination.status ?? "pending",
+          requires: clone(regressionDraft.destination.requires ?? []),
+          invariants: clone(regressionDraft.destination.invariants ?? []),
+          acceptance: clone(regressionDraft.destination.acceptance ?? []),
+        }
+        : destination,
+      boundaries: clone(draft.boundaries ?? { in_scope: [], out_of_scope: [], authorization: [] }),
+      phase: "wayfinding",
+      wayfinding_phase: draft.phase,
+      destination_status: draft.intent.status === "shaped" ? "changed" : "draft",
+      actual_arrival: "not-audited",
+      runtime_status: "wayfinding-draft",
+      current_route_approval: null,
+    },
+    summary: {
+      structural: "not-started",
+      reachability: "not-started",
+      nodes: 0,
+      satisfied_nodes: 0,
+      edges: 0,
+      verified_edges: 0,
+      draft_nodes: draftNodes.length,
+      draft_edges: draftEdges.length,
+      pending_draft_nodes: draftNodes.filter((node) => !["confirmed", "satisfied"].includes(node.status)).length,
+      pending_draft_edges: draftEdges.filter((edge) => edge.status !== "confirmed").length,
+      open_questions: questions.filter((question) => ["pending", "deferred"].includes(question.status ?? "pending")).length,
+      active_edge: null,
+      active_run: null,
+      route_approved: false,
+      pending_route_approvals: 0,
+      pending_authorizations: 0,
+      pending_arrival_audits: 0,
+      proof_gaps: 0,
+      acceptance_passed: 0,
+      acceptance_total: draft.destination?.acceptance?.length ?? 0,
+      facts: factCounts,
+      submaps: 0,
+      stale_submaps: 0,
+      pending_proposals: 0,
+      pending_regression_candidates: pendingRegressionCandidates.length,
+      goal_regression_steps: goalRegression.steps.length,
+      goal_regression_edges: goalRegression.edge_ids.length,
+      goal_regression_confirmed: goalRegression.steps.filter((step) => step.human_confirmed).length,
+    },
+    proof,
+    goal_regression: {
+      ...goalRegression,
+      confirmation_policy: "formal-blueprint-only",
+      confirmation_note: "当前显示的是建模候选；只有人逐项确认并写入 Blueprint，首次 init 或已有地图 replan 后才成为正式拓扑。",
+      unconfirmed_candidates: pendingRegressionCandidates.map((item) => ({ id: item.id, kind: item.kind ?? "edge", summary: item.purpose ?? item.label })),
+    },
+    acceptance: clone((draft.destination?.acceptance ?? []).map((item) => ({
+      ...item,
+      status: item.status ?? "pending",
+      missing: clone(item.proves ?? []),
+      evidence_records: 0,
+    }))),
+    predicates: [],
+    nodes: draftNodes,
+    edges: draftEdges,
+    facts,
+    loops: [],
+    proof_gaps: [],
+    evidence: [],
+    edge_runs: [],
+    decisions: [],
+    route_approval_requests: [],
+    route_approvals: [],
+    authorization_requests: [],
+    arrival_audit_requests: [],
+    proposals: [],
+    work_events: [],
+    map_receipts: [],
+    submaps: [],
+    timeline: [],
+    questions,
+    wayfinding: {
+      phase: draft.phase,
+      draft_nodes: draftNodes,
+      draft_edges: draftEdges,
+      questions,
+      current_target: currentQuestion?.target ?? null,
+      current_question_id: currentQuestion?.id ?? null,
+    },
+    empty_state: {
+      title: "正在建立地图草稿",
+      next_steps: draft.phase === "survey"
+        ? [
+          "固定始发候选节点的四值事实和证据来源",
+          "把唯一问题切换到待定形的目的地合同",
+        ]
+        : draft.phase === "shaping"
+          ? [
+            "收敛目标谓词、验收、非目标、不变量和授权边界",
+            "展示完整目的地合同并等待后续独立人工确认",
+          ]
+          : goalRegression.complete_chain && pendingRegressionCandidates.length === 0 && !currentQuestion
+            ? [
+              "候选链已闭合且逐项确认；生成独立 Task Brief 和 Blueprint",
+              "执行 validate/prove；首次建图用 init，已有地图修图用 replan",
+            ]
+            : [
+              "从目的地逐项反推里程碑节点与独立工作边",
+              "候选链闭合且逐项确认后再登记正式 Blueprint",
+            ],
+    },
+  };
+}
+
+function eventDigest(event) {
+  const payload = clone(event);
+  delete payload.event_digest;
+  return hash(stableJson(payload));
+}
+
 function stateFacts(state, blueprint) {
   if (!state) return initialFacts(blueprint);
   return clone(asObject(state.facts, "state.facts"));
@@ -57,6 +642,9 @@ function validateRuntimeState(state, blueprint) {
   asArray(state.history, "state.history");
   asObject(state.loop_iterations, "state.loop_iterations");
   if (state.active_edge !== null && typeof state.active_edge !== "string") fail("state.active_edge must be a string or null");
+  for (const field of ["edge_runs", "decisions", "route_approval_requests", "route_approvals", "authorization_requests", "arrival_audit_requests", "work_events", "proposals", "regression_proposals", "map_receipts", "receipt_invalidations"]) {
+    if (state[field] !== undefined) asArray(state[field], `state.${field}`);
+  }
 }
 
 function factValue(facts, factId) {
@@ -101,8 +689,10 @@ function nodeStatus(node, predicateViews, satisfied, arrived) {
   return satisfied ? "satisfied" : "unsatisfied";
 }
 
-function edgeStatus({ edge, activeEdge, verifiedEdges, readiness, proofGaps, proven }) {
-  if (activeEdge === edge.id) return "active";
+function edgeStatus({ edge, activeEdge, verifiedEdges, readiness, proofGaps, proven, latestRun, submap }) {
+  if (submap?.receipt_status === "stale" || submap?.source_status === "stale") return "stale";
+  if (activeEdge === edge.id || latestRun?.status === "active") return "active";
+  if (["waiting", "blocked", "failed", "cancelled"].includes(latestRun?.status)) return latestRun.status;
   if (verifiedEdges.has(edge.id)) return "verified";
   if (proofGaps.some((gap) => gap.at_edge === edge.id)) return "blocked";
   if (readiness.ready && proven) return "ready";
@@ -140,12 +730,18 @@ export function compileBoardModel({
   sourceStatus = "current",
   sourceError = null,
   stateDigest = null,
+  submaps = [],
 }) {
   validateBlueprint(blueprint);
   validateRuntimeState(state, blueprint);
   const facts = stateFacts(state, blueprint);
   const loopIterations = state?.loop_iterations ?? Object.fromEntries(blueprint.loops.map((loop) => [loop.id, 0]));
   const proof = proveBlueprint(blueprint, facts, { loopIterations });
+  const goalRegression = buildGoalRegression(blueprint, facts, {
+    proof,
+    destinationStatus: state?.destination_status ?? "draft",
+    loopIterations,
+  });
   const satisfiedNodeIds = new Set(deriveSatisfiedNodes(blueprint, facts));
   const verifiedEdges = new Set(state?.verified_edges ?? []);
   const evidence = clone(state?.evidence ?? []);
@@ -154,6 +750,13 @@ export function compileBoardModel({
   const candidateEdges = new Set(proof.candidate_edges);
   const provenEdges = new Set(proof.proven_edges);
   const actualArrival = state?.phase === "arrived" ? "audited" : "not-audited";
+  const edgeRuns = clone(state?.edge_runs ?? []);
+  const decisions = clone(state?.decisions ?? []);
+  const routeApprovalRequests = clone(state?.route_approval_requests ?? []);
+  const routeApprovals = clone(state?.route_approvals ?? []);
+  const authorizationRequests = clone(state?.authorization_requests ?? []);
+  const arrivalAuditRequests = clone(state?.arrival_audit_requests ?? []);
+  const submapByEdge = new Map(submaps.map((item) => [item.parent_edge, item]));
   const predicates = blueprint.predicates.map((predicate) => ({
     ...clone(predicate),
     actual: factValue(facts, predicate.fact) ?? "unknown",
@@ -168,11 +771,24 @@ export function compileBoardModel({
     return {
       ...clone(node),
       satisfied,
-      status: nodeStatus(node, nodePredicates, satisfied, actualArrival === "audited"),
+      status: nodeStatus(
+        node,
+        nodePredicates,
+        satisfied,
+        actualArrival === "audited",
+      ),
       predicates: nodePredicates,
       proof_gaps: proofGaps.filter((gap) => node.predicates.includes(gap.missing)),
+      goal_regression: null,
     };
   });
+
+  const regressionStepByNode = new Map(goalRegression.steps.map((step) => [step.target_node, step]));
+  for (const node of nodes) {
+    const step = regressionStepByNode.get(node.id);
+    if (!step) continue;
+    node.goal_regression = clone(step);
+  }
 
   const edges = blueprint.edges.map((edge) => {
     const readiness = edgeReadiness(blueprint, facts, edge.id);
@@ -188,6 +804,9 @@ export function compileBoardModel({
       iterations: loopIterations[loop.id] ?? 0,
       exhausted: (loopIterations[loop.id] ?? 0) >= loop.max_iterations,
     }));
+    const runs = edgeRuns.filter((run) => run.edge === edge.id);
+    const latestRun = runs.at(-1) ?? null;
+    const submap = submapByEdge.get(edge.id) ?? null;
     return {
       ...clone(edge),
       title: brief?.metadata?.title ?? edge.id,
@@ -198,17 +817,37 @@ export function compileBoardModel({
         readiness,
         proofGaps,
         proven: provenEdges.has(edge.id),
+        latestRun,
+        submap,
       }),
       candidate: candidateEdges.has(edge.id),
       proven: provenEdges.has(edge.id),
       ready: readiness.ready,
       missing: clone(readiness.missing),
       brief: brief ? clone(brief) : { ref: edge.brief_ref, metadata: null, content: null },
+      non_goals: clone(brief?.metadata?.contract?.scope?.out ?? []),
       applicable_invariants: clone(invariants),
       loops,
       evidence: edgeEvidence,
       acceptance: edgeAcceptance,
       proof_gaps: proofGaps.filter((gap) => gap.at_edge === edge.id),
+      runs,
+      decisions: decisions.filter((decision) => decision.edge === edge.id),
+      authorization_requests: authorizationRequests.filter((request) => request.edge === edge.id),
+      submap: submap ? clone(submap) : null,
+      goal_regression: goalRegression.steps
+        .filter((step) => step.incoming_edges.some((candidate) => candidate.edge_id === edge.id))
+        .map((step) => ({
+          depth: step.depth,
+          target_node: step.target_node,
+          suffix_proof: clone(step.suffix_proof),
+          prefix_reachability: clone(step.prefix_reachability),
+          bridge_status: step.bridge_status,
+          confirmed: true,
+          human_confirmed: true,
+          formal: true,
+          confirmation_source: "formal-blueprint",
+        })),
     };
   });
 
@@ -217,7 +856,35 @@ export function compileBoardModel({
     const value = typeof fact === "string" ? fact : fact?.value;
     if (value in factCounts) factCounts[value] += 1;
   }
-  const revision = hash(`${digest}:${stateDigest ?? "definition"}:${sourceStatus}:${sourceError ?? ""}`);
+  const revision = hash(`${digest}:${stateDigest ?? "definition"}:${sourceStatus}:${sourceError ?? ""}:${stableJson(submaps)}`);
+  const enrichedGoalRegression = {
+    ...clone(goalRegression),
+    destination: {
+      ...clone(goalRegression.destination),
+      status: "defined",
+    },
+    confirmation_policy: "formal-blueprint-only",
+    confirmation_note: "只有已写入 Blueprint 并经首次 init 或已有地图 replan 登记的节点和工作边才进入正式图；回归候选不会自动改变拓扑。",
+    unconfirmed_candidates: clone(state?.regression_proposals ?? []),
+  };
+  const regressionStepLookup = new Map(enrichedGoalRegression.steps.map((step) => [step.target_node, step]));
+  for (const edge of edges) {
+    const step = regressionStepLookup.get(edge.to);
+    if (!step) continue;
+    const briefContract = edge.brief?.metadata?.contract ?? {};
+    const nonGoals = [
+      ...(briefContract.scope?.out ?? []),
+      ...(briefContract.out_of_scope ?? []),
+    ];
+    for (const candidate of step.incoming_edges.filter((item) => item.edge_id === edge.id)) {
+      candidate.non_goals = [...new Set(nonGoals)];
+      candidate.acceptance = edge.acceptance.map((item) => clone(item));
+    }
+  }
+  for (const node of nodes) {
+    const step = regressionStepLookup.get(node.id);
+    if (step) node.goal_regression = clone(step);
+  }
   return {
     schema: 1,
     projection: {
@@ -232,11 +899,14 @@ export function compileBoardModel({
     },
     map: {
       id: blueprint.map_id,
+      intent: clone(blueprint.intent),
       destination: clone(blueprint.destination),
       boundaries: clone(blueprint.boundaries),
       phase: state?.phase ?? "wayfinding",
       destination_status: state?.destination_status ?? "draft",
       actual_arrival: actualArrival,
+      runtime_status: state?.runtime_status ?? (state ? "idle" : "definition"),
+      current_route_approval: state?.current_route_approval ?? null,
     },
     summary: {
       structural: proof.structural,
@@ -246,12 +916,25 @@ export function compileBoardModel({
       edges: edges.length,
       verified_edges: edges.filter((edge) => edge.status === "verified").length,
       active_edge: state?.active_edge ?? null,
+      active_run: state?.active_run ?? null,
+      route_approved: Boolean(state?.current_route_approval),
+      pending_route_approvals: routeApprovalRequests.filter((request) => request.status === "pending").length,
+      pending_authorizations: authorizationRequests.filter((request) => request.status === "pending").length,
+      pending_arrival_audits: arrivalAuditRequests.filter((request) => request.status === "pending").length,
       proof_gaps: proofGaps.length,
       acceptance_passed: acceptance.filter((item) => item.status === "passed").length,
       acceptance_total: acceptance.length,
       facts: factCounts,
+      submaps: submaps.length,
+      stale_submaps: submaps.filter((item) => item.source_status === "stale" || item.receipt_status === "stale").length,
+      pending_proposals: (state?.proposals ?? []).filter((item) => item.status === "pending").length,
+      pending_regression_candidates: (state?.regression_proposals ?? []).filter((item) => item.status === "pending").length,
+      goal_regression_steps: goalRegression.steps.length,
+      goal_regression_edges: goalRegression.edge_ids.length,
+      goal_regression_confirmed: enrichedGoalRegression.steps.reduce((total, step) => total + step.incoming_edges.filter((edge) => edge.confirmed).length, 0),
     },
     proof: clone(proof),
+    goal_regression: enrichedGoalRegression,
     acceptance,
     predicates,
     nodes,
@@ -264,6 +947,16 @@ export function compileBoardModel({
     })),
     proof_gaps: proofGaps,
     evidence,
+    edge_runs: edgeRuns,
+    decisions,
+    route_approval_requests: routeApprovalRequests,
+    route_approvals: routeApprovals,
+    authorization_requests: authorizationRequests,
+    arrival_audit_requests: arrivalAuditRequests,
+    proposals: clone(state?.proposals ?? []),
+    work_events: clone(state?.work_events ?? []),
+    map_receipts: clone(state?.map_receipts ?? []),
+    submaps: clone(submaps),
     timeline: buildTimeline(state),
   };
 }
@@ -272,7 +965,51 @@ function readRuntimeState(statePath) {
   if (!statePath || !fs.existsSync(statePath)) return { state: null, digest: null };
   const content = fs.readFileSync(statePath, "utf8");
   try {
-    return { state: JSON.parse(content), digest: hash(content) };
+    const state = JSON.parse(content);
+    if (state.event_stream) {
+      const eventsPath = path.resolve(path.dirname(path.resolve(statePath)), state.event_stream.path);
+      if (!fs.existsSync(eventsPath)) fail(`event stream disappeared: ${eventsPath}`);
+      const lines = fs.readFileSync(eventsPath, "utf8").split(/\r?\n/).filter((line) => line.trim() !== "");
+      let previous = null;
+      const identities = new Set();
+      let latestProjection = null;
+      let streamIdentity = null;
+      for (let index = 0; index < lines.length; index += 1) {
+        const event = JSON.parse(lines[index]);
+        if (!event || typeof event !== "object" || Array.isArray(event)) fail(`event at seq ${index + 1} must be an object`);
+        if (event.schema !== "mapflow.event/v1" || event.specversion !== "1.0") fail(`unsupported event envelope at seq ${index + 1}`);
+        for (const field of ["id", "source", "type", "time", "subject", "stream", "base_revision", "actor", "event_digest"]) {
+          if (typeof event[field] !== "string" || event[field].trim() === "") fail(`event ${field} is invalid at seq ${index + 1}`);
+        }
+        const projection = event.data?.projection;
+        if (!projection || typeof projection !== "object" || Array.isArray(projection) || projection.event_stream !== undefined) {
+          fail(`event projection is invalid at seq ${index + 1}`);
+        }
+        if (event.source !== `mapflow://${projection.map_id}` || event.stream !== `map/${projection.map_id}`) {
+          fail(`event map identity mismatch at seq ${index + 1}`);
+        }
+        if (!/^mapflow\.[a-z0-9.]+\.v1$/.test(event.type) || Number.isNaN(Date.parse(event.time))) {
+          fail(`event type or time is invalid at seq ${index + 1}`);
+        }
+        if (event.base_revision !== (previous ?? projection.map_digest)) fail(`event base revision mismatch at seq ${index + 1}`);
+        const currentIdentity = `${event.source}\0${event.stream}`;
+        if (streamIdentity === null) streamIdentity = currentIdentity;
+        if (streamIdentity !== currentIdentity) fail(`event stream identity changed at seq ${index + 1}`);
+        if (event.seq !== index + 1 || event.previous_digest !== previous || event.event_digest !== eventDigest(event)) {
+          fail(`event stream integrity failure at seq ${index + 1}`);
+        }
+        const identity = `${event.source}\0${event.id}`;
+        if (identities.has(identity)) fail(`duplicate event identity at seq ${event.seq}`);
+        identities.add(identity);
+        previous = event.event_digest;
+        latestProjection = projection;
+      }
+      if (lines.length !== state.event_stream.last_seq || previous !== state.event_stream.head_digest) fail("event projection mismatch");
+      const stateProjection = clone(state);
+      delete stateProjection.event_stream;
+      if (!latestProjection || stableJson(stateProjection) !== stableJson(latestProjection)) fail("state content does not match the event projection");
+    }
+    return { state, digest: hash(content) };
   } catch (error) {
     fail(`invalid runtime state: ${statePath}: ${error.message}`);
   }
@@ -283,12 +1020,92 @@ function stateMapPath(statePath, state) {
   return path.resolve(path.dirname(path.resolve(statePath)), state.map);
 }
 
+function wayfindingPathForState(statePath) {
+  if (!statePath) return null;
+  return path.join(path.dirname(path.resolve(statePath)), "wayfinding.yaml");
+}
+
 export function createBoardSnapshotReader({ mapPath = null, statePath = null } = {}) {
   let lastGood = null;
   let lastBriefs = {};
   let runtimeWasPresent = false;
 
-  return function readSnapshot() {
+  let latestContext = null;
+  const childLastGood = new Map();
+
+  function childSnapshot(resolvedMap, binding, parentState, { bindingPath = binding.id, includeSubmaps = false } = {}) {
+    const rootDirectory = path.dirname(resolvedMap);
+    const childMapPath = path.resolve(rootDirectory, binding.map_ref.replaceAll("/", path.sep));
+    const childStatePath = path.resolve(rootDirectory, binding.state_ref.replaceAll("/", path.sep));
+    try {
+      const loaded = readBlueprint(childMapPath);
+      const stateResult = readRuntimeState(childStatePath);
+      const childState = stateResult.state;
+      const errors = [];
+      if (loaded.blueprint.map_id !== binding.expected_map_id) errors.push(`map id ${loaded.blueprint.map_id} != ${binding.expected_map_id}`);
+      if (loaded.digest !== binding.expected_map_digest) errors.push("Blueprint digest changed");
+      if (!childState) errors.push("runtime state is absent");
+      else if (childState.map_digest !== loaded.digest) errors.push("runtime is stale against Blueprint");
+      const receipt = [...(parentState?.map_receipts ?? [])].reverse().find((item) => item.binding_id === binding.id) ?? null;
+      const childRevision = childState?.event_stream?.head_digest ?? stateResult.digest;
+      const invalidated = receipt && (parentState?.receipt_invalidations ?? []).some((item) => item.receipt_id === receipt.receipt_id);
+      const receiptStatus = !receipt ? "missing" : invalidated || receipt.child.map_digest !== loaded.digest || receipt.child.state_revision !== childRevision ? "stale" : "current";
+      const childSubmaps = includeSubmaps ? loaded.blueprint.submaps.map((childBinding) => childSnapshot(
+        childMapPath,
+        childBinding,
+        childState,
+        { bindingPath: `${bindingPath}/${childBinding.id}`, includeSubmaps: false },
+      ).summary) : [];
+      const model = compileBoardModel({
+        blueprint: loaded.blueprint,
+        digest: loaded.digest,
+        briefs: loaded.briefs,
+        state: childState,
+        stateDigest: stateResult.digest,
+        sourceStatus: errors.length ? "stale" : "current",
+        sourceError: errors.join("; ") || null,
+        submaps: childSubmaps,
+      });
+      const summary = {
+        ...clone(binding),
+        path: bindingPath,
+        map_id: loaded.blueprint.map_id,
+        phase: childState?.phase ?? "wayfinding",
+        actual_arrival: childState?.phase === "arrived" ? "audited" : "not-audited",
+        source_status: errors.length ? "stale" : "current",
+        source_error: errors.join("; ") || null,
+        receipt_status: receiptStatus,
+        receipt_id: receipt?.receipt_id ?? null,
+        fog_nodes: model.nodes.filter((node) => ["fog", "conflict"].includes(node.status)).length,
+        acceptance_passed: model.summary.acceptance_passed,
+        acceptance_total: model.summary.acceptance_total,
+        revision: model.projection.revision,
+      };
+      const context = { resolvedMap: childMapPath, blueprint: loaded.blueprint, state: childState };
+      childLastGood.set(bindingPath, { model, summary, context });
+      return { model, summary, context };
+    } catch (error) {
+      const previous = childLastGood.get(bindingPath);
+      if (!previous) {
+        return {
+          model: null,
+          summary: { ...clone(binding), path: bindingPath, map_id: binding.expected_map_id, phase: "unknown", actual_arrival: "not-audited", source_status: "stale", source_error: error.message, receipt_status: "stale", receipt_id: null, fog_nodes: 0, acceptance_passed: 0, acceptance_total: 0, revision: hash(error.message) },
+          context: null,
+        };
+      }
+      const model = clone(previous.model);
+      model.projection.source_status = "stale";
+      model.projection.source_error = error.message;
+      model.projection.revision = hash(`${model.projection.revision}:${error.message}`);
+      return {
+        model,
+        summary: { ...clone(previous.summary), source_status: "stale", source_error: error.message, receipt_status: "stale", revision: model.projection.revision },
+        context: previous.context,
+      };
+    }
+  }
+
+  function readSnapshot() {
     try {
       const stateResult = readRuntimeState(statePath);
       if (stateResult.state) runtimeWasPresent = true;
@@ -296,7 +1113,31 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
       const resolvedMap = mapPath
         ? path.resolve(mapPath)
         : stateMapPath(statePath, stateResult.state);
-      if (!resolvedMap) fail("board requires --map when runtime state is absent");
+      if (!resolvedMap) {
+        const draftPath = wayfindingPathForState(statePath);
+        if (draftPath && fs.existsSync(draftPath)) {
+          try {
+            const loadedDraft = readWayfinding(draftPath);
+            const model = compileWayfindingBoardModel({ draft: loadedDraft.draft, digest: loadedDraft.digest });
+            lastGood = model;
+            latestContext = null;
+            return { model, etag: `"${model.projection.revision}"` };
+          } catch (error) {
+            if (!lastGood) {
+              const model = emptyBoardModel();
+              model.projection.source_status = "stale";
+              model.projection.source_error = error.message;
+              model.projection.revision = hash(`empty:stale:${error.message}`);
+              return { model, etag: `"${model.projection.revision}"` };
+            }
+            throw error;
+          }
+        }
+        const model = emptyBoardModel();
+        lastGood = model;
+        latestContext = null;
+        return { model, etag: `"${model.projection.revision}"` };
+      }
 
       let loaded;
       let loadError = null;
@@ -313,29 +1154,41 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
         const sourceError = loadError
           ? `current Blueprint is invalid: ${loadError.message}`
           : "Blueprint or bound Task Brief has unregistered changes";
+        const submaps = snapshot.submaps.map((binding) => childSnapshot(resolvedMap, binding, state, {
+          bindingPath: binding.id,
+          includeSubmaps: false,
+        }).summary);
         const model = compileBoardModel({
           blueprint: snapshot,
           digest: state.map_digest,
-          briefs: lastBriefs,
+          briefs: Object.keys(state.brief_snapshots ?? {}).length ? state.brief_snapshots : lastBriefs,
           state,
           stateDigest: stateResult.digest,
           sourceStatus: "stale",
           sourceError,
+          submaps,
         });
         lastGood = model;
+        latestContext = { resolvedMap, blueprint: snapshot, state };
         return { model, etag: `"${model.projection.revision}"` };
       }
       if (loadError) throw loadError;
 
+      const submaps = loaded.blueprint.submaps.map((binding) => childSnapshot(resolvedMap, binding, state, {
+        bindingPath: binding.id,
+        includeSubmaps: false,
+      }).summary);
       const model = compileBoardModel({
         blueprint: loaded.blueprint,
         digest: loaded.digest,
         briefs: loaded.briefs,
         state,
         stateDigest: stateResult.digest,
+        submaps,
       });
       lastBriefs = loaded.briefs;
       lastGood = model;
+      latestContext = { resolvedMap, blueprint: loaded.blueprint, state };
       return { model, etag: `"${model.projection.revision}"` };
     } catch (error) {
       if (!lastGood) throw error;
@@ -347,5 +1200,35 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
       model.projection.revision = hash(`${lastGood.projection.revision}:stale:${sourceError}`);
       return { model, etag: `"${model.projection.revision}"` };
     }
+  }
+
+  readSnapshot.readSubmap = function readSubmap(bindingPath) {
+    readSnapshot();
+    const segments = String(bindingPath).split("/");
+    if (!segments.length || segments.some((segment) => !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(segment))) {
+      fail(`invalid submap binding path: ${bindingPath}`);
+    }
+    let context = latestContext;
+    let snapshot = null;
+    let binding = null;
+    const traversed = [];
+    for (const segment of segments) {
+      if (!context) fail(`submap context is unavailable: ${traversed.join("/") || "root"}`);
+      binding = context.blueprint.submaps.find((item) => item.id === segment);
+      traversed.push(segment);
+      if (!binding) fail(`unknown submap binding: ${traversed.join("/")}`);
+      snapshot = childSnapshot(context.resolvedMap, binding, context.state, {
+        bindingPath: traversed.join("/"),
+        includeSubmaps: traversed.length === segments.length,
+      });
+      if (!snapshot.model) fail(snapshot.summary.source_error ?? `submap unavailable: ${traversed.join("/")}`);
+      context = snapshot.context;
+    }
+    snapshot.model.projection.binding_id = binding.id;
+    snapshot.model.projection.binding_path = segments.join("/");
+    snapshot.model.projection.parent_edge = binding.parent_edge;
+    snapshot.model.projection.namespace = segments.join("::");
+    return { model: snapshot.model, etag: `"${snapshot.model.projection.revision}"` };
   };
+  return readSnapshot;
 }

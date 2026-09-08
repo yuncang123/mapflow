@@ -1,0 +1,36 @@
+{
+  "schema": "mapflow.benchmark-oracle/v1",
+  "case_id": "library-system-submaps",
+  "case_version": "1.3.5",
+  "checkpoints": [
+    { "id": "prepared", "description": "大目标从没有地图的固定基线开始", "assertions": [
+      { "path": "workspace.sidecar_exists", "equals": false }, { "path": "repo.commit_count", "equals": 1 }, { "path": "repo.dirty_paths", "empty": true }
+    ] },
+    { "id": "parent-route-approved", "description": "父图路线经人确认并通过结构与可达性证明", "assertions": [
+      { "path": "workspace.map_exists", "equals": true }, { "path": "workspace.briefs_count", "min": 2 },
+      { "path": "contract.destination_acceptance", "min": 3 }, { "path": "contract.out_of_scope", "min": 3 }, { "path": "contract.edge_contracts_complete", "equals": true },
+      { "path": "proof.structural", "equals": "complete" }, { "path": "proof.reachability", "one_of": ["logical", "conditional"] },
+      { "path": "runtime.destination_status", "equals": "approved" }, { "path": "runtime.current_route_approval", "nonempty": true },
+      { "path": "runtime.route_approvals_count", "min": 1 }, { "path": "runtime.active_edge", "equals": null },
+      { "path": "runtime.active_run", "equals": null }, { "path": "runtime.edge_runs_count", "equals": 0 },
+      { "path": "runtime.decisions_count", "equals": 0 }, { "path": "repo.dirty_paths", "empty": true }
+    ] },
+    { "id": "children-bound", "description": "至少两个父边绑定独立子地图且尚未伪造回执", "assertions": [
+      { "path": "submaps.count", "min": 2 }, { "path": "submaps.current_receipts", "equals": 0 }
+    ] },
+    { "id": "first-child-received", "description": "首个子地图独立到达并产生当前回执", "assertions": [
+      { "path": "submaps.current_receipts", "min": 1 }, { "path": "submaps.stale", "equals": 0 }, { "path": "runtime.evidence_count", "min": 1 }
+    ] },
+    { "id": "all-children-received", "description": "所有父边需要的子图回执均为 current", "assertions": [
+      { "path": "submaps.current_receipts", "min": 2 }, { "path": "submaps.stale", "equals": 0 }, { "path": "repo.changed_paths", "nonempty": true }
+    ], "verifier": "oracle/verify.mjs" },
+    { "id": "collapsed-readable", "description": "收缩摘要来自当前回执且不存在 stale", "assertions": [
+      { "path": "submaps.count", "min": 2 }, { "path": "submaps.current_receipts", "min": 2 }, { "path": "submaps.stale", "equals": 0 }
+    ] },
+    { "id": "arrived", "description": "父图只在所有子图回执与自身验收成立后到达", "assertions": [
+      { "path": "runtime.phase", "equals": "arrived" }, { "path": "runtime.actual_arrival", "equals": "audited" },
+      { "path": "runtime.arrival_audit_authorized", "equals": true }, { "path": "runtime.acceptance_complete", "equals": true },
+      { "path": "submaps.stale", "equals": 0 }
+    ], "verifier": "oracle/verify.mjs" }
+  ]
+}

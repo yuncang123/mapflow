@@ -1,0 +1,357 @@
+schema_version: 2
+map_id: shelfwise-v1
+
+intent:
+  statement: 从零开发 Shelfwise，供小型社区图书室管理员在本机完成日常借阅管理
+  status: shaped
+  open_questions: []
+
+destination:
+  statement: Shelfwise v1 已在本机提供可持久化、可验证的单管理员图书借阅闭环
+  requires:
+    - startup-and-page-verified
+    - registration-workflows-verified
+    - loan-lifecycle-verified
+    - restart-persistence-verified
+    - required-api-contract-verified
+    - production-dependency-policy-verified
+  invariants:
+    - production-dependencies-remain-empty
+    - configured-data-file-is-authoritative
+    - no-external-release
+  acceptance:
+    - id: a1-startup-page
+      proves:
+        - startup-and-page-verified
+      proof: 临时 PORT 和 LIBRARY_DATA_FILE 下 npm start 成功，GET / 返回可操作页面
+    - id: a2-registration
+      proves:
+        - registration-workflows-verified
+      proof: 页面和 API 可登记单册图书与读者并返回稳定 ID
+    - id: a3-a4-loan-lifecycle
+      proves:
+        - loan-lifecycle-verified
+      proof: 借阅、有效查询、归还和非法重复操作符合合同且不产生脏数据
+    - id: a5-restart-persistence
+      proves:
+        - restart-persistence-verified
+      proof: 使用同一数据文件重启后，图书、读者与借阅状态完全一致
+    - id: a6-api-contract
+      proves:
+        - required-api-contract-verified
+      proof: 自动化测试逐一调用页面入口和五个指定 API
+    - id: a6-production-dependencies
+      proves:
+        - production-dependency-policy-verified
+      proof: package.json 的生产 dependencies 为空且服务不依赖第三方包
+
+predicates:
+  - id: git-repository-exists
+    fact: git-repository-exists
+    equals: "true"
+    kind: resource
+  - id: local-node-runtime-available
+    fact: local-node-runtime-available
+    equals: "true"
+    kind: resource
+  - id: node-sqlite-available
+    fact: node-sqlite-available
+    equals: "true"
+    kind: resource
+  - id: destination-contract-confirmed
+    fact: destination-contract-confirmed
+    equals: "true"
+    kind: authorization
+  - id: production-dependencies-forbidden
+    fact: production-dependencies-allowed
+    equals: "false"
+    kind: authorization
+  - id: configured-data-file-required
+    fact: configured-data-file-required
+    equals: "true"
+    kind: state
+  - id: external-release-not-authorized
+    fact: external-deployment-authorized
+    equals: "false"
+    kind: authorization
+  - id: persistent-library-api-ready
+    fact: persistent-library-api-ready
+    equals: "true"
+    kind: state
+  - id: admin-browser-workflows-ready
+    fact: admin-browser-workflows-ready
+    equals: "true"
+    kind: state
+  - id: startup-and-page-verified
+    fact: startup-and-page-verified
+    equals: "true"
+    kind: state
+  - id: registration-workflows-verified
+    fact: registration-workflows-verified
+    equals: "true"
+    kind: state
+  - id: loan-lifecycle-verified
+    fact: loan-lifecycle-verified
+    equals: "true"
+    kind: state
+  - id: restart-persistence-verified
+    fact: restart-persistence-verified
+    equals: "true"
+    kind: state
+  - id: required-api-contract-verified
+    fact: required-api-contract-verified
+    equals: "true"
+    kind: state
+  - id: production-dependency-policy-verified
+    fact: production-dependency-policy-verified
+    equals: "true"
+    kind: state
+
+initial_state:
+  facts:
+    - id: git-repository-exists
+      value: "true"
+      evidence:
+        - kind: git
+          ref: commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
+          strength: observed
+    - id: local-node-runtime-available
+      value: "true"
+      evidence:
+        - kind: command
+          ref: node --version => v24.18.0
+          strength: observed
+    - id: node-sqlite-available
+      value: "true"
+      evidence:
+        - kind: command
+          ref: node:sqlite in-memory probe => SQLite 3.53.1
+          strength: observed
+    - id: destination-contract-confirmed
+      value: "true"
+      evidence:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-destination-confirmation
+          strength: asserted
+    - id: production-dependencies-allowed
+      value: "false"
+      evidence:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-v1-scope
+          strength: asserted
+    - id: configured-data-file-required
+      value: "true"
+      evidence:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-v1-scope
+          strength: asserted
+    - id: external-deployment-authorized
+      value: "false"
+      evidence:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-v1-scope
+          strength: asserted
+    - id: persistent-library-api-ready
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
+          strength: observed
+    - id: admin-browser-workflows-ready
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
+          strength: observed
+    - id: startup-and-page-verified
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: no implementation or acceptance evidence exists in the initial repository
+          strength: observed
+    - id: registration-workflows-verified
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: no implementation or acceptance evidence exists in the initial repository
+          strength: observed
+    - id: loan-lifecycle-verified
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: no implementation or acceptance evidence exists in the initial repository
+          strength: observed
+    - id: restart-persistence-verified
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: no implementation or acceptance evidence exists in the initial repository
+          strength: observed
+    - id: required-api-contract-verified
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: no implementation or acceptance evidence exists in the initial repository
+          strength: observed
+    - id: production-dependency-policy-verified
+      value: "false"
+      evidence:
+        - kind: observation
+          ref: no package manifest or implementation exists in the initial repository
+          strength: observed
+
+assumptions: []
+
+invariants:
+  - id: production-dependencies-remain-empty
+    applies_to:
+      - build-persistent-library-api
+      - build-admin-browser-interface
+      - verify-shelfwise-v1
+    requires:
+      - production-dependencies-forbidden
+  - id: configured-data-file-is-authoritative
+    applies_to:
+      - build-persistent-library-api
+      - build-admin-browser-interface
+      - verify-shelfwise-v1
+    requires:
+      - configured-data-file-required
+  - id: no-external-release
+    applies_to:
+      - build-persistent-library-api
+      - build-admin-browser-interface
+      - verify-shelfwise-v1
+    requires:
+      - external-release-not-authorized
+
+boundaries:
+  in_scope:
+    - 单管理员使用的图书、读者、借阅、归还和有效借阅查询
+    - 本地浏览器管理页面、SQLite 文件持久化和对应自动化验证
+  out_of_scope:
+    - 会员收费、电子书、推荐、预约和多人权限
+    - 外部部署、发布和外部系统写入
+  authorization:
+    - 每条工作边都需要独立人工施工授权
+    - 仅允许本仓库写入、本机临时端口、临时数据文件和本机浏览器验证
+
+nodes:
+  - id: shelfwise-empty-repository
+    kind: state
+    label: Shelfwise 已定边界的空白仓库
+    predicates:
+      - git-repository-exists
+      - local-node-runtime-available
+      - node-sqlite-available
+      - destination-contract-confirmed
+      - production-dependencies-forbidden
+      - configured-data-file-required
+      - external-release-not-authorized
+    realization_refs:
+      - kind: git
+        ref: commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
+        strength: observed
+  - id: library-api-ready
+    kind: state
+    label: 持久化图书借阅 API 已就绪
+    predicates:
+      - persistent-library-api-ready
+  - id: admin-app-ready
+    kind: join
+    label: 管理员浏览器工作流已就绪
+    predicates:
+      - persistent-library-api-ready
+      - admin-browser-workflows-ready
+  - id: shelfwise-v1-ready
+    kind: destination
+    label: Shelfwise v1 合同已验证
+    predicates:
+      - startup-and-page-verified
+      - registration-workflows-verified
+      - loan-lifecycle-verified
+      - restart-persistence-verified
+      - required-api-contract-verified
+      - production-dependency-policy-verified
+
+edges:
+  - id: build-persistent-library-api
+    from: shelfwise-empty-repository
+    to: library-api-ready
+    brief_ref: briefs/build-persistent-library-api.md
+    preconditions:
+      - git-repository-exists
+      - local-node-runtime-available
+      - node-sqlite-available
+      - destination-contract-confirmed
+    effects:
+      - persistent-library-api-ready
+    invariants:
+      - production-dependencies-remain-empty
+      - configured-data-file-is-authoritative
+      - no-external-release
+    certainty: expected
+    evidence_contract:
+      - id: persistent-api-test-record
+        proves:
+          - persistent-library-api-ready
+        required: true
+    on_failure:
+      action: replan
+  - id: build-admin-browser-interface
+    from: library-api-ready
+    to: admin-app-ready
+    brief_ref: briefs/build-admin-browser-interface.md
+    preconditions:
+      - persistent-library-api-ready
+    effects:
+      - admin-browser-workflows-ready
+    invariants:
+      - production-dependencies-remain-empty
+      - configured-data-file-is-authoritative
+      - no-external-release
+    certainty: expected
+    evidence_contract:
+      - id: admin-browser-workflow-record
+        proves:
+          - admin-browser-workflows-ready
+        required: true
+    on_failure:
+      action: replan
+  - id: verify-shelfwise-v1
+    from: admin-app-ready
+    to: shelfwise-v1-ready
+    brief_ref: briefs/verify-shelfwise-v1.md
+    preconditions:
+      - persistent-library-api-ready
+      - admin-browser-workflows-ready
+    effects:
+      - startup-and-page-verified
+      - registration-workflows-verified
+      - loan-lifecycle-verified
+      - restart-persistence-verified
+      - required-api-contract-verified
+      - production-dependency-policy-verified
+    invariants:
+      - production-dependencies-remain-empty
+      - configured-data-file-is-authoritative
+      - no-external-release
+    certainty: expected
+    evidence_contract:
+      - id: shelfwise-v1-acceptance-record
+        proves:
+          - startup-and-page-verified
+          - registration-workflows-verified
+          - loan-lifecycle-verified
+          - restart-persistence-verified
+          - required-api-contract-verified
+          - production-dependency-policy-verified
+        required: true
+    on_failure:
+      action: replan
+
+loops: []
+submaps: []
+
+extensions:
+  x-prior-art: research/prior-art.md

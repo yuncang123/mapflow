@@ -88,6 +88,17 @@ export function createBoardServer({ mapPath = null, statePath = null, assetsRoot
         sendJson(response, 200, body, { ETag: snapshot.etag });
         return;
       }
+      const submapMatch = url.pathname.match(/^\/api\/submaps\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*)*)$/);
+      if (submapMatch) {
+        const snapshot = readSnapshot.readSubmap(submapMatch[1]);
+        if (request.headers["if-none-match"] === snapshot.etag) {
+          response.writeHead(304, { ...securityHeaders("application/json; charset=utf-8"), ETag: snapshot.etag });
+          response.end();
+          return;
+        }
+        sendJson(response, 200, snapshot.model, { ETag: snapshot.etag });
+        return;
+      }
       if (serveStatic(request, response, assetsRoot, url.pathname)) return;
       sendJson(response, 404, { error: "not found" });
     } catch (error) {

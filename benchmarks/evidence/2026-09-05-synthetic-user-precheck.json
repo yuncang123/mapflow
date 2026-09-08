@@ -1,0 +1,84 @@
+{
+  "schema": "mapflow.synthetic-user-precheck/v1",
+  "date": "2026-09-05",
+  "suite_version": "1.1.0",
+  "scope": "benchmark operator experience before a full tested Codex journey",
+  "label": "synthetic user precheck",
+  "pre_repair_panel": [
+    {
+      "role": "low-patience target user",
+      "verdict": "hesitate",
+      "score": 81,
+      "confirmed_p0": 0,
+      "confirmed_p1": 0
+    },
+    {
+      "role": "demanding interaction reviewer",
+      "verdict": "hesitate",
+      "score": 71,
+      "confirmed_p0": 0,
+      "confirmed_p1": 1
+    },
+    {
+      "role": "skeptical target user",
+      "verdict": "leave",
+      "score": 59,
+      "confirmed_p0": 0,
+      "confirmed_p1": 1
+    }
+  ],
+  "confirmed_pre_repair_p1": [
+    "failed checkpoint referenced a deviation branch that did not exist",
+    "model-facing prompts coached the expected Mapflow process"
+  ],
+  "repairs": [
+    "converted all seven model-facing mainlines to business-only black-box prompts",
+    "added process-coaching leak detection to benchmark doctor",
+    "made checkpoint failure recovery branch-safe",
+    "made non-passing report commands exit non-zero with an explicit no-fail override",
+    "made quick-smoke checkpoint commands and recovery commands explicit",
+    "clarified target-workspace setup and dirty-baseline action",
+    "added first-value, budget, and outcome evidence to reports"
+  ],
+  "deterministic_checks": {
+    "npm_test": {
+      "passed": true,
+      "tests": 78
+    },
+    "benchmark_doctor": {
+      "passed": true,
+      "cases": 7
+    },
+    "isolated_smoke": {
+      "prepared": true,
+      "enabled_empty": true,
+      "sidecar_outside_target": true,
+      "missing_destination_report_exit": 1,
+      "recovery_command_present": true
+    }
+  },
+  "post_repair_retest": {
+    "kind": "fresh-context adversarial self-review fallback",
+    "independent_panel": false,
+    "verdict": "continue",
+    "scores": {
+      "comprehension": 18,
+      "cognitive_load": 16,
+      "trust": 18,
+      "motivation": 17,
+      "usability": 18,
+      "total": 87
+    },
+    "confirmed_p0": 0,
+    "confirmed_p1": 0
+  },
+  "gate": "ready-for-small-human-test",
+  "gate_qualification": "weaker fallback evidence; full case runs and real-user claims remain pending",
+  "human_only_unknowns": [
+    "repeated real-project usefulness",
+    "long-term cognitive load",
+    "accessibility experience",
+    "retention and willingness to pay",
+    "market demand"
+  ]
+}

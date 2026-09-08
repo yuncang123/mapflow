@@ -10,7 +10,7 @@ Mapflow 使用状态节点和独立工作边描述所有类型的工作；运行
 
 # Current state
 
-已验证事实和影响面见 [recon.md](recon.md)，复用裁决见 [Prior Art](../../research/mapflow-reasoning-prior-art.md)。用户已明确批准采用该方向，并允许归档原模型。
+已验证事实和影响面见 [recon.md](recon.md)，复用裁决见 [Prior Art](../../../../../docs/research/mapflow-reasoning-prior-art.md)。用户已明确批准采用该方向，并允许归档原模型。
 
 # Boundaries
 

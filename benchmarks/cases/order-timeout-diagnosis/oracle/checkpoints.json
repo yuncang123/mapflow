@@ -1,0 +1,41 @@
+{
+  "schema": "mapflow.benchmark-oracle/v1",
+  "case_id": "order-timeout-diagnosis",
+  "case_version": "1.3.4",
+  "checkpoints": [
+    { "id": "prepared", "description": "故障 fixture 已固定且没有 Mapflow 状态", "assertions": [
+      { "path": "workspace.sidecar_exists", "equals": false }, { "path": "repo.commit_count", "equals": 1 }, { "path": "repo.dirty_paths", "empty": true }
+    ] },
+    { "id": "surveyed", "description": "失败已复现并作为迷雾事实投影，代码保持不变", "assertions": [
+      { "path": "workspace.sidecar_exists", "equals": true }, { "path": "workspace.wayfinding_exists", "equals": true },
+      { "path": "wayfinding.origin_visible", "equals": true }, { "path": "wayfinding.questions_targeted", "equals": true },
+      { "path": "workspace.map_exists", "equals": false }, { "path": "repo.dirty_paths", "empty": true }
+    ] },
+    { "id": "destination-shaped", "description": "恢复合同经人确认，根因仍未被无证据补全", "assertions": [
+      { "path": "wayfinding.destination_confirmed", "equals": true }, { "path": "wayfinding.open_questions", "max": 1 }, { "path": "summary.edges", "equals": 0 }
+    ] },
+    { "id": "route-approved", "description": "诊断先于修复的正式路线已证明", "assertions": [
+      { "path": "workspace.map_exists", "equals": true }, { "path": "workspace.briefs_count", "min": 2 },
+      { "path": "contract.destination_acceptance", "min": 4 }, { "path": "contract.destination_invariants", "min": 1 },
+      { "path": "contract.out_of_scope", "min": 2 }, { "path": "contract.edge_contracts_complete", "equals": true },
+      { "path": "proof.structural", "equals": "complete" }, { "path": "proof.reachability", "one_of": ["logical", "conditional"] },
+      { "path": "diagnosis.probe_edges", "min": 1 }, { "path": "diagnosis.repair_edges_after_probe", "min": 1 },
+      { "path": "runtime.destination_status", "equals": "approved" }, { "path": "runtime.current_route_approval", "nonempty": true },
+      { "path": "runtime.route_approvals_count", "min": 1 }, { "path": "runtime.active_edge", "equals": null },
+      { "path": "runtime.active_run", "equals": null }, { "path": "runtime.edge_runs_count", "equals": 0 },
+      { "path": "runtime.decisions_count", "equals": 0 }, { "path": "repo.dirty_paths", "empty": true }
+    ] },
+    { "id": "cause-proven", "description": "探针事实已登记并触发保留证据的最小修图", "assertions": [
+      { "path": "runtime.evidence_count", "min": 1 }, { "path": "runtime.edge_runs_count", "min": 1 }, { "path": "runtime.replan_count", "min": 1 },
+      { "path": "runtime.human_decisions", "equals": true }, { "path": "runtime.evidence_traceable", "equals": true },
+      { "path": "proof.structural", "equals": "complete" }
+    ] },
+    { "id": "repaired", "description": "恢复合同通过隐藏反例检查", "assertions": [
+      { "path": "repo.changed_paths", "nonempty": true }, { "path": "runtime.evidence_count", "min": 2 }
+    ], "verifier": "oracle/verify.mjs" },
+    { "id": "arrived", "description": "故障修复完成实际到达审计", "assertions": [
+      { "path": "runtime.phase", "equals": "arrived" }, { "path": "runtime.actual_arrival", "equals": "audited" },
+      { "path": "runtime.arrival_audit_authorized", "equals": true }, { "path": "runtime.acceptance_complete", "equals": true }
+    ], "verifier": "oracle/verify.mjs" }
+  ]
+}

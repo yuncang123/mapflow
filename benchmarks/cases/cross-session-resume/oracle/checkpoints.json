@@ -1,0 +1,32 @@
+{
+  "schema": "mapflow.benchmark-oracle/v1",
+  "case_id": "cross-session-resume",
+  "case_version": "1.3.4",
+  "checkpoints": [
+    { "id": "prepared", "description": "既有笔记模型处于干净基线且没有 Sidecar", "assertions": [
+      { "path": "workspace.sidecar_exists", "equals": false }, { "path": "repo.commit_count", "equals": 1 }, { "path": "repo.dirty_paths", "empty": true }
+    ] },
+    { "id": "handoff-ready", "description": "会话 A 已固定正式路线和至少一条实际证据", "assertions": [
+      { "path": "workspace.map_exists", "equals": true }, { "path": "workspace.state_exists", "equals": true },
+      { "path": "contract.destination_acceptance", "min": 3 }, { "path": "contract.out_of_scope", "min": 2 }, { "path": "contract.edge_contracts_complete", "equals": true },
+      { "path": "runtime.evidence_count", "min": 1 }, { "path": "runtime.decisions_count", "min": 1 },
+      { "path": "runtime.human_decisions", "equals": true }, { "path": "runtime.evidence_traceable", "equals": true },
+      { "path": "summary.nodes", "min": 2 }, { "path": "summary.edges", "min": 2 }
+    ] },
+    { "id": "resumed", "description": "会话 B 的只读恢复没有重建、丢失或推进地图", "assertions": [
+      { "path": "workspace.id", "same_as_checkpoint": "handoff-ready" },
+      { "path": "runtime.evidence_count", "same_as_checkpoint": "handoff-ready" },
+      { "path": "runtime.decisions_count", "same_as_checkpoint": "handoff-ready" },
+      { "path": "runtime.phase", "same_as_checkpoint": "handoff-ready" },
+      { "path": "summary.nodes", "same_as_checkpoint": "handoff-ready" },
+      { "path": "summary.edges", "same_as_checkpoint": "handoff-ready" }
+    ] },
+    { "id": "implemented", "description": "新会话沿原路线完成真实实现与隐藏验收", "assertions": [
+      { "path": "runtime.evidence_count", "min": 2 }, { "path": "repo.changed_paths", "nonempty": true }
+    ], "verifier": "oracle/verify.mjs" },
+    { "id": "arrived", "description": "同一地图在第二会话完成实际到达审计", "assertions": [
+      { "path": "runtime.phase", "equals": "arrived" }, { "path": "runtime.actual_arrival", "equals": "audited" },
+      { "path": "runtime.arrival_audit_authorized", "equals": true }, { "path": "runtime.acceptance_complete", "equals": true }
+    ], "verifier": "oracle/verify.mjs" }
+  ]
+}

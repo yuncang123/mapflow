@@ -1,0 +1,773 @@
+{
+  "schema": 2,
+  "phase": "arrived",
+  "destination_status": "approved",
+  "map": "../blueprint.yaml",
+  "map_digest": "cd7908df70a5daa1ad55ec12059f2cab9215f90b30111744128e3ff33ce05968",
+  "map_id": "prepare-community-workshop",
+  "active_edge": null,
+  "active_run": null,
+  "runtime_status": "arrived",
+  "edge_runs": [
+    {
+      "id": "confirm-venue-run-1",
+      "edge": "confirm-venue",
+      "status": "passed",
+      "attempt": 1,
+      "decision": "confirm-venue-decision-1",
+      "started_at": "2026-09-03T08:09:17Z",
+      "updated_at": "2026-09-03T08:09:18Z",
+      "evidence_ids": [
+        "confirm-venue-evidence-1"
+      ]
+    },
+    {
+      "id": "publish-agenda-run-1",
+      "edge": "publish-agenda",
+      "status": "passed",
+      "attempt": 1,
+      "decision": "publish-agenda-decision-1",
+      "started_at": "2026-09-03T08:09:18Z",
+      "updated_at": "2026-09-03T08:09:19Z",
+      "evidence_ids": [
+        "publish-agenda-evidence-2"
+      ],
+      "receipt_id": "agenda-readability-receipt-1"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "confirm-venue-decision-1",
+      "edge": "confirm-venue",
+      "at_node": "workshop-request-ready",
+      "alternatives": [
+        "confirm-venue"
+      ],
+      "reason": "场地是后续议程验收的前置条件",
+      "actor": "human:owner",
+      "decided_at": "2026-09-03T08:09:17Z"
+    },
+    {
+      "id": "publish-agenda-decision-1",
+      "edge": "publish-agenda",
+      "at_node": "venue-ready",
+      "alternatives": [
+        "publish-agenda"
+      ],
+      "reason": "场地确认后验收议程子地图",
+      "actor": "human:owner",
+      "decided_at": "2026-09-03T08:09:18Z"
+    }
+  ],
+  "work_events": [],
+  "proposals": [],
+  "map_receipts": [
+    {
+      "schema": "mapflow.arrival-receipt/v1",
+      "receipt_id": "agenda-readability-receipt-1",
+      "binding_id": "agenda-readability",
+      "parent_edge": "publish-agenda",
+      "child": {
+        "map_id": "audit-workshop-agenda",
+        "map_digest": "5e49fc1126f33d08e530e3ee62379392f229ac7fa1d0e6192044f8a32884f888",
+        "state_revision": "bc8056a46fc127b5c99578c4a457dd3f7dcc24a16aba1f6cc62100eac5e36ca9"
+      },
+      "arrival": {
+        "audited_at": "2026-09-03T08:09:15Z",
+        "destination_predicates": [
+          "agenda-readable"
+        ],
+        "acceptance": [
+          {
+            "id": "agenda-readback",
+            "evidence_ids": [
+              "audit-agenda-readability-evidence-1"
+            ]
+          }
+        ],
+        "residual_risks": [
+          "仅为本地演示事实"
+        ]
+      },
+      "exports": [
+        {
+          "id": "agenda-readability-export",
+          "child_acceptance": "agenda-readback",
+          "child_predicates": [
+            "agenda-readable"
+          ],
+          "proves_parent": [
+            "agenda-readable"
+          ]
+        }
+      ],
+      "generated_by": {
+        "run_id": "audit-workshop-agenda-arrival-4",
+        "actor": "human:owner"
+      },
+      "accepted_at": "2026-09-03T08:09:19Z",
+      "receipt_digest": "a2973d7d49ef042ea97acd1e4b97284180a21484e85dbf4e716f27f5e216b23d"
+    }
+  ],
+  "receipt_invalidations": [],
+  "event_stream": {
+    "path": "events.jsonl",
+    "last_seq": 6,
+    "head_digest": "75fa617afa191a4d760393d60a2143f61eae159ee6e03a74f52c69735edca168"
+  },
+  "verified_edges": [
+    "confirm-venue",
+    "publish-agenda"
+  ],
+  "verified_edge_contracts": {
+    "confirm-venue": {
+      "edge": {
+        "id": "confirm-venue",
+        "from": "workshop-request-ready",
+        "to": "venue-ready",
+        "brief_ref": "briefs/confirm-venue.md",
+        "preconditions": [
+          "workshop-request-known"
+        ],
+        "effects": [
+          "venue-confirmed"
+        ],
+        "invariants": [],
+        "certainty": "conditional",
+        "evidence_contract": [
+          {
+            "id": "venue-confirmation",
+            "proves": [
+              "venue-confirmed"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "stop"
+        }
+      },
+      "submap": null,
+      "nodes": [
+        {
+          "id": "venue-ready",
+          "kind": "state",
+          "label": "场地已确认",
+          "predicates": [
+            "venue-confirmed"
+          ]
+        },
+        {
+          "id": "workshop-request-ready",
+          "kind": "state",
+          "label": "工作坊需求已确认",
+          "predicates": [
+            "workshop-request-known"
+          ]
+        }
+      ],
+      "predicates": [
+        {
+          "id": "venue-confirmed",
+          "fact": "venue-confirmed",
+          "equals": "true",
+          "kind": "resource"
+        },
+        {
+          "id": "workshop-request-known",
+          "fact": "workshop-request-known",
+          "equals": "true",
+          "kind": "state"
+        }
+      ],
+      "invariants": [],
+      "loops": [],
+      "brief_digest": "45925b7aa11f19701fb5d83aa7d5074cabbe1b687389993bc7e58cc55f0e52a7"
+    },
+    "publish-agenda": {
+      "edge": {
+        "id": "publish-agenda",
+        "from": "venue-ready",
+        "to": "preparation-complete",
+        "brief_ref": "briefs/publish-agenda.md",
+        "preconditions": [
+          "venue-confirmed"
+        ],
+        "effects": [
+          "agenda-readable"
+        ],
+        "invariants": [],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "agenda-readback",
+            "proves": [
+              "agenda-readable"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      "submap": {
+        "id": "agenda-readability",
+        "parent_edge": "publish-agenda",
+        "map_ref": "agenda/blueprint.yaml",
+        "state_ref": "agenda/.mapflow/state.json",
+        "expected_map_id": "audit-workshop-agenda",
+        "expected_map_digest": "5e49fc1126f33d08e530e3ee62379392f229ac7fa1d0e6192044f8a32884f888",
+        "await": "arrival",
+        "on_parent_close": "preserve",
+        "exports": [
+          {
+            "id": "agenda-readability-export",
+            "child_acceptance": "agenda-readback",
+            "child_predicates": [
+              "agenda-readable"
+            ],
+            "proves_parent": [
+              "agenda-readable"
+            ]
+          }
+        ]
+      },
+      "nodes": [
+        {
+          "id": "preparation-complete",
+          "kind": "destination",
+          "label": "工作坊准备可验收",
+          "predicates": [
+            "venue-confirmed",
+            "agenda-readable"
+          ]
+        },
+        {
+          "id": "venue-ready",
+          "kind": "state",
+          "label": "场地已确认",
+          "predicates": [
+            "venue-confirmed"
+          ]
+        }
+      ],
+      "predicates": [
+        {
+          "id": "agenda-readable",
+          "fact": "agenda-readable",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "venue-confirmed",
+          "fact": "venue-confirmed",
+          "equals": "true",
+          "kind": "resource"
+        }
+      ],
+      "invariants": [],
+      "loops": [],
+      "brief_digest": "04a1fe4b117e824c5aa96587085e402c24751e18d55bcdaef032b99b30cc630b"
+    }
+  },
+  "blueprint_snapshot": {
+    "schema_version": 2,
+    "map_id": "prepare-community-workshop",
+    "intent": {
+      "statement": "把已确认的分享需求准备成一场可以开始报名的社区工作坊",
+      "status": "shaped",
+      "open_questions": []
+    },
+    "destination": {
+      "statement": "场地已确认且议程可以公开阅读",
+      "requires": [
+        "venue-confirmed",
+        "agenda-readable"
+      ],
+      "invariants": [],
+      "acceptance": [
+        {
+          "id": "preparation-audited",
+          "proves": [
+            "venue-confirmed",
+            "agenda-readable"
+          ],
+          "proof": "场地确认回执与公开议程均可回读"
+        }
+      ]
+    },
+    "predicates": [
+      {
+        "id": "workshop-request-known",
+        "fact": "workshop-request-known",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "venue-confirmed",
+        "fact": "venue-confirmed",
+        "equals": "true",
+        "kind": "resource"
+      },
+      {
+        "id": "agenda-readable",
+        "fact": "agenda-readable",
+        "equals": "true",
+        "kind": "state"
+      }
+    ],
+    "initial_state": {
+      "facts": [
+        {
+          "id": "workshop-request-known",
+          "value": "true",
+          "evidence": [
+            {
+              "kind": "document",
+              "ref": "notes/request.md"
+            }
+          ]
+        },
+        {
+          "id": "venue-confirmed",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "尚无场地确认"
+            }
+          ]
+        },
+        {
+          "id": "agenda-readable",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "尚无公开议程"
+            }
+          ]
+        }
+      ]
+    },
+    "assumptions": [],
+    "invariants": [],
+    "boundaries": {
+      "in_scope": [
+        "确认场地并形成可读议程"
+      ],
+      "out_of_scope": [
+        "实际举办、报名转化和参与者满意度"
+      ],
+      "authorization": [
+        "场地预订由 Owner 确认"
+      ]
+    },
+    "nodes": [
+      {
+        "id": "workshop-request-ready",
+        "kind": "state",
+        "label": "工作坊需求已确认",
+        "predicates": [
+          "workshop-request-known"
+        ]
+      },
+      {
+        "id": "venue-ready",
+        "kind": "state",
+        "label": "场地已确认",
+        "predicates": [
+          "venue-confirmed"
+        ]
+      },
+      {
+        "id": "preparation-complete",
+        "kind": "destination",
+        "label": "工作坊准备可验收",
+        "predicates": [
+          "venue-confirmed",
+          "agenda-readable"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "confirm-venue",
+        "from": "workshop-request-ready",
+        "to": "venue-ready",
+        "brief_ref": "briefs/confirm-venue.md",
+        "preconditions": [
+          "workshop-request-known"
+        ],
+        "effects": [
+          "venue-confirmed"
+        ],
+        "invariants": [],
+        "certainty": "conditional",
+        "evidence_contract": [
+          {
+            "id": "venue-confirmation",
+            "proves": [
+              "venue-confirmed"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "stop"
+        }
+      },
+      {
+        "id": "publish-agenda",
+        "from": "venue-ready",
+        "to": "preparation-complete",
+        "brief_ref": "briefs/publish-agenda.md",
+        "preconditions": [
+          "venue-confirmed"
+        ],
+        "effects": [
+          "agenda-readable"
+        ],
+        "invariants": [],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "agenda-readback",
+            "proves": [
+              "agenda-readable"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      }
+    ],
+    "loops": [],
+    "submaps": [
+      {
+        "id": "agenda-readability",
+        "parent_edge": "publish-agenda",
+        "map_ref": "agenda/blueprint.yaml",
+        "state_ref": "agenda/.mapflow/state.json",
+        "expected_map_id": "audit-workshop-agenda",
+        "expected_map_digest": "5e49fc1126f33d08e530e3ee62379392f229ac7fa1d0e6192044f8a32884f888",
+        "await": "arrival",
+        "on_parent_close": "preserve",
+        "exports": [
+          {
+            "id": "agenda-readability-export",
+            "child_acceptance": "agenda-readback",
+            "child_predicates": [
+              "agenda-readable"
+            ],
+            "proves_parent": [
+              "agenda-readable"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "brief_digests": {
+    "confirm-venue": "45925b7aa11f19701fb5d83aa7d5074cabbe1b687389993bc7e58cc55f0e52a7",
+    "publish-agenda": "04a1fe4b117e824c5aa96587085e402c24751e18d55bcdaef032b99b30cc630b"
+  },
+  "brief_snapshots": {
+    "confirm-venue": {
+      "ref": "briefs/confirm-venue.md",
+      "metadata": {
+        "title": "确认工作坊场地",
+        "edge": "confirm-venue",
+        "contract": {
+          "scope": {
+            "in": [
+              "取得可回读的场地确认"
+            ],
+            "out": [
+              "支付真实场地费用"
+            ]
+          },
+          "authorization": {
+            "required": [
+              "Owner 确认示例回执"
+            ],
+            "allowed_actions": [
+              "记录本地示例凭据"
+            ]
+          },
+          "evidence": {
+            "proves": [
+              "venue-confirmed"
+            ],
+            "exit_conditions": [
+              "场地确认记录可读取"
+            ]
+          },
+          "failure": {
+            "action": "stop",
+            "rollback": [
+              "不使用未确认场地"
+            ]
+          }
+        }
+      },
+      "content": "---\ntitle: 确认工作坊场地\nedge: confirm-venue\ncontract:\n  scope:\n    in: [取得可回读的场地确认]\n    out: [支付真实场地费用]\n  authorization:\n    required: [Owner 确认示例回执]\n    allowed_actions: [记录本地示例凭据]\n  evidence:\n    proves: [venue-confirmed]\n    exit_conditions: [场地确认记录可读取]\n  failure:\n    action: stop\n    rollback: [不使用未确认场地]\n---\n\n# 确认工作坊场地\n\n只登记实际可读取的确认记录；期望地点不能当作已确认场地。\n\n"
+    },
+    "publish-agenda": {
+      "ref": "briefs/publish-agenda.md",
+      "metadata": {
+        "title": "验收可读议程",
+        "edge": "publish-agenda",
+        "contract": {
+          "scope": {
+            "in": [
+              "通过独立子地图回读并验收工作坊议程"
+            ],
+            "out": [
+              "实际开放报名"
+            ]
+          },
+          "authorization": {
+            "required": [],
+            "allowed_actions": [
+              "读取本地子地图和接纳到达回执"
+            ]
+          },
+          "evidence": {
+            "proves": [
+              "agenda-readable"
+            ],
+            "exit_conditions": [
+              "议程子地图到达回执通过 export 合同"
+            ]
+          },
+          "failure": {
+            "action": "replan",
+            "rollback": [
+              "保留候选议程并修图"
+            ]
+          }
+        }
+      },
+      "content": "---\ntitle: 验收可读议程\nedge: publish-agenda\ncontract:\n  scope:\n    in: [通过独立子地图回读并验收工作坊议程]\n    out: [实际开放报名]\n  authorization:\n    required: []\n    allowed_actions: [读取本地子地图和接纳到达回执]\n  evidence:\n    proves: [agenda-readable]\n    exit_conditions: [议程子地图到达回执通过 export 合同]\n  failure:\n    action: replan\n    rollback: [保留候选议程并修图]\n---\n\n# 验收可读议程\n\n父边不重复执行议程检查，只回读孙图的到达、验收与证据并接纳导出事实；报名和活动效果仍在范围外。\n"
+    }
+  },
+  "loop_iterations": {},
+  "facts": {
+    "workshop-request-known": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "document",
+          "ref": "notes/request.md"
+        }
+      ]
+    },
+    "venue-confirmed": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "尚无场地确认"
+        },
+        {
+          "kind": "command",
+          "ref": "read notes/venue-confirmation.md -> 示例场地已保留",
+          "observed_at": "2026-09-03T08:09:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "document",
+          "ref": "notes/venue-confirmation.md",
+          "observed_at": "2026-09-03T08:09:18Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "agenda-readable": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "尚无公开议程"
+        },
+        {
+          "kind": "receipt",
+          "ref": "agenda-readability-receipt-1",
+          "observed_at": "2026-09-03T08:09:19Z",
+          "strength": "corroborated"
+        }
+      ]
+    }
+  },
+  "satisfied_nodes": [
+    "workshop-request-ready",
+    "venue-ready",
+    "preparation-complete"
+  ],
+  "last_proof": {
+    "structural": "complete",
+    "reachability": "logical",
+    "destination_reachable": true,
+    "required_predicates": [
+      "venue-confirmed",
+      "agenda-readable"
+    ],
+    "candidate_edges": [],
+    "proven_edges": [],
+    "reachable_nodes": [
+      "workshop-request-ready",
+      "venue-ready",
+      "preparation-complete"
+    ],
+    "applied_edges": [],
+    "assumptions_used": [],
+    "proof_gaps": []
+  },
+  "evidence": [
+    {
+      "id": "confirm-venue-evidence-1",
+      "edge": "confirm-venue",
+      "run": "confirm-venue-run-1",
+      "claim": "场地确认记录可回读",
+      "proves": [
+        "venue-confirmed"
+      ],
+      "acceptance_ids": [
+        "preparation-audited"
+      ],
+      "outcome_refs": [
+        {
+          "kind": "document",
+          "ref": "notes/venue-confirmation.md"
+        }
+      ],
+      "checks": [
+        {
+          "command": "read notes/venue-confirmation.md",
+          "result": "pass",
+          "observed": "示例场地已保留",
+          "mode": "reported"
+        }
+      ],
+      "limits": {
+        "simulated": [],
+        "inferred": [],
+        "unverified": [],
+        "product_unknowns": []
+      },
+      "executor": "human:owner",
+      "recorded_at": "2026-09-03T08:09:18Z"
+    },
+    {
+      "id": "publish-agenda-evidence-2",
+      "edge": "publish-agenda",
+      "run": "publish-agenda-run-1",
+      "claim": "child map audit-workshop-agenda arrived and receipt was accepted",
+      "proves": [
+        "agenda-readable"
+      ],
+      "acceptance_ids": [
+        "preparation-audited"
+      ],
+      "outcome_refs": [
+        {
+          "kind": "receipt",
+          "ref": "agenda-readability-receipt-1"
+        }
+      ],
+      "checks": [
+        {
+          "command": "mapflow verify-submap",
+          "result": "pass",
+          "observed": "a2973d7d49ef042ea97acd1e4b97284180a21484e85dbf4e716f27f5e216b23d",
+          "mode": "readback"
+        }
+      ],
+      "limits": {
+        "simulated": [],
+        "inferred": [],
+        "unverified": [],
+        "product_unknowns": []
+      },
+      "executor": "human:owner",
+      "receipt_id": "agenda-readability-receipt-1",
+      "recorded_at": "2026-09-03T08:09:19Z"
+    }
+  ],
+  "updated_at": "2026-09-03T08:09:20Z",
+  "history": [
+    {
+      "at": "2026-09-03T08:09:16Z",
+      "event": "initialized",
+      "structural": "complete",
+      "reachability": "conditional"
+    },
+    {
+      "at": "2026-09-03T08:09:17Z",
+      "event": "destination_approved",
+      "edge": "confirm-venue",
+      "run": "confirm-venue-run-1",
+      "decision": "confirm-venue-decision-1",
+      "reason": "场地是后续议程验收的前置条件",
+      "actor": "human:owner"
+    },
+    {
+      "at": "2026-09-03T08:09:18Z",
+      "event": "edge_verified",
+      "edge": "confirm-venue",
+      "run": "confirm-venue-run-1",
+      "proves": [
+        "venue-confirmed"
+      ],
+      "acceptance": [
+        "preparation-audited"
+      ],
+      "executor": "human:owner"
+    },
+    {
+      "at": "2026-09-03T08:09:18Z",
+      "event": "edge_selected",
+      "edge": "publish-agenda",
+      "run": "publish-agenda-run-1",
+      "decision": "publish-agenda-decision-1",
+      "reason": "场地确认后验收议程子地图",
+      "actor": "human:owner"
+    },
+    {
+      "at": "2026-09-03T08:09:19Z",
+      "event": "submap_receipt_accepted",
+      "edge": "publish-agenda",
+      "run": "publish-agenda-run-1",
+      "binding": "agenda-readability",
+      "receipt": "agenda-readability-receipt-1",
+      "executor": "human:owner"
+    },
+    {
+      "at": "2026-09-03T08:09:20Z",
+      "event": "arrival_audited",
+      "acceptance": [
+        "preparation-audited"
+      ],
+      "evidence": "目标、两级验收、非目标和示例边界已审计"
+    }
+  ],
+  "arrival_audit": {
+    "acceptance": [
+      "preparation-audited"
+    ],
+    "non_goals": [
+      "实际举办",
+      "报名转化"
+    ],
+    "risks": [
+      "仅为本地演示事实"
+    ],
+    "confirm": "目标、两级验收、非目标和示例边界已审计",
+    "recorded_at": "2026-09-03T08:09:20Z",
+    "run_id": "prepare-community-workshop-arrival-6"
+  }
+}

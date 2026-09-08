@@ -1,0 +1,56 @@
+schema_version: 2
+map_id: audit-workshop-agenda
+
+intent:
+  statement: 确认工作坊议程已经形成，并把“看起来写了”收敛为可回读的议程事实
+  status: shaped
+  open_questions: []
+
+destination:
+  statement: 工作坊议程正文已经回读并确认可理解
+  requires: [agenda-readable]
+  invariants: []
+  acceptance:
+    - id: agenda-readback
+      proves: [agenda-readable]
+      proof: 议程文件存在且三项内容可以逐项读取
+
+predicates:
+  - { id: agenda-draft-exists, fact: agenda-draft-exists, equals: "true", kind: state }
+  - { id: agenda-readable, fact: agenda-readable, equals: "true", kind: state }
+
+initial_state:
+  facts:
+    - id: agenda-draft-exists
+      value: "true"
+      evidence: [{ kind: document, ref: ../notes/agenda.md }]
+    - id: agenda-readable
+      value: "false"
+      evidence: [{ kind: observation, ref: 尚未逐项回读议程 }]
+
+assumptions: []
+invariants: []
+boundaries:
+  in_scope: [回读并确认议程正文]
+  out_of_scope: [开放报名、实际举办和参与者反馈]
+  authorization: [只读取本地示例文件]
+
+nodes:
+  - { id: agenda-draft-ready, kind: state, label: 议程草稿已存在, predicates: [agenda-draft-exists] }
+  - { id: agenda-audited, kind: destination, label: 议程可读性已验收, predicates: [agenda-readable] }
+
+edges:
+  - id: audit-agenda-readability
+    from: agenda-draft-ready
+    to: agenda-audited
+    brief_ref: briefs/audit-agenda-readability.md
+    preconditions: [agenda-draft-exists]
+    effects: [agenda-readable]
+    invariants: []
+    certainty: expected
+    evidence_contract:
+      - { id: agenda-content-readback, proves: [agenda-readable], required: true }
+    on_failure: { action: replan }
+
+loops: []
+submaps: []

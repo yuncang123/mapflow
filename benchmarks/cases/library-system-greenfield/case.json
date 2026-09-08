@@ -1,0 +1,46 @@
+{
+  "schema": "mapflow.benchmark-case/v1",
+  "id": "library-system-greenfield",
+  "version": "1.3.13",
+  "tier": "core",
+  "title": "从空仓库交付社区图书管理系统",
+  "target_user": "会描述业务但不了解 Mapflow 内部模型的个人开发者",
+  "core_job": "把模糊的系统愿望逐步收敛、建图、实施并以实际验收到达",
+  "critical_journey": [
+    "自然语言启用后从两枚迷雾候选开始",
+    "收敛目的地、非目标、不变量和验收",
+    "人工确认反向回归候选后才正式入图",
+    "逐边实施并以隐藏功能检查证明结果",
+    "完成到达审计"
+  ],
+  "expected_first_value": "用户在第二轮结束前能从回答和看板说出目的地、当前迷雾和下一项确认对象",
+  "budget": { "max_turns": 14, "max_minutes": 60 },
+  "allowed_writes": ["目标仓库中的产品代码和项目文档", "目标仓库外的 Mapflow Sidecar"],
+  "human_only_unknowns": ["真实社区图书室是否愿意采用", "长期使用成本", "无障碍体验"],
+  "primary_risks": ["模型直接开始编码", "候选路线未经确认入图", "测试绿灯被冒充实际到达"],
+  "fixture": "subject/fixture",
+  "operator_mainline": "operator/mainline.md",
+  "required_checkpoints": [
+    "prepared",
+    "enabled-empty",
+    "destination-shaped",
+    "regression-proposed",
+    "route-proven",
+    "route-approved",
+    "implementation-verified",
+    "arrived"
+  ],
+  "smoke_checkpoints": ["prepared", "enabled-empty", "destination-shaped"],
+  "segments": [
+    {
+      "id": "arrival-audit",
+      "from_checkpoint": "implementation-verified",
+      "to_checkpoint": "arrived",
+      "snapshot": "checkpoints/implementation-verified",
+      "operator_input": "启用 mapflow，继续当前地图。我现在回答你刚才的结束确认问题：请把最初约定的每项结果、实际检查记录、没有做的事情和仍然存在的风险逐项给我看；全部与刚才展示的约定一致时，我确认这项工作完成。",
+      "budget": { "max_turns": 1, "max_minutes": 20 },
+      "covers": ["arrival-audit", "fresh-session-resume", "actual-arrival-boundary"],
+      "expected_event_types": ["mapflow.decision.owner.assigned.v1", "mapflow.arrival.audited.v1"]
+    }
+  ]
+}

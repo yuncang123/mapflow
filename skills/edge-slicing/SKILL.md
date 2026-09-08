@@ -21,4 +21,4 @@ description: "把候选 Blueprint 中的一条 Work Edge 切成可独立施工�
 
 ## 产出
 
-本仓库使用 `templates/task-brief.md`，安装后的目标仓库使用 `.mapflow/templates/task-brief.md`。文件名采用工作语义，例如 `briefs/review-candidate.md`；不用顺序票号表达意义。
+使用 Mapflow 用户级包的 `templates/task-brief.md` 作为可选起点，把实际 Brief 写入 `enable --json` 返回的 `paths.briefs`。文件名采用工作语义，例如 `review-candidate.md`；不用顺序票号表达意义，也不写入目标工作区。

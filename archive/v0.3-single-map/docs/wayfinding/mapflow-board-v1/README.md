@@ -12,7 +12,7 @@ updated: 2026-09-03
 
 - Mapflow v0.3 的 Blueprint、runtime state、Task Brief 与 Evidence 已能编译为稳定 BoardModel。
 - 只读本地服务、Cytoscape UI、ETag 刷新、last-known-good、离线安装和浏览器交互均已实现。
-- 四条 Work Edge 已验证，五项目的地验收通过；复用裁决见 [Prior Art](../../research/mapflow-board-prior-art.md)，视觉合同见 [design.md](design.md)。
+- 四条 Work Edge 已验证，五项目的地验收通过；复用裁决见 [Prior Art](../../../../../docs/research/mapflow-board-prior-art.md)，视觉合同见 [design.md](design.md)。
 
 # Boundaries
 

@@ -1,0 +1,225 @@
+schema_version: 2
+map_id: repair-order-query-timeout
+
+intent:
+  statement: 把订单查询偶发超时问题收敛为可观测、可回退且可验收的修复
+  status: shaped
+  open_questions: []
+
+destination:
+  statement: 订单查询可靠性修复已安全发布
+  requires:
+    - normal-query-healthy
+    - timeout-retry-correct
+    - fallback-safe
+    - production-observed
+  invariants:
+    - read-safety
+  acceptance:
+    - id: normal-query-readback
+      proves: [normal-query-healthy]
+      proof: 正常订单查询在目标延迟预算内通过回读
+    - id: timeout-retry-readback
+      proves: [timeout-retry-correct]
+      proof: 模拟下游超时后只按契约重试并正确结束
+    - id: fallback-readback
+      proves: [fallback-safe]
+      proof: 下游持续失败时返回约定的可恢复结果且不产生重复读取副作用
+    - id: production-observation
+      proves: [production-observed]
+      proof: 发布后通过只读探针和指标回读确认行为保持稳定
+    - id: idempotency-safety
+      proves: [idempotent-read]
+      proof: 重试和回退路径均不会重复产生订单读取副作用
+
+predicates:
+  - { id: repo-present, fact: repo-present, equals: "true", kind: state }
+  - { id: timeout-cause-unknown, fact: timeout-cause, equals: unknown, kind: state }
+  - { id: incident-reproduced, fact: incident-reproduced, equals: "true", kind: state }
+  - { id: timeout-cause-understood, fact: timeout-cause-understood, equals: "true", kind: state }
+  - { id: retry-policy-selected, fact: retry-policy-selected, equals: "true", kind: state }
+  - { id: fallback-policy-selected, fact: fallback-policy-selected, equals: "true", kind: state }
+  - { id: idempotent-read, fact: idempotent-read, equals: "true", kind: state }
+  - { id: recovery-contract-approved, fact: recovery-contract-approved, equals: "true", kind: authorization }
+  - { id: code-change-ready, fact: code-change-ready, equals: "true", kind: state }
+  - { id: normal-query-healthy, fact: normal-query-healthy, equals: "true", kind: state }
+  - { id: timeout-retry-correct, fact: timeout-retry-correct, equals: "true", kind: state }
+  - { id: fallback-safe, fact: fallback-safe, equals: "true", kind: state }
+  - { id: scenario-matrix-passed, fact: scenario-matrix-passed, equals: "true", kind: state }
+  - { id: release-authorized, fact: release-authorized, equals: "true", kind: authorization }
+  - { id: production-observed, fact: production-observed, equals: "true", kind: state }
+
+initial_state:
+  facts:
+    - id: repo-present
+      value: "true"
+      evidence: [{ kind: git, ref: orderpulse-api@main, strength: observed }]
+    - id: timeout-cause
+      value: unknown
+      evidence: [{ kind: observation, ref: logs/order-query-timeout-sample, strength: asserted }]
+    - id: incident-reproduced
+      value: "false"
+      evidence: [{ kind: observation, ref: reproduction-not-run }]
+    - id: timeout-cause-understood
+      value: "false"
+      evidence: [{ kind: observation, ref: cause-not-confirmed }]
+    - id: retry-policy-selected
+      value: "false"
+      evidence: [{ kind: meeting, ref: recovery-contract-not-confirmed }]
+    - id: fallback-policy-selected
+      value: "false"
+      evidence: [{ kind: meeting, ref: recovery-contract-not-confirmed }]
+    - id: idempotent-read
+      value: "false"
+      evidence: [{ kind: observation, ref: idempotency-not-confirmed }]
+    - id: recovery-contract-approved
+      value: "false"
+      evidence: [{ kind: meeting, ref: owner-approval-not-recorded }]
+    - id: code-change-ready
+      value: "false"
+      evidence: [{ kind: observation, ref: fix-branch-not-created }]
+    - id: normal-query-healthy
+      value: "false"
+      evidence: [{ kind: observation, ref: scenario-matrix-not-run }]
+    - id: timeout-retry-correct
+      value: "false"
+      evidence: [{ kind: observation, ref: scenario-matrix-not-run }]
+    - id: fallback-safe
+      value: "false"
+      evidence: [{ kind: observation, ref: scenario-matrix-not-run }]
+    - id: scenario-matrix-passed
+      value: "false"
+      evidence: [{ kind: observation, ref: scenario-matrix-not-run }]
+    - id: release-authorized
+      value: "false"
+      evidence: [{ kind: observation, ref: release-approval-not-recorded }]
+    - id: production-observed
+      value: "false"
+      evidence: [{ kind: observation, ref: release-not-performed }]
+
+assumptions: []
+
+invariants:
+  - id: read-safety
+    applies_to: [implement-recovery, verify-query-matrix, authorize-release, release-and-observe]
+    requires: [idempotent-read]
+
+boundaries:
+  in_scope:
+    - 订单查询超时的复现、定位、恢复契约、实现、场景验收和受控发布
+  out_of_scope:
+    - 重写订单存储、扩展订单领域模型、修改无关接口、用缓存掩盖根因
+  authorization:
+    - 恢复契约需要业务 Owner 确认
+    - 生产发布需要值班 Owner 明确授权
+
+nodes:
+  - id: service-observed
+    kind: fog
+    label: OrderPulse 仓库存在，但超时原因未知
+    predicates: [repo-present, timeout-cause-unknown]
+  - id: timeout-understood
+    kind: state
+    label: 超时路径已复现并定位
+    predicates: [repo-present, incident-reproduced, timeout-cause-understood]
+  - id: recovery-contract
+    kind: decision
+    label: 重试与失败回退契约已确认
+    predicates: [repo-present, timeout-cause-understood, retry-policy-selected, fallback-policy-selected, idempotent-read, recovery-contract-approved]
+    realization_refs:
+      - { kind: meeting, ref: decisions/order-query-recovery-contract.md }
+  - id: code-ready
+    kind: state
+    label: 修复实现已完成并有可回滚版本
+    predicates: [repo-present, recovery-contract-approved, idempotent-read, code-change-ready]
+    realization_refs:
+      - { kind: git, ref: orderpulse-api@tag/order-query-timeout-v1 }
+  - id: verification-ready
+    kind: join
+    label: 正常、重试、回退场景均通过验收
+    predicates: [repo-present, code-change-ready, idempotent-read, normal-query-healthy, timeout-retry-correct, fallback-safe, scenario-matrix-passed]
+  - id: release-approved
+    kind: state
+    label: 发布窗口与回滚方案已获授权
+    predicates: [repo-present, code-change-ready, idempotent-read, normal-query-healthy, timeout-retry-correct, fallback-safe, scenario-matrix-passed, release-authorized]
+    realization_refs:
+      - { kind: document, ref: release/order-query-timeout-approval.md }
+  - id: order-query-reliable
+    kind: destination
+    label: 订单查询可靠性修复已安全发布
+    predicates: [repo-present, idempotent-read, normal-query-healthy, timeout-retry-correct, fallback-safe, production-observed]
+
+edges:
+  - id: reproduce-timeout
+    from: service-observed
+    to: timeout-understood
+    brief_ref: briefs/reproduce-timeout.md
+    preconditions: [repo-present, timeout-cause-unknown]
+    effects: [incident-reproduced, timeout-cause-understood]
+    invariants: []
+    certainty: expected
+    evidence_contract:
+      - { id: reproduction-and-trace, proves: [incident-reproduced, timeout-cause-understood], required: true }
+    on_failure: { action: replan }
+  - id: confirm-recovery-contract
+    from: timeout-understood
+    to: recovery-contract
+    brief_ref: briefs/confirm-recovery-contract.md
+    preconditions: [repo-present, incident-reproduced, timeout-cause-understood]
+    effects: [retry-policy-selected, fallback-policy-selected, idempotent-read, recovery-contract-approved]
+    invariants: []
+    certainty: conditional
+    evidence_contract:
+      - { id: owner-recovery-decision, proves: [retry-policy-selected, fallback-policy-selected, idempotent-read, recovery-contract-approved], required: true }
+    on_failure: { action: replan }
+  - id: implement-recovery
+    from: recovery-contract
+    to: code-ready
+    brief_ref: briefs/implement-recovery.md
+    preconditions: [repo-present, recovery-contract-approved, idempotent-read]
+    effects: [code-change-ready]
+    invariants: [read-safety]
+    certainty: expected
+    evidence_contract:
+      - { id: implementation-tag, proves: [code-change-ready], required: true }
+    on_failure: { action: replan }
+  - id: verify-query-matrix
+    from: code-ready
+    to: verification-ready
+    brief_ref: briefs/verify-query-matrix.md
+    preconditions: [repo-present, code-change-ready, idempotent-read]
+    effects: [normal-query-healthy, timeout-retry-correct, fallback-safe, scenario-matrix-passed]
+    invariants: [read-safety]
+    certainty: expected
+    evidence_contract:
+      - { id: scenario-matrix-readback, proves: [normal-query-healthy, timeout-retry-correct, fallback-safe, scenario-matrix-passed], required: true }
+    on_failure: { action: replan }
+  - id: authorize-release
+    from: verification-ready
+    to: release-approved
+    brief_ref: briefs/authorize-release.md
+    preconditions: [repo-present, scenario-matrix-passed]
+    effects: [release-authorized]
+    invariants: [read-safety]
+    certainty: conditional
+    evidence_contract:
+      - { id: release-approval, proves: [release-authorized], required: true }
+    on_failure: { action: stop }
+  - id: release-and-observe
+    from: release-approved
+    to: order-query-reliable
+    brief_ref: briefs/release-and-observe.md
+    preconditions: [repo-present, scenario-matrix-passed, release-authorized]
+    effects: [production-observed]
+    invariants: [read-safety]
+    certainty: conditional
+    evidence_contract:
+      - { id: production-readback, proves: [production-observed], required: true }
+    on_failure: { action: replan }
+
+loops: []
+submaps: []
+
+extensions:
+  x-demo-project: orderpulse-api
+  x-demo-purpose: baseline-mapflow-demonstration

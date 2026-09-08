@@ -1,0 +1,70 @@
+schema_version: 2
+map_id: run-community-workshop
+
+intent:
+  statement: 把社区分享想法推进为一场具备可验收准备条件的工作坊
+  status: shaped
+  open_questions: []
+
+destination:
+  statement: 工作坊准备已由独立子地图验收
+  requires: [workshop-ready]
+  invariants: []
+  acceptance:
+    - id: workshop-readiness-audited
+      proves: [workshop-ready]
+      proof: 子地图到达回执绑定场地与议程验收
+
+predicates:
+  - { id: workshop-request-known, fact: workshop-request-known, equals: "true", kind: state }
+  - { id: workshop-ready, fact: workshop-ready, equals: "true", kind: state }
+
+initial_state:
+  facts:
+    - id: workshop-request-known
+      value: "true"
+      evidence: [{ kind: document, ref: preparation/notes/request.md }]
+    - id: workshop-ready
+      value: "false"
+      evidence: [{ kind: observation, ref: 子地图回执尚未接纳 }]
+
+assumptions: []
+invariants: []
+boundaries:
+  in_scope: [验证工作坊准备子地图]
+  out_of_scope: [实际举办、报名转化和参与者满意度]
+  authorization: [父图只接纳已审计且摘要匹配的子图回执]
+
+nodes:
+  - { id: workshop-request-ready, kind: state, label: 工作坊请求已确认, predicates: [workshop-request-known] }
+  - { id: workshop-ready-to-open, kind: destination, label: 工作坊准备已验收, predicates: [workshop-ready] }
+
+edges:
+  - id: complete-workshop-preparation
+    from: workshop-request-ready
+    to: workshop-ready-to-open
+    brief_ref: briefs/complete-workshop-preparation.md
+    preconditions: [workshop-request-known]
+    effects: [workshop-ready]
+    invariants: []
+    certainty: conditional
+    evidence_contract:
+      - { id: child-arrival-receipt, proves: [workshop-ready], required: true }
+    on_failure: { action: replan }
+
+loops: []
+
+submaps:
+  - id: workshop-preparation
+    parent_edge: complete-workshop-preparation
+    map_ref: preparation/blueprint.yaml
+    state_ref: preparation/.mapflow/state.json
+    expected_map_id: prepare-community-workshop
+    expected_map_digest: cd7908df70a5daa1ad55ec12059f2cab9215f90b30111744128e3ff33ce05968
+    await: arrival
+    on_parent_close: preserve
+    exports:
+      - id: preparation-arrival-export
+        child_acceptance: preparation-audited
+        child_predicates: [venue-confirmed, agenda-readable]
+        proves_parent: [workshop-ready]

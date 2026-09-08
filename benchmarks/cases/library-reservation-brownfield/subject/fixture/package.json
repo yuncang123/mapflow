@@ -1,0 +1,8 @@
+{
+  "name": "shelfwise-existing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node src/server.mjs", "test": "node --test" },
+  "engines": { "node": ">=20" }
+}

@@ -4,11 +4,11 @@ Mapflow 只加载当前模型边界需要的能力；各 Skill 通过明确产�
 
 | 当前需要 | Skill | 产物 | 完成条件 |
 | --- | --- | --- | --- |
-| 把模糊愿望变成目标谓词 | `destination-shaping` | Destination Contract | 目标、验收、不变量和授权可判断 |
-| 勘探仓库型工作的起始地 | `repository-recon` | 四值 Fact 与代码影响面 | 关键仓库事实有来源或探针 |
+| 把模糊愿望变成目标谓词 | `destination-shaping` | Intent + Destination Contract | Intent shaped，目标、验收、不变量和授权可判断 |
+| 勘探仓库型工作的起始地 | `repository-recon` | 四值 Fact、代码影响面与 `wayfinding.yaml` 始发候选 | 关键仓库事实有来源或探针，问题指向节点/边 |
 | 找路、证明、修图 | `blueprint-planning` | State Node、Work Edge、proof gaps | 结构完整且逻辑/条件可达 |
 | 让一条边可独立执行 | `edge-slicing` | 语义化 Task Brief | 执行面、证据和失败边界完整 |
-| 执行当前工作边 | `edge-delivery` | 产物与 Evidence Record | effects 有实际证据并更新 Fact |
+| 执行当前工作边或验收子图 | `edge-delivery` | Edge Run、Evidence 或 Map Receipt | effects 有确认/回读证据并更新 Fact |
 
 旁路能力：
 
@@ -24,4 +24,4 @@ Mapflow 只加载当前模型边界需要的能力；各 Skill 通过明确产�
 - 非微小改动复核：`code-review`；
 - 跨会话或工具交接：`session-handoff`。
 
-普通请求不自动进入 Mapflow。用户明确启用后，从当前 proof gap 或 active edge 选择最窄 Skill；不把所有能力一次加载。
+普通请求不自动进入 Mapflow。用户明确说“启用 mapflow”后，入口 Skill 先调用用户级 runtime 的 `enable --root <当前工作目录> --json`，再从返回的仓库外 sidecar 恢复地图，并按当前 proof gap 或 active edge 选择最窄 Skill；不把所有能力一次加载，也不向目标工作区安装文件。

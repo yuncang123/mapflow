@@ -1,0 +1,33 @@
+{
+  "schema": "mapflow.benchmark-impact-map/v1",
+  "default_layers": ["oracle"],
+  "rules": [
+    {
+      "id": "benchmark-harness",
+      "paths": ["tools/benchmark.mjs", "tests/test_benchmark.mjs", "benchmarks/**"],
+      "layers": ["oracle"]
+    },
+    {
+      "id": "runtime-state-machine",
+      "paths": ["tools/mapflow.mjs", "tools/mapflow-core.mjs", "tools/mapflow-workspace.mjs", "templates/**", "tests/test_mapflow.mjs", "tests/test_workspace.mjs"],
+      "layers": ["runtime"]
+    },
+    {
+      "id": "arrival-agent-contract",
+      "paths": ["tools/mapflow.mjs", "docs/workflow.md", "skills/mapflow/SKILL.md", "skills/edge-delivery/SKILL.md"],
+      "layers": ["agent"],
+      "segments": ["library-system-greenfield:arrival-audit"]
+    },
+    {
+      "id": "board-projection",
+      "paths": ["tools/mapflow-board-core.mjs", "tools/mapflow-board.mjs", "tools/board/**", "tests/test_board.mjs"],
+      "layers": ["runtime"]
+    },
+    {
+      "id": "distribution",
+      "paths": ["tools/install.mjs", "package.json", "README.md", "tests/test_install.mjs"],
+      "layers": ["runtime"]
+    }
+  ],
+  "release_policy": "Release-level complete journeys are selected only with --level release."
+}

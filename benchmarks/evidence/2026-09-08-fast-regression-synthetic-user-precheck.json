@@ -1,0 +1,78 @@
+{
+  "schema": "mapflow.synthetic-user-precheck/v1",
+  "date": "2026-09-08",
+  "label": "synthetic user precheck",
+  "subject": "fast-regression-selection",
+  "suite_version": "1.5.0",
+  "runtime_version": "0.5.1",
+  "question": "Can a Mapflow maintainer quickly select the minimum regression after a change and understand recovery and evidence boundaries?",
+  "critical_journey": [
+    "README",
+    "regression-plan",
+    "deterministic-regression",
+    "coverage-boundary",
+    "interruption-recovery"
+  ],
+  "panel": [
+    {
+      "role": "low-patience-maintainer",
+      "verdict": "continue",
+      "score": 96,
+      "first_value_seconds": 1.1,
+      "confirmed_p0": 0,
+      "confirmed_p1": 0,
+      "findings": [
+        {
+          "severity": "P3",
+          "id": "matched-rules-first-line-density",
+          "observed": "The matched rules first line is dense, while the following layers, coverage boundaries, and commands remain sufficient to complete the journey."
+        }
+      ]
+    },
+    {
+      "role": "skeptical-maintainer",
+      "verdict": "continue",
+      "score": 94,
+      "first_value_seconds": 0.9,
+      "confirmed_p0": 0,
+      "confirmed_p1": 0,
+      "findings": []
+    },
+    {
+      "role": "continuity-and-truth-auditor",
+      "verdict": "continue",
+      "score": 93,
+      "first_value_seconds": 0.8,
+      "confirmed_p0": 0,
+      "confirmed_p1": 0,
+      "findings": []
+    }
+  ],
+  "aggregate": {
+    "median_score": 94,
+    "continue_verdicts": 3,
+    "panel_size": 3,
+    "confirmed_p0": 0,
+    "confirmed_p1": 0,
+    "gate": "ready-for-small-human-test"
+  },
+  "observed": [
+    "The plan labels itself PLAN ONLY and tests executed none.",
+    "Automatic selection closes oracle, runtime, and targeted agent layers without selecting release.",
+    "Agent coverage is TARGETED ONLY and explicitly does not provide complete journey coverage.",
+    "Each reviewer observed the deterministic regression pass 93 of 93 tests and state that Agent, complete journeys, and the release matrix were not run.",
+    "The operator-facing recovery contract distinguishes interrupted turn, interrupted check, failed check, and interrupted report."
+  ],
+  "repairs_made": [],
+  "release_evidence_eligible": false,
+  "agent_segment_run_by_panel": false,
+  "complete_journeys_run": false,
+  "release_matrix_run": false,
+  "human_only_unknowns": [
+    "real repeated use and trust over time",
+    "accessibility experience",
+    "retention and willingness to pay",
+    "market demand"
+  ],
+  "recommended_next_action": "Use the fast plan per change and reserve complete journeys plus the release matrix for an explicit release candidate."
+}

@@ -1,0 +1,395 @@
+schema_version: 1
+phase: regression
+intent:
+  statement: 从零开发 Shelfwise，供小型社区图书室管理员在本机完成日常借阅管理
+  status: shaped
+  open_questions: []
+origin:
+  id: shelfwise-empty-repository
+  kind: state
+  label: Shelfwise 已定边界的空白仓库
+  facts:
+    - id: git-repository-exists
+      value: 'true'
+      evidence:
+        - kind: git
+          ref: commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
+          strength: observed
+    - id: community-library-intent-recorded
+      value: 'true'
+      evidence:
+        - kind: document
+          ref: README.md
+          strength: observed
+    - id: application-implementation-exists
+      value: 'false'
+      evidence:
+        - kind: repository
+          ref: git-tree:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
+          strength: observed
+    - id: local-node-runtime-available
+      value: 'true'
+      evidence:
+        - kind: command
+          ref: node --version => v24.18.0
+          strength: observed
+    - id: node-sqlite-available
+      value: 'true'
+      evidence:
+        - kind: command
+          ref: node:sqlite in-memory probe => SQLite 3.53.1
+          strength: observed
+    - id: technology-stack-selected
+      value: 'true'
+      evidence:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-v1-scope
+          strength: asserted
+    - id: v1-product-boundary-known
+      value: 'true'
+      evidence:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-v1-scope
+          strength: asserted
+    - id: destination-contract-confirmed
+      value: 'true'
+      evidence:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-destination-confirmation
+          strength: asserted
+    - id: external-deployment-authorized
+      value: 'false'
+      evidence:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-v1-scope
+          strength: asserted
+destination:
+  id: shelfwise-v1
+  kind: destination
+  label: Shelfwise v1 可用的本地图书借阅闭环
+  statement: |-
+    使用者：小型社区图书室管理员。
+    目标 Predicate：管理员能在浏览器页面登记单册图书、登记读者、创建借阅、办理归还并查询当前有效借阅；借阅引用有效图书和读者，同一单册同一时刻至多一笔有效借阅；成功写入的数据经进程重启后仍从 LIBRARY_DATA_FILE 恢复；应用由当前本地 Node.js 运行，以 npm start 启动，监听 PORT，页面入口为 /；HTTP 合同包含 POST /api/books、POST /api/readers、POST /api/loans、POST /api/returns 和 GET /api/loans?status=active。
+    验收：A1 使用临时 PORT 和 LIBRARY_DATA_FILE 执行 npm start 后，GET / 返回可操作页面；A2 经页面和 API 登记一本单册图书与一名读者并获得稳定 ID；A3 创建借阅后 active 查询返回关联图书和读者，重复借出同一单册或引用不存在记录时返回 4xx 且不产生脏数据；A4 归还后该借阅不再出现在 active 查询，重复或无效归还返回 4xx；A5 停止并以同一数据文件重启后，图书、读者及借阅状态保持一致；A6 自动化测试和代码检查证明上述 HTTP 合同且 package.json 没有第三方生产依赖。
+    不变量：只在本机运行；使用 Node.js 内置能力实现生产路径；持久化文件由 LIBRARY_DATA_FILE 指定；失败请求不改变已确认数据；实现和验证不得发布或写入外部环境。
+    范围内：单管理员使用的图书、读者、借阅、归还、有效借阅查询、浏览器管理页面、本地文件持久化和对应自动化验证。
+    范围外：会员收费、电子书、推荐、预约、多人权限、外部部署与发布。
+    授权边界：允许在本仓库实现并在本机使用临时端口和临时数据文件验证；不允许外部发布、生产部署或外部系统写入。
+  status: confirmed
+nodes:
+  - id: library-api-ready
+    kind: state
+    label: 持久化图书借阅 API 已就绪
+    purpose: 提供经过自动化验证的领域规则、文件持久化和指定 HTTP 合同
+    status: confirmed
+    facts:
+      - id: persistent-library-api-ready
+        value: 'true'
+        evidence: []
+    question_refs:
+      - confirm-library-api-ready-node
+    non_goals:
+      - 不包含浏览器交互界面
+    proof:
+      status: confirmed-suffix
+      summary: 人工已确认该状态；它可通过已确认的浏览器界面边与整体验收边抵达目的地
+      evidence_refs:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-library-api-node-confirmation
+          strength: asserted
+  - id: admin-app-ready
+    kind: join
+    label: 管理员浏览器工作流已就绪
+    purpose: 在已验证 API 之上提供完整的单管理员浏览器操作闭环
+    status: confirmed
+    facts:
+      - id: persistent-library-api-ready
+        value: 'true'
+        evidence: []
+      - id: admin-browser-workflows-ready
+        value: 'true'
+        evidence: []
+    question_refs:
+      - confirm-admin-app-ready-node
+    non_goals:
+      - 不在此状态宣称完整目的地验收已经通过
+    proof:
+      status: confirmed-suffix
+      summary: 人工已确认该状态；执行已确认的整体验收边即可产生全部目的地 Predicate
+      evidence_refs:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-admin-app-node-confirmation
+          strength: asserted
+edges:
+  - id: build-persistent-library-api
+    from: shelfwise-empty-repository
+    to: library-api-ready
+    label: 构建持久化图书借阅 API
+    purpose: 用 Node.js 内置能力建立项目、领域规则、SQLite 文件存储和指定 HTTP API
+    status: confirmed
+    question_refs:
+      - confirm-build-persistent-library-api-edge
+    brief_ref: briefs/build-persistent-library-api.md
+    preconditions:
+      - git-repository-exists
+      - local-node-runtime-available
+      - node-sqlite-available
+      - destination-contract-confirmed
+    effects:
+      - persistent-library-api-ready
+    invariants:
+      - production-dependencies-remain-empty
+      - configured-data-file-is-authoritative
+      - no-external-release
+    evidence_contract:
+      - id: persistent-api-test-record
+        proves:
+          - persistent-library-api-ready
+        required: true
+        proof: Node 内置测试覆盖 node:sqlite 启动探针、登记、借阅、归还、有效借阅查询、事务回滚和重启恢复
+    acceptance:
+      - id: persistent-api-ready-evidence
+        proves:
+          - persistent-library-api-ready
+        proof: node:sqlite 探针和 API 集成测试通过，使用临时 LIBRARY_DATA_FILE 重启后回读一致，package.json 无生产依赖
+        status: pending
+    non_goals:
+      - 不实现浏览器页面和视觉设计
+      - 不实现目的地明确排除的功能
+    certainty: expected
+    on_failure:
+      action: replan
+      scope: subgraph:shelfwise-empty-repository:library-api-ready
+    proof:
+      status: confirmed-prefix
+      summary: 人工已确认该边；起始事实满足其前置，预期效果建立 API 里程碑
+      evidence_refs:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-persistent-api-edge-confirmation
+          strength: asserted
+  - id: build-admin-browser-interface
+    from: library-api-ready
+    to: admin-app-ready
+    label: 构建管理员浏览器界面
+    purpose: 在根页面提供图书、读者、借阅、归还和有效借阅查询工作流
+    status: confirmed
+    question_refs:
+      - confirm-build-admin-browser-interface-edge
+    brief_ref: briefs/build-admin-browser-interface.md
+    preconditions:
+      - persistent-library-api-ready
+    effects:
+      - admin-browser-workflows-ready
+    invariants:
+      - production-dependencies-remain-empty
+      - configured-data-file-is-authoritative
+      - no-external-release
+    evidence_contract:
+      - id: admin-browser-workflow-record
+        proves:
+          - admin-browser-workflows-ready
+        required: true
+        proof: 本地浏览器逐项完成登记、借阅、查询和归还，并保留页面与 HTTP 回读证据
+    acceptance:
+      - id: admin-workflows-ready-evidence
+        proves:
+          - admin-browser-workflows-ready
+        proof: GET / 返回可操作页面，五条管理员工作流均通过 UI 调用本地 API 完成
+        status: pending
+    non_goals:
+      - 不改变后端 API 合同或持久化模型
+      - 不增加多人权限、预约、推荐或收费流程
+    certainty: expected
+    on_failure:
+      action: replan
+      scope: subgraph:library-api-ready:admin-app-ready
+    proof:
+      status: confirmed-suffix
+      summary: 人工已确认该边；它把已验证 API 提升为可供管理员操作的浏览器应用
+      evidence_refs:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-admin-browser-edge-confirmation
+          strength: asserted
+  - id: verify-shelfwise-v1
+    from: admin-app-ready
+    to: shelfwise-v1
+    label: 验证 Shelfwise v1 完整合同
+    purpose: 对启动、页面、API、领域规则、重启持久化和依赖边界执行最终验收
+    status: confirmed
+    question_refs:
+      - confirm-verify-shelfwise-v1-edge
+    brief_ref: briefs/verify-shelfwise-v1.md
+    preconditions:
+      - persistent-library-api-ready
+      - admin-browser-workflows-ready
+    effects:
+      - startup-and-page-verified
+      - registration-workflows-verified
+      - loan-lifecycle-verified
+      - restart-persistence-verified
+      - required-api-contract-verified
+      - production-dependency-policy-verified
+    invariants:
+      - production-dependencies-remain-empty
+      - configured-data-file-is-authoritative
+      - no-external-release
+    evidence_contract:
+      - id: shelfwise-v1-acceptance-record
+        proves:
+          - startup-and-page-verified
+          - registration-workflows-verified
+          - loan-lifecycle-verified
+          - restart-persistence-verified
+          - required-api-contract-verified
+          - production-dependency-policy-verified
+        required: true
+        proof: 自动化测试、真实 npm start 进程回读和本机浏览器检查共同覆盖 A1 至 A6
+    acceptance:
+      - id: a1-startup-page
+        proves:
+          - startup-and-page-verified
+        proof: 临时 PORT 和 LIBRARY_DATA_FILE 下 npm start 成功，GET / 返回可操作页面
+        status: pending
+      - id: a2-registration
+        proves:
+          - registration-workflows-verified
+        proof: 页面和 API 可登记单册图书与读者并返回稳定 ID
+        status: pending
+      - id: a3-a4-loan-lifecycle
+        proves:
+          - loan-lifecycle-verified
+        proof: 借阅、有效查询、归还和全部非法重复操作的结果符合合同且无脏数据
+        status: pending
+      - id: a5-restart-persistence
+        proves:
+          - restart-persistence-verified
+        proof: 使用同一数据文件重启后图书、读者与借阅状态完全一致
+        status: pending
+      - id: a6-api-contract
+        proves:
+          - required-api-contract-verified
+        proof: 自动化测试逐一调用五个指定 API 与页面入口
+        status: pending
+      - id: a6-production-dependencies
+        proves:
+          - production-dependency-policy-verified
+        proof: package.json 的生产 dependencies 为空且服务运行不依赖第三方包
+        status: pending
+    non_goals:
+      - 不在验收边新增目的地之外的产品能力
+      - 不发布、部署或写入外部环境
+    certainty: expected
+    on_failure:
+      action: replan
+      scope: subgraph:admin-app-ready:shelfwise-v1
+    proof:
+      status: confirmed-suffix
+      summary: 人工已确认该边；当前置实现状态成立时，六项证据效果完整覆盖目的地合同
+      evidence_refs:
+        - kind: note
+          ref: conversation-user-message-2026-09-07-verify-edge-confirmation
+          strength: asserted
+questions:
+  - id: choose-v1-operating-scope
+    prompt: 请选择 Shelfwise 首版的产品边界和主要使用者
+    target:
+      kind: destination
+      id: shelfwise-v1
+      label: Shelfwise 首版目的地
+      purpose: 确定首版必须闭环的角色、业务能力和验收范围
+    status: answered
+    answer: 使用者是小型社区图书室的管理员。首版需要登记图书、登记读者、借书、还书和查询当前借阅状态；在本机浏览器中使用，数据重启后仍保留。使用当前本地 Node.js，不引入第三方生产依赖，npm start 启动且尊重 PORT 和 LIBRARY_DATA_FILE。API 需要有 POST /api/books、POST /api/readers、POST /api/loans、POST /api/returns，以及 GET /api/loans?status=active，页面入口是 /。暂不做会员收费、电子书、推荐、预约和多人权限；也不授权发布到外部环境。
+    evidence_refs:
+      - kind: note
+        ref: conversation-user-message-2026-09-07-v1-scope
+    answer_updates:
+      - wayfinding.intent.open_questions
+      - wayfinding.destination.statement
+      - wayfinding.origin.facts.v1-product-boundary-known
+  - id: confirm-shelfwise-v1-destination
+    prompt: 是否明确确认刚展示的 Shelfwise v1 目的地合同（包括目标、验收、不变量、范围和授权边界）
+    target:
+      kind: destination
+      id: shelfwise-v1
+      label: Shelfwise v1 可用的本地图书借阅闭环
+      purpose: 取得对完整目的地合同的独立人工确认，允许随后进入目标回归
+    status: answered
+    answer: 你刚才总结的使用者、最终结果、验收方式、限制和不做事项都准确，我确认。
+    evidence_refs:
+      - kind: note
+        ref: conversation-user-message-2026-09-07-destination-confirmation
+    answer_updates:
+      - wayfinding.intent.status
+      - wayfinding.intent.open_questions
+      - wayfinding.destination.status
+  - id: confirm-verify-shelfwise-v1-edge
+    prompt: 是否确认候选工作边 verify-shelfwise-v1 的语义、范围、非目标、授权和证据合同
+    target:
+      kind: edge
+      id: verify-shelfwise-v1
+      label: 验证 Shelfwise v1 完整合同
+      purpose: 确认最靠近目的地的验收边，建立目标回归的首段已确认后缀
+    status: answered
+    answer_updates:
+      - wayfinding.edges.verify-shelfwise-v1.status
+    answer: 我确认“工作边 verify-shelfwise-v1”以及它的验收方式、范围和失败处理。请继续。
+    evidence_refs:
+      - kind: note
+        ref: conversation-user-message-2026-09-07-verify-edge-confirmation
+  - id: confirm-admin-app-ready-node
+    prompt: 是否确认候选状态节点 admin-app-ready 的 Predicate、语义和非目标
+    target:
+      kind: node
+      id: admin-app-ready
+      label: 管理员浏览器工作流已就绪
+      purpose: 确认整体验收边所需的直接来源状态，继续向始发地回归
+    status: answered
+    answer_updates:
+      - wayfinding.nodes.admin-app-ready.status
+    answer: 我确认“状态节点 admin-app-ready”以及它的验收方式、范围和失败处理。请继续。
+    evidence_refs:
+      - kind: note
+        ref: conversation-user-message-2026-09-07-admin-app-node-confirmation
+  - id: confirm-build-admin-browser-interface-edge
+    prompt: 是否确认候选工作边 build-admin-browser-interface 的语义、范围、非目标、授权和证据合同
+    target:
+      kind: edge
+      id: build-admin-browser-interface
+      label: 构建管理员浏览器界面
+      purpose: 确认产生管理员浏览器工作流就绪状态的工作边，继续向 API 里程碑回归
+    status: answered
+    answer_updates:
+      - wayfinding.edges.build-admin-browser-interface.status
+    answer: 我确认“工作边 build-admin-browser-interface”以及它的验收方式、范围和失败处理。请继续。
+    evidence_refs:
+      - kind: note
+        ref: conversation-user-message-2026-09-07-admin-browser-edge-confirmation
+  - id: confirm-library-api-ready-node
+    prompt: 是否确认候选状态节点 library-api-ready 的 Predicate、语义和非目标
+    target:
+      kind: node
+      id: library-api-ready
+      label: 持久化图书借阅 API 已就绪
+      purpose: 确认浏览器界面边所需的直接来源状态，继续向始发地回归
+    status: answered
+    answer_updates:
+      - wayfinding.nodes.library-api-ready.status
+    answer: 我确认“状态节点 library-api-ready”以及它的验收方式、范围和失败处理。请继续。
+    evidence_refs:
+      - kind: note
+        ref: conversation-user-message-2026-09-07-library-api-node-confirmation
+  - id: confirm-build-persistent-library-api-edge
+    prompt: 是否确认候选工作边 build-persistent-library-api 的语义、范围、非目标、授权和证据合同
+    target:
+      kind: edge
+      id: build-persistent-library-api
+      label: 构建持久化图书借阅 API
+      purpose: 确认从已知始发事实产生 API 就绪状态的工作边，闭合完整候选链
+    status: answered
+    answer_updates:
+      - wayfinding.edges.build-persistent-library-api.status
+    answer: 我确认“工作边 build-persistent-library-api”以及它的验收方式、范围和失败处理。请继续。
+    evidence_refs:
+      - kind: note
+        ref: conversation-user-message-2026-09-07-persistent-api-edge-confirmation
+updated_at: '2026-09-07T11:19:27Z'

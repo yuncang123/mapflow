@@ -1,0 +1,139 @@
+{
+  "schema": "mapflow.benchmark-oracle/v1",
+  "case_id": "library-system-greenfield",
+  "case_version": "1.3.13",
+  "checkpoints": [
+    {
+      "id": "prepared",
+      "description": "隔离工作区只有固定 fixture 和单个 Git 基线，没有 Sidecar",
+      "assertions": [
+        { "path": "workspace.sidecar_exists", "equals": false },
+        { "path": "repo.commit_count", "equals": 1 },
+        { "path": "repo.dirty_paths", "empty": true },
+        { "path": "summary.nodes", "equals": 0 },
+        { "path": "summary.edges", "equals": 0 }
+      ]
+    },
+    {
+      "id": "enabled-empty",
+      "description": "自然语言启用建立仓库外 Sidecar 和两枚迷雾候选，不伪造正式地图",
+      "assertions": [
+        { "path": "workspace.sidecar_exists", "equals": true },
+        { "path": "workspace.map_exists", "equals": false },
+        { "path": "workspace.wayfinding_exists", "equals": true },
+        { "path": "wayfinding.origin_visible", "equals": true },
+        { "path": "wayfinding.destination_visible", "equals": true },
+        { "path": "wayfinding.destination_confirmed", "equals": false },
+        { "path": "wayfinding.questions_targeted", "equals": true },
+        { "path": "wayfinding.open_questions", "equals": 1 },
+        { "path": "summary.nodes", "equals": 0 },
+        { "path": "summary.edges", "equals": 0 },
+        { "path": "repo.dirty_paths", "empty": true }
+      ]
+    },
+    {
+      "id": "destination-shaped",
+      "description": "始发与目的地候选可见，目的地经人确认且尚未虚构正式路线",
+      "assertions": [
+        { "path": "workspace.wayfinding_exists", "equals": true },
+        { "path": "wayfinding.origin_visible", "equals": true },
+        { "path": "wayfinding.destination_visible", "equals": true },
+        { "path": "wayfinding.destination_confirmed", "equals": true },
+        { "path": "wayfinding.open_questions", "max": 1 },
+        { "path": "summary.edges", "equals": 0 },
+        { "path": "wayfinding.questions_targeted", "equals": true }
+      ]
+    },
+    {
+      "id": "regression-proposed",
+      "description": "候选路线已反向闭合但仍未进入正式拓扑",
+      "assertions": [
+        { "path": "wayfinding.phase", "equals": "regression" },
+        { "path": "wayfinding.draft_edges", "min": 2 },
+        { "path": "wayfinding.candidate_edges_complete", "equals": true },
+        { "path": "regression.complete_chain", "equals": true },
+        { "path": "summary.edges", "equals": 0 },
+        { "path": "workspace.map_exists", "equals": false }
+      ]
+    },
+    {
+      "id": "route-proven",
+      "description": "候选确认后正式路线已证明，但仍等待证明后的独立人工批准",
+      "assertions": [
+        { "path": "workspace.map_exists", "equals": true },
+        { "path": "workspace.state_exists", "equals": true },
+        { "path": "workspace.briefs_count", "min": 2 },
+        { "path": "proof.structural", "equals": "complete" },
+        { "path": "proof.reachability", "one_of": ["logical", "conditional"] },
+        { "path": "runtime.destination_status", "one_of": ["draft", "changed"] },
+        { "path": "runtime.current_route_approval", "equals": null },
+        { "path": "runtime.route_approvals_count", "equals": 0 },
+        { "path": "runtime.pending_route_approvals", "equals": 1 },
+        { "path": "runtime.active_edge", "equals": null },
+        { "path": "runtime.active_run", "equals": null },
+        { "path": "runtime.pending_authorizations", "equals": 0 },
+        { "path": "runtime.edge_runs_count", "equals": 0 },
+        { "path": "runtime.decisions_count", "equals": 0 },
+        { "path": "repo.dirty_paths", "empty": true }
+      ]
+    },
+    {
+      "id": "route-approved",
+      "description": "人确认后的正式地图、独立 Brief 与可达性证明已经建立",
+      "assertions": [
+        { "path": "workspace.map_exists", "equals": true },
+        { "path": "workspace.state_exists", "equals": true },
+        { "path": "workspace.briefs_count", "min": 2 },
+        { "path": "summary.nodes", "min": 3 },
+        { "path": "summary.edges", "min": 2 },
+        { "path": "contract.destination_predicates", "min": 4 },
+        { "path": "contract.destination_acceptance", "min": 4 },
+        { "path": "contract.destination_invariants", "min": 1 },
+        { "path": "contract.out_of_scope", "min": 1 },
+        { "path": "contract.authorization_rules", "min": 1 },
+        { "path": "contract.edge_contracts_complete", "equals": true },
+        { "path": "proof.structural", "equals": "complete" },
+        { "path": "proof.reachability", "one_of": ["logical", "conditional"] },
+        { "path": "runtime.destination_status", "equals": "approved" },
+        { "path": "runtime.current_route_approval", "nonempty": true },
+        { "path": "runtime.pending_route_approvals", "equals": 0 },
+        { "path": "runtime.route_approval_requests_count", "min": 1 },
+        { "path": "runtime.route_approvals_count", "min": 1 },
+        { "path": "runtime.route_approvals_authorized", "equals": true },
+        { "path": "runtime.active_edge", "equals": null },
+        { "path": "runtime.active_run", "equals": null },
+        { "path": "runtime.edge_runs_count", "equals": 0 },
+        { "path": "runtime.decisions_count", "equals": 0 },
+        { "path": "repo.dirty_paths", "empty": true }
+      ]
+    },
+    {
+      "id": "implementation-verified",
+      "description": "产品实现通过独立隐藏功能检查且运行证据已经登记",
+      "assertions": [
+        { "path": "repo.changed_paths", "nonempty": true },
+        { "path": "runtime.phase", "equals": "implementation" },
+        { "path": "runtime.actual_arrival", "equals": "not-audited" },
+        { "path": "runtime.pending_arrival_audits", "equals": 1 },
+        { "path": "runtime.evidence_count", "min": 1 },
+        { "path": "runtime.edge_runs_count", "min": 1 },
+        { "path": "runtime.human_decisions", "equals": true },
+        { "path": "runtime.evidence_traceable", "equals": true }
+      ],
+      "verifier": "oracle/verify.mjs"
+    },
+    {
+      "id": "arrived",
+      "description": "所有验收有实际证据并通过到达审计",
+      "assertions": [
+        { "path": "runtime.phase", "equals": "arrived" },
+        { "path": "runtime.actual_arrival", "equals": "audited" },
+        { "path": "runtime.arrival_audit_requests_count", "min": 1 },
+        { "path": "runtime.arrival_audit_authorized", "equals": true },
+        { "path": "runtime.acceptance_complete", "equals": true },
+        { "path": "proof.structural", "equals": "complete" }
+      ],
+      "verifier": "oracle/verify.mjs"
+    }
+  ]
+}

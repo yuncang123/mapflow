@@ -1,0 +1,1975 @@
+{
+  "schema": 2,
+  "phase": "implementation",
+  "destination_status": "approved",
+  "map": "blueprint.yaml",
+  "map_digest": "fbe91c9501849c1dcb71c1368fa8068dcb68bc0e41035a0f7d7c17c14b44585e",
+  "map_id": "shelfwise-v1",
+  "active_edge": null,
+  "active_run": null,
+  "runtime_status": "arrival-audit-required",
+  "edge_runs": [
+    {
+      "id": "build-persistent-library-api-run-1",
+      "edge": "build-persistent-library-api",
+      "status": "passed",
+      "attempt": 1,
+      "decision": "build-persistent-library-api-decision-1",
+      "authorization_request": "build-persistent-library-api-authorization-1",
+      "started_at": "2026-09-07T11:29:30Z",
+      "updated_at": "2026-09-07T11:45:49Z",
+      "evidence_ids": [
+        "build-persistent-library-api-evidence-1"
+      ]
+    },
+    {
+      "id": "build-admin-browser-interface-run-1",
+      "edge": "build-admin-browser-interface",
+      "status": "passed",
+      "attempt": 1,
+      "decision": "build-admin-browser-interface-decision-1",
+      "authorization_request": "build-admin-browser-interface-authorization-1",
+      "started_at": "2026-09-07T11:49:34Z",
+      "updated_at": "2026-09-07T12:11:32Z",
+      "evidence_ids": [
+        "build-admin-browser-interface-evidence-2"
+      ]
+    },
+    {
+      "id": "verify-shelfwise-v1-run-1",
+      "edge": "verify-shelfwise-v1",
+      "status": "passed",
+      "attempt": 1,
+      "decision": "verify-shelfwise-v1-decision-1",
+      "authorization_request": "verify-shelfwise-v1-authorization-1",
+      "started_at": "2026-09-07T12:18:22Z",
+      "updated_at": "2026-09-07T12:38:18Z",
+      "evidence_ids": [
+        "verify-shelfwise-v1-evidence-3"
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "build-persistent-library-api-decision-1",
+      "edge": "build-persistent-library-api",
+      "at_node": "shelfwise-empty-repository",
+      "alternatives": [
+        "build-persistent-library-api"
+      ],
+      "reason": "我批准你刚才请求执行的这项工作。完成后先把结果和检查记录告诉我。",
+      "actor": "human:owner",
+      "authorization_request": "build-persistent-library-api-authorization-1",
+      "decided_at": "2026-09-07T11:29:30Z"
+    },
+    {
+      "id": "build-admin-browser-interface-decision-1",
+      "edge": "build-admin-browser-interface",
+      "at_node": "library-api-ready",
+      "alternatives": [
+        "build-admin-browser-interface"
+      ],
+      "reason": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
+      "actor": "human:owner",
+      "authorization_request": "build-admin-browser-interface-authorization-1",
+      "decided_at": "2026-09-07T11:49:34Z"
+    },
+    {
+      "id": "verify-shelfwise-v1-decision-1",
+      "edge": "verify-shelfwise-v1",
+      "at_node": "admin-app-ready",
+      "alternatives": [
+        "verify-shelfwise-v1"
+      ],
+      "reason": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
+      "actor": "human:owner",
+      "authorization_request": "verify-shelfwise-v1-authorization-1",
+      "decided_at": "2026-09-07T12:18:22Z"
+    }
+  ],
+  "route_approval_requests": [
+    {
+      "id": "shelfwise-v1-route-approval-request-1",
+      "map_digest": "fbe91c9501849c1dcb71c1368fa8068dcb68bc0e41035a0f7d7c17c14b44585e",
+      "proof_digest": "e127bcef0145b22fbcf724cfc6d29beef441f0c989808df4acafe344656fc2af",
+      "structural": "complete",
+      "reachability": "logical",
+      "proven_edges": [
+        "verify-shelfwise-v1",
+        "build-admin-browser-interface",
+        "build-persistent-library-api"
+      ],
+      "question": "是否批准当前已证明的完整路线：build-persistent-library-api → build-admin-browser-interface → verify-shelfwise-v1？",
+      "requested_by": "agent:codex",
+      "requested_at": "2026-09-07T11:25:27Z",
+      "status": "granted",
+      "answer": "我看懂了，也确认按这条完整路线推进。",
+      "approved_by": "human:owner",
+      "approved_at": "2026-09-07T11:27:03Z"
+    }
+  ],
+  "route_approvals": [
+    {
+      "id": "shelfwise-v1-route-approval-1",
+      "map_digest": "fbe91c9501849c1dcb71c1368fa8068dcb68bc0e41035a0f7d7c17c14b44585e",
+      "structural": "complete",
+      "reachability": "logical",
+      "request": "shelfwise-v1-route-approval-request-1",
+      "reason": "我看懂了，也确认按这条完整路线推进。",
+      "answer": "我看懂了，也确认按这条完整路线推进。",
+      "actor": "human:owner",
+      "approved_at": "2026-09-07T11:27:03Z"
+    }
+  ],
+  "current_route_approval": "shelfwise-v1-route-approval-1",
+  "authorization_requests": [
+    {
+      "id": "build-persistent-library-api-authorization-1",
+      "edge": "build-persistent-library-api",
+      "route_approval": "shelfwise-v1-route-approval-1",
+      "question": "是否授权执行工作边 build-persistent-library-api？范围仅包括服务端源码、package.json、自动化测试，以及本机临时端口和临时数据文件验证。失败时停止并返回 replan，不触碰用户既有数据。",
+      "requested_by": "agent:codex",
+      "requested_at": "2026-09-07T11:27:16Z",
+      "status": "granted",
+      "answer": "我批准你刚才请求执行的这项工作。完成后先把结果和检查记录告诉我。",
+      "authorized_by": "human:owner",
+      "authorized_at": "2026-09-07T11:29:30Z"
+    },
+    {
+      "id": "build-admin-browser-interface-authorization-1",
+      "edge": "build-admin-browser-interface",
+      "route_approval": "shelfwise-v1-route-approval-1",
+      "question": "是否授权执行工作边 build-admin-browser-interface？范围仅包括 GET / 的本地管理员界面、原生 HTML/CSS/JavaScript、必要的服务接线与本机浏览器验证；不改变已验证 API 合同，不加入第三方生产依赖，也不做外部发布。",
+      "requested_by": "agent:codex",
+      "requested_at": "2026-09-07T11:46:20Z",
+      "status": "granted",
+      "answer": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
+      "authorized_by": "human:owner",
+      "authorized_at": "2026-09-07T11:49:34Z"
+    },
+    {
+      "id": "verify-shelfwise-v1-authorization-1",
+      "edge": "verify-shelfwise-v1",
+      "route_approval": "shelfwise-v1-route-approval-1",
+      "question": "是否授权执行工作边 verify-shelfwise-v1？范围仅包括以临时 PORT 和 LIBRARY_DATA_FILE 运行完整自动化与真实 npm start/browser 验收、检查重启持久化和零生产依赖，并只修复阻塞既定 A1-A6 验收的问题；不新增功能、不外部部署或发布。",
+      "requested_by": "agent:codex",
+      "requested_at": "2026-09-07T12:12:06Z",
+      "status": "granted",
+      "answer": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
+      "authorized_by": "human:owner",
+      "authorized_at": "2026-09-07T12:18:22Z"
+    }
+  ],
+  "arrival_audit_requests": [
+    {
+      "id": "shelfwise-v1-arrival-audit-request-1",
+      "map_digest": "fbe91c9501849c1dcb71c1368fa8068dcb68bc0e41035a0f7d7c17c14b44585e",
+      "route_approval": "shelfwise-v1-route-approval-1",
+      "state_revision": 17,
+      "evidence_digest": "2d349d8dbde13f687dc58395c61cf2eca2756d8c96871e9b8cb5dc325eebd4e9",
+      "acceptance": [
+        "a1-startup-page",
+        "a2-registration",
+        "a3-a4-loan-lifecycle",
+        "a5-restart-persistence",
+        "a6-api-contract",
+        "a6-production-dependencies"
+      ],
+      "question": "是否确认 Shelfwise v1 的 A1-A6 已按上述实际记录逐项通过，非目标（会员收费、电子书、推荐、预约、多人权限和外部发布）仍保持排除，并接受遗留风险（规模增长后的纯编号办理摩擦、部分窄屏触控目标小于 44px、真实长期使用与无障碍体验及市场需求尚未验证）？",
+      "requested_by": "agent:codex",
+      "requested_at": "2026-09-07T12:39:47Z",
+      "status": "pending"
+    }
+  ],
+  "work_events": [],
+  "proposals": [],
+  "map_receipts": [],
+  "receipt_invalidations": [],
+  "event_stream": {
+    "path": "events.jsonl",
+    "last_seq": 17,
+    "head_digest": "03faad83d563e6c25a909406676cd64d03fe058d18af9c332e06976272448631"
+  },
+  "verified_edges": [
+    "build-persistent-library-api",
+    "build-admin-browser-interface",
+    "verify-shelfwise-v1"
+  ],
+  "verified_edge_contracts": {
+    "build-persistent-library-api": {
+      "edge": {
+        "id": "build-persistent-library-api",
+        "from": "shelfwise-empty-repository",
+        "to": "library-api-ready",
+        "brief_ref": "briefs/build-persistent-library-api.md",
+        "preconditions": [
+          "git-repository-exists",
+          "local-node-runtime-available",
+          "node-sqlite-available",
+          "destination-contract-confirmed"
+        ],
+        "effects": [
+          "persistent-library-api-ready"
+        ],
+        "invariants": [
+          "production-dependencies-remain-empty",
+          "configured-data-file-is-authoritative",
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "persistent-api-test-record",
+            "proves": [
+              "persistent-library-api-ready"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      "submap": null,
+      "nodes": [
+        {
+          "id": "library-api-ready",
+          "kind": "state",
+          "label": "持久化图书借阅 API 已就绪",
+          "predicates": [
+            "persistent-library-api-ready"
+          ]
+        },
+        {
+          "id": "shelfwise-empty-repository",
+          "kind": "state",
+          "label": "Shelfwise 已定边界的空白仓库",
+          "predicates": [
+            "git-repository-exists",
+            "local-node-runtime-available",
+            "node-sqlite-available",
+            "destination-contract-confirmed",
+            "production-dependencies-forbidden",
+            "configured-data-file-required",
+            "external-release-not-authorized"
+          ],
+          "realization_refs": [
+            {
+              "kind": "git",
+              "ref": "commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
+              "strength": "observed"
+            }
+          ]
+        }
+      ],
+      "predicates": [
+        {
+          "id": "configured-data-file-required",
+          "fact": "configured-data-file-required",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "destination-contract-confirmed",
+          "fact": "destination-contract-confirmed",
+          "equals": "true",
+          "kind": "authorization"
+        },
+        {
+          "id": "external-release-not-authorized",
+          "fact": "external-deployment-authorized",
+          "equals": "false",
+          "kind": "authorization"
+        },
+        {
+          "id": "git-repository-exists",
+          "fact": "git-repository-exists",
+          "equals": "true",
+          "kind": "resource"
+        },
+        {
+          "id": "local-node-runtime-available",
+          "fact": "local-node-runtime-available",
+          "equals": "true",
+          "kind": "resource"
+        },
+        {
+          "id": "node-sqlite-available",
+          "fact": "node-sqlite-available",
+          "equals": "true",
+          "kind": "resource"
+        },
+        {
+          "id": "persistent-library-api-ready",
+          "fact": "persistent-library-api-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "production-dependencies-forbidden",
+          "fact": "production-dependencies-allowed",
+          "equals": "false",
+          "kind": "authorization"
+        }
+      ],
+      "invariants": [
+        {
+          "id": "configured-data-file-is-authoritative",
+          "applies_to": [
+            "build-persistent-library-api",
+            "build-admin-browser-interface",
+            "verify-shelfwise-v1"
+          ],
+          "requires": [
+            "configured-data-file-required"
+          ]
+        },
+        {
+          "id": "no-external-release",
+          "applies_to": [
+            "build-persistent-library-api",
+            "build-admin-browser-interface",
+            "verify-shelfwise-v1"
+          ],
+          "requires": [
+            "external-release-not-authorized"
+          ]
+        },
+        {
+          "id": "production-dependencies-remain-empty",
+          "applies_to": [
+            "build-persistent-library-api",
+            "build-admin-browser-interface",
+            "verify-shelfwise-v1"
+          ],
+          "requires": [
+            "production-dependencies-forbidden"
+          ]
+        }
+      ],
+      "loops": [],
+      "brief_digest": "4c748eb885e0680c55d924b38be7eec10cbc32af9a0ba86dd6780a408a2830c5"
+    },
+    "build-admin-browser-interface": {
+      "edge": {
+        "id": "build-admin-browser-interface",
+        "from": "library-api-ready",
+        "to": "admin-app-ready",
+        "brief_ref": "briefs/build-admin-browser-interface.md",
+        "preconditions": [
+          "persistent-library-api-ready"
+        ],
+        "effects": [
+          "admin-browser-workflows-ready"
+        ],
+        "invariants": [
+          "production-dependencies-remain-empty",
+          "configured-data-file-is-authoritative",
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "admin-browser-workflow-record",
+            "proves": [
+              "admin-browser-workflows-ready"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      "submap": null,
+      "nodes": [
+        {
+          "id": "admin-app-ready",
+          "kind": "join",
+          "label": "管理员浏览器工作流已就绪",
+          "predicates": [
+            "persistent-library-api-ready",
+            "admin-browser-workflows-ready"
+          ]
+        },
+        {
+          "id": "library-api-ready",
+          "kind": "state",
+          "label": "持久化图书借阅 API 已就绪",
+          "predicates": [
+            "persistent-library-api-ready"
+          ]
+        }
+      ],
+      "predicates": [
+        {
+          "id": "admin-browser-workflows-ready",
+          "fact": "admin-browser-workflows-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "configured-data-file-required",
+          "fact": "configured-data-file-required",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "external-release-not-authorized",
+          "fact": "external-deployment-authorized",
+          "equals": "false",
+          "kind": "authorization"
+        },
+        {
+          "id": "persistent-library-api-ready",
+          "fact": "persistent-library-api-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "production-dependencies-forbidden",
+          "fact": "production-dependencies-allowed",
+          "equals": "false",
+          "kind": "authorization"
+        }
+      ],
+      "invariants": [
+        {
+          "id": "configured-data-file-is-authoritative",
+          "applies_to": [
+            "build-persistent-library-api",
+            "build-admin-browser-interface",
+            "verify-shelfwise-v1"
+          ],
+          "requires": [
+            "configured-data-file-required"
+          ]
+        },
+        {
+          "id": "no-external-release",
+          "applies_to": [
+            "build-persistent-library-api",
+            "build-admin-browser-interface",
+            "verify-shelfwise-v1"
+          ],
+          "requires": [
+            "external-release-not-authorized"
+          ]
+        },
+        {
+          "id": "production-dependencies-remain-empty",
+          "applies_to": [
+            "build-persistent-library-api",
+            "build-admin-browser-interface",
+            "verify-shelfwise-v1"
+          ],
+          "requires": [
+            "production-dependencies-forbidden"
+          ]
+        }
+      ],
+      "loops": [],
+      "brief_digest": "54aef0f1ef521ab74a769d8b4da18e2895863dc0ffc3866fa3e18095272846f1"
+    },
+    "verify-shelfwise-v1": {
+      "edge": {
+        "id": "verify-shelfwise-v1",
+        "from": "admin-app-ready",
+        "to": "shelfwise-v1-ready",
+        "brief_ref": "briefs/verify-shelfwise-v1.md",
+        "preconditions": [
+          "persistent-library-api-ready",
+          "admin-browser-workflows-ready"
+        ],
+        "effects": [
+          "startup-and-page-verified",
+          "registration-workflows-verified",
+          "loan-lifecycle-verified",
+          "restart-persistence-verified",
+          "required-api-contract-verified",
+          "production-dependency-policy-verified"
+        ],
+        "invariants": [
+          "production-dependencies-remain-empty",
+          "configured-data-file-is-authoritative",
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "shelfwise-v1-acceptance-record",
+            "proves": [
+              "startup-and-page-verified",
+              "registration-workflows-verified",
+              "loan-lifecycle-verified",
+              "restart-persistence-verified",
+              "required-api-contract-verified",
+              "production-dependency-policy-verified"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      "submap": null,
+      "nodes": [
+        {
+          "id": "admin-app-ready",
+          "kind": "join",
+          "label": "管理员浏览器工作流已就绪",
+          "predicates": [
+            "persistent-library-api-ready",
+            "admin-browser-workflows-ready"
+          ]
+        },
+        {
+          "id": "shelfwise-v1-ready",
+          "kind": "destination",
+          "label": "Shelfwise v1 合同已验证",
+          "predicates": [
+            "startup-and-page-verified",
+            "registration-workflows-verified",
+            "loan-lifecycle-verified",
+            "restart-persistence-verified",
+            "required-api-contract-verified",
+            "production-dependency-policy-verified"
+          ]
+        }
+      ],
+      "predicates": [
+        {
+          "id": "admin-browser-workflows-ready",
+          "fact": "admin-browser-workflows-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "configured-data-file-required",
+          "fact": "configured-data-file-required",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "external-release-not-authorized",
+          "fact": "external-deployment-authorized",
+          "equals": "false",
+          "kind": "authorization"
+        },
+        {
+          "id": "loan-lifecycle-verified",
+          "fact": "loan-lifecycle-verified",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "persistent-library-api-ready",
+          "fact": "persistent-library-api-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "production-dependencies-forbidden",
+          "fact": "production-dependencies-allowed",
+          "equals": "false",
+          "kind": "authorization"
+        },
+        {
+          "id": "production-dependency-policy-verified",
+          "fact": "production-dependency-policy-verified",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "registration-workflows-verified",
+          "fact": "registration-workflows-verified",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "required-api-contract-verified",
+          "fact": "required-api-contract-verified",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "restart-persistence-verified",
+          "fact": "restart-persistence-verified",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "startup-and-page-verified",
+          "fact": "startup-and-page-verified",
+          "equals": "true",
+          "kind": "state"
+        }
+      ],
+      "invariants": [
+        {
+          "id": "configured-data-file-is-authoritative",
+          "applies_to": [
+            "build-persistent-library-api",
+            "build-admin-browser-interface",
+            "verify-shelfwise-v1"
+          ],
+          "requires": [
+            "configured-data-file-required"
+          ]
+        },
+        {
+          "id": "no-external-release",
+          "applies_to": [
+            "build-persistent-library-api",
+            "build-admin-browser-interface",
+            "verify-shelfwise-v1"
+          ],
+          "requires": [
+            "external-release-not-authorized"
+          ]
+        },
+        {
+          "id": "production-dependencies-remain-empty",
+          "applies_to": [
+            "build-persistent-library-api",
+            "build-admin-browser-interface",
+            "verify-shelfwise-v1"
+          ],
+          "requires": [
+            "production-dependencies-forbidden"
+          ]
+        }
+      ],
+      "loops": [],
+      "brief_digest": "d9809fe399c50fa45aaf163b47571d1302eb07412aa6790db35557f9da7b6bd5"
+    }
+  },
+  "blueprint_snapshot": {
+    "schema_version": 2,
+    "map_id": "shelfwise-v1",
+    "intent": {
+      "statement": "从零开发 Shelfwise，供小型社区图书室管理员在本机完成日常借阅管理",
+      "status": "shaped",
+      "open_questions": []
+    },
+    "destination": {
+      "statement": "Shelfwise v1 已在本机提供可持久化、可验证的单管理员图书借阅闭环",
+      "requires": [
+        "startup-and-page-verified",
+        "registration-workflows-verified",
+        "loan-lifecycle-verified",
+        "restart-persistence-verified",
+        "required-api-contract-verified",
+        "production-dependency-policy-verified"
+      ],
+      "invariants": [
+        "production-dependencies-remain-empty",
+        "configured-data-file-is-authoritative",
+        "no-external-release"
+      ],
+      "acceptance": [
+        {
+          "id": "a1-startup-page",
+          "proves": [
+            "startup-and-page-verified"
+          ],
+          "proof": "临时 PORT 和 LIBRARY_DATA_FILE 下 npm start 成功，GET / 返回可操作页面"
+        },
+        {
+          "id": "a2-registration",
+          "proves": [
+            "registration-workflows-verified"
+          ],
+          "proof": "页面和 API 可登记单册图书与读者并返回稳定 ID"
+        },
+        {
+          "id": "a3-a4-loan-lifecycle",
+          "proves": [
+            "loan-lifecycle-verified"
+          ],
+          "proof": "借阅、有效查询、归还和非法重复操作符合合同且不产生脏数据"
+        },
+        {
+          "id": "a5-restart-persistence",
+          "proves": [
+            "restart-persistence-verified"
+          ],
+          "proof": "使用同一数据文件重启后，图书、读者与借阅状态完全一致"
+        },
+        {
+          "id": "a6-api-contract",
+          "proves": [
+            "required-api-contract-verified"
+          ],
+          "proof": "自动化测试逐一调用页面入口和五个指定 API"
+        },
+        {
+          "id": "a6-production-dependencies",
+          "proves": [
+            "production-dependency-policy-verified"
+          ],
+          "proof": "package.json 的生产 dependencies 为空且服务不依赖第三方包"
+        }
+      ]
+    },
+    "predicates": [
+      {
+        "id": "git-repository-exists",
+        "fact": "git-repository-exists",
+        "equals": "true",
+        "kind": "resource"
+      },
+      {
+        "id": "local-node-runtime-available",
+        "fact": "local-node-runtime-available",
+        "equals": "true",
+        "kind": "resource"
+      },
+      {
+        "id": "node-sqlite-available",
+        "fact": "node-sqlite-available",
+        "equals": "true",
+        "kind": "resource"
+      },
+      {
+        "id": "destination-contract-confirmed",
+        "fact": "destination-contract-confirmed",
+        "equals": "true",
+        "kind": "authorization"
+      },
+      {
+        "id": "production-dependencies-forbidden",
+        "fact": "production-dependencies-allowed",
+        "equals": "false",
+        "kind": "authorization"
+      },
+      {
+        "id": "configured-data-file-required",
+        "fact": "configured-data-file-required",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "external-release-not-authorized",
+        "fact": "external-deployment-authorized",
+        "equals": "false",
+        "kind": "authorization"
+      },
+      {
+        "id": "persistent-library-api-ready",
+        "fact": "persistent-library-api-ready",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "admin-browser-workflows-ready",
+        "fact": "admin-browser-workflows-ready",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "startup-and-page-verified",
+        "fact": "startup-and-page-verified",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "registration-workflows-verified",
+        "fact": "registration-workflows-verified",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "loan-lifecycle-verified",
+        "fact": "loan-lifecycle-verified",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "restart-persistence-verified",
+        "fact": "restart-persistence-verified",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "required-api-contract-verified",
+        "fact": "required-api-contract-verified",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "production-dependency-policy-verified",
+        "fact": "production-dependency-policy-verified",
+        "equals": "true",
+        "kind": "state"
+      }
+    ],
+    "initial_state": {
+      "facts": [
+        {
+          "id": "git-repository-exists",
+          "value": "true",
+          "evidence": [
+            {
+              "kind": "git",
+              "ref": "commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
+              "strength": "observed"
+            }
+          ]
+        },
+        {
+          "id": "local-node-runtime-available",
+          "value": "true",
+          "evidence": [
+            {
+              "kind": "command",
+              "ref": "node --version => v24.18.0",
+              "strength": "observed"
+            }
+          ]
+        },
+        {
+          "id": "node-sqlite-available",
+          "value": "true",
+          "evidence": [
+            {
+              "kind": "command",
+              "ref": "node:sqlite in-memory probe => SQLite 3.53.1",
+              "strength": "observed"
+            }
+          ]
+        },
+        {
+          "id": "destination-contract-confirmed",
+          "value": "true",
+          "evidence": [
+            {
+              "kind": "note",
+              "ref": "conversation-user-message-2026-09-07-destination-confirmation",
+              "strength": "asserted"
+            }
+          ]
+        },
+        {
+          "id": "production-dependencies-allowed",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "note",
+              "ref": "conversation-user-message-2026-09-07-v1-scope",
+              "strength": "asserted"
+            }
+          ]
+        },
+        {
+          "id": "configured-data-file-required",
+          "value": "true",
+          "evidence": [
+            {
+              "kind": "note",
+              "ref": "conversation-user-message-2026-09-07-v1-scope",
+              "strength": "asserted"
+            }
+          ]
+        },
+        {
+          "id": "external-deployment-authorized",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "note",
+              "ref": "conversation-user-message-2026-09-07-v1-scope",
+              "strength": "asserted"
+            }
+          ]
+        },
+        {
+          "id": "persistent-library-api-ready",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
+              "strength": "observed"
+            }
+          ]
+        },
+        {
+          "id": "admin-browser-workflows-ready",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
+              "strength": "observed"
+            }
+          ]
+        },
+        {
+          "id": "startup-and-page-verified",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "no implementation or acceptance evidence exists in the initial repository",
+              "strength": "observed"
+            }
+          ]
+        },
+        {
+          "id": "registration-workflows-verified",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "no implementation or acceptance evidence exists in the initial repository",
+              "strength": "observed"
+            }
+          ]
+        },
+        {
+          "id": "loan-lifecycle-verified",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "no implementation or acceptance evidence exists in the initial repository",
+              "strength": "observed"
+            }
+          ]
+        },
+        {
+          "id": "restart-persistence-verified",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "no implementation or acceptance evidence exists in the initial repository",
+              "strength": "observed"
+            }
+          ]
+        },
+        {
+          "id": "required-api-contract-verified",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "no implementation or acceptance evidence exists in the initial repository",
+              "strength": "observed"
+            }
+          ]
+        },
+        {
+          "id": "production-dependency-policy-verified",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "no package manifest or implementation exists in the initial repository",
+              "strength": "observed"
+            }
+          ]
+        }
+      ]
+    },
+    "assumptions": [],
+    "invariants": [
+      {
+        "id": "production-dependencies-remain-empty",
+        "applies_to": [
+          "build-persistent-library-api",
+          "build-admin-browser-interface",
+          "verify-shelfwise-v1"
+        ],
+        "requires": [
+          "production-dependencies-forbidden"
+        ]
+      },
+      {
+        "id": "configured-data-file-is-authoritative",
+        "applies_to": [
+          "build-persistent-library-api",
+          "build-admin-browser-interface",
+          "verify-shelfwise-v1"
+        ],
+        "requires": [
+          "configured-data-file-required"
+        ]
+      },
+      {
+        "id": "no-external-release",
+        "applies_to": [
+          "build-persistent-library-api",
+          "build-admin-browser-interface",
+          "verify-shelfwise-v1"
+        ],
+        "requires": [
+          "external-release-not-authorized"
+        ]
+      }
+    ],
+    "boundaries": {
+      "in_scope": [
+        "单管理员使用的图书、读者、借阅、归还和有效借阅查询",
+        "本地浏览器管理页面、SQLite 文件持久化和对应自动化验证"
+      ],
+      "out_of_scope": [
+        "会员收费、电子书、推荐、预约和多人权限",
+        "外部部署、发布和外部系统写入"
+      ],
+      "authorization": [
+        "每条工作边都需要独立人工施工授权",
+        "仅允许本仓库写入、本机临时端口、临时数据文件和本机浏览器验证"
+      ]
+    },
+    "nodes": [
+      {
+        "id": "shelfwise-empty-repository",
+        "kind": "state",
+        "label": "Shelfwise 已定边界的空白仓库",
+        "predicates": [
+          "git-repository-exists",
+          "local-node-runtime-available",
+          "node-sqlite-available",
+          "destination-contract-confirmed",
+          "production-dependencies-forbidden",
+          "configured-data-file-required",
+          "external-release-not-authorized"
+        ],
+        "realization_refs": [
+          {
+            "kind": "git",
+            "ref": "commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
+            "strength": "observed"
+          }
+        ]
+      },
+      {
+        "id": "library-api-ready",
+        "kind": "state",
+        "label": "持久化图书借阅 API 已就绪",
+        "predicates": [
+          "persistent-library-api-ready"
+        ]
+      },
+      {
+        "id": "admin-app-ready",
+        "kind": "join",
+        "label": "管理员浏览器工作流已就绪",
+        "predicates": [
+          "persistent-library-api-ready",
+          "admin-browser-workflows-ready"
+        ]
+      },
+      {
+        "id": "shelfwise-v1-ready",
+        "kind": "destination",
+        "label": "Shelfwise v1 合同已验证",
+        "predicates": [
+          "startup-and-page-verified",
+          "registration-workflows-verified",
+          "loan-lifecycle-verified",
+          "restart-persistence-verified",
+          "required-api-contract-verified",
+          "production-dependency-policy-verified"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "build-persistent-library-api",
+        "from": "shelfwise-empty-repository",
+        "to": "library-api-ready",
+        "brief_ref": "briefs/build-persistent-library-api.md",
+        "preconditions": [
+          "git-repository-exists",
+          "local-node-runtime-available",
+          "node-sqlite-available",
+          "destination-contract-confirmed"
+        ],
+        "effects": [
+          "persistent-library-api-ready"
+        ],
+        "invariants": [
+          "production-dependencies-remain-empty",
+          "configured-data-file-is-authoritative",
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "persistent-api-test-record",
+            "proves": [
+              "persistent-library-api-ready"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      {
+        "id": "build-admin-browser-interface",
+        "from": "library-api-ready",
+        "to": "admin-app-ready",
+        "brief_ref": "briefs/build-admin-browser-interface.md",
+        "preconditions": [
+          "persistent-library-api-ready"
+        ],
+        "effects": [
+          "admin-browser-workflows-ready"
+        ],
+        "invariants": [
+          "production-dependencies-remain-empty",
+          "configured-data-file-is-authoritative",
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "admin-browser-workflow-record",
+            "proves": [
+              "admin-browser-workflows-ready"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      {
+        "id": "verify-shelfwise-v1",
+        "from": "admin-app-ready",
+        "to": "shelfwise-v1-ready",
+        "brief_ref": "briefs/verify-shelfwise-v1.md",
+        "preconditions": [
+          "persistent-library-api-ready",
+          "admin-browser-workflows-ready"
+        ],
+        "effects": [
+          "startup-and-page-verified",
+          "registration-workflows-verified",
+          "loan-lifecycle-verified",
+          "restart-persistence-verified",
+          "required-api-contract-verified",
+          "production-dependency-policy-verified"
+        ],
+        "invariants": [
+          "production-dependencies-remain-empty",
+          "configured-data-file-is-authoritative",
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "shelfwise-v1-acceptance-record",
+            "proves": [
+              "startup-and-page-verified",
+              "registration-workflows-verified",
+              "loan-lifecycle-verified",
+              "restart-persistence-verified",
+              "required-api-contract-verified",
+              "production-dependency-policy-verified"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      }
+    ],
+    "loops": [],
+    "submaps": [],
+    "extensions": {
+      "x-prior-art": "research/prior-art.md"
+    }
+  },
+  "brief_digests": {
+    "build-admin-browser-interface": "54aef0f1ef521ab74a769d8b4da18e2895863dc0ffc3866fa3e18095272846f1",
+    "build-persistent-library-api": "4c748eb885e0680c55d924b38be7eec10cbc32af9a0ba86dd6780a408a2830c5",
+    "verify-shelfwise-v1": "d9809fe399c50fa45aaf163b47571d1302eb07412aa6790db35557f9da7b6bd5"
+  },
+  "brief_snapshots": {
+    "build-persistent-library-api": {
+      "ref": "briefs/build-persistent-library-api.md",
+      "metadata": {
+        "edge": "build-persistent-library-api",
+        "title": "构建持久化图书借阅 API",
+        "status": "ready",
+        "map": "../blueprint.yaml",
+        "created": "2026-09-07",
+        "updated": "2026-09-07",
+        "contract": {
+          "scope": {
+            "in": [
+              "建立 package.json 与 npm start 入口",
+              "使用 Node.js 内置模块实现领域规则、SQLite 文件存储和指定 HTTP API",
+              "使用临时数据文件验证错误原子性与重启恢复"
+            ],
+            "out": [
+              "浏览器管理界面",
+              "会员收费、电子书、推荐、预约和多人权限"
+            ]
+          },
+          "authorization": {
+            "required": [
+              "当前工作边的独立人工施工授权"
+            ],
+            "allowed_actions": [
+              "修改 Shelfwise 仓库内的服务端源码、package.json 和自动化测试",
+              "在本机以临时 PORT 和 LIBRARY_DATA_FILE 运行测试与服务"
+            ]
+          },
+          "evidence": {
+            "proves": [
+              "persistent-library-api-ready"
+            ],
+            "exit_conditions": [
+              "五个指定 API 均可由集成测试调用",
+              "借阅与归还保持引用和单册状态一致性",
+              "同一临时数据文件重启后回读一致",
+              "当前 Node.js 可加载 node:sqlite 并打开数据库",
+              "package.json 没有第三方生产依赖"
+            ]
+          },
+          "failure": {
+            "action": "replan",
+            "rollback": [
+              "只清理本边创建的临时进程、端口和临时测试数据"
+            ]
+          }
+        }
+      },
+      "content": "---\nedge: build-persistent-library-api\ntitle: 构建持久化图书借阅 API\nstatus: ready\nmap: ../blueprint.yaml\ncreated: 2026-09-07\nupdated: 2026-09-07\ncontract:\n  scope:\n    in:\n      - 建立 package.json 与 npm start 入口\n      - 使用 Node.js 内置模块实现领域规则、SQLite 文件存储和指定 HTTP API\n      - 使用临时数据文件验证错误原子性与重启恢复\n    out:\n      - 浏览器管理界面\n      - 会员收费、电子书、推荐、预约和多人权限\n  authorization:\n    required:\n      - 当前工作边的独立人工施工授权\n    allowed_actions:\n      - 修改 Shelfwise 仓库内的服务端源码、package.json 和自动化测试\n      - 在本机以临时 PORT 和 LIBRARY_DATA_FILE 运行测试与服务\n  evidence:\n    proves:\n      - persistent-library-api-ready\n    exit_conditions:\n      - 五个指定 API 均可由集成测试调用\n      - 借阅与归还保持引用和单册状态一致性\n      - 同一临时数据文件重启后回读一致\n      - 当前 Node.js 可加载 node:sqlite 并打开数据库\n      - package.json 没有第三方生产依赖\n  failure:\n    action: replan\n    rollback:\n      - 只清理本边创建的临时进程、端口和临时测试数据\n---\n\n# State transition\n\n- From：`shelfwise-empty-repository`\n- To：`library-api-ready`\n- Preconditions：Git 仓库、Node.js 运行时和已确认目的地合同均存在\n- Expected effects：`persistent-library-api-ready=true`\n\n# Scope\n\n## In scope\n\n- 定义单册图书、读者和借阅记录的 SQLite schema、约束与稳定 ID。\n- 使用事务完成借阅和归还，使失败请求不改变已确认数据。\n- 实现 `POST /api/books`、`POST /api/readers`、`POST /api/loans`、`POST /api/returns` 与 `GET /api/loans?status=active`。\n- 使用 Node.js 内置测试运行器覆盖正常路径、非法引用、重复借还与重启回读。\n\n## Out of scope\n\n- 根页面的操作体验与视觉设计。\n- 任何外部部署或网络服务写入。\n\n# Execution boundary\n\n- 执行器或责任人：当前获授权的 Codex Edge Run。\n- 允许写入或外部动作：仅仓库源码与本机临时验证资源。\n- 所需授权：该边的新鲜施工授权。\n- 与同源其他边共享的只有起始状态；不存在未建模的产出依赖。\n\n# Evidence contract\n\n| Evidence | Proves predicate | Observable exit condition |\n| --- | --- | --- |\n| `node:sqlite` 探针、Node 内置集成测试与重启回读记录 | `persistent-library-api-ready` | 内置 SQLite、API、领域规则、事务回滚和文件持久化均通过 |\n\n# Failure and rollback\n\n- 失败分支：`replan`\n- 可回滚边界：停止本机进程并删除本边创建的临时测试数据，不触碰用户既有数据。\n- 触发 proof gap 的条件：当前 Node.js 无法稳定加载 `node:sqlite`、内置模块无法满足已确认 HTTP 或持久化合同，或实现需要第三方生产依赖。\n"
+    },
+    "build-admin-browser-interface": {
+      "ref": "briefs/build-admin-browser-interface.md",
+      "metadata": {
+        "edge": "build-admin-browser-interface",
+        "title": "构建管理员浏览器界面",
+        "status": "ready",
+        "map": "../blueprint.yaml",
+        "created": "2026-09-07",
+        "updated": "2026-09-07",
+        "contract": {
+          "scope": {
+            "in": [
+              "在 GET / 提供单管理员浏览器管理页面",
+              "提供图书登记、读者登记、借书、还书和有效借阅查询工作流",
+              "使用原生 HTML、CSS 和浏览器 JavaScript 调用已验证 API"
+            ],
+            "out": [
+              "改变已确认 API 与持久化合同",
+              "多人权限、预约、推荐、收费和外部发布"
+            ]
+          },
+          "authorization": {
+            "required": [
+              "当前工作边的独立人工施工授权"
+            ],
+            "allowed_actions": [
+              "修改 Shelfwise 仓库内的静态页面资源、服务入口和相关测试",
+              "在本机浏览器和临时服务进程中验证交互"
+            ]
+          },
+          "evidence": {
+            "proves": [
+              "admin-browser-workflows-ready"
+            ],
+            "exit_conditions": [
+              "根页面在常用桌面和窄屏视口可操作",
+              "五条管理员工作流均能通过页面完成并得到 API 回读",
+              "加载、空状态、成功和错误反馈不互相遮挡"
+            ]
+          },
+          "failure": {
+            "action": "replan",
+            "rollback": [
+              "停止临时服务并保留已通过的 API 实现与证据"
+            ]
+          }
+        }
+      },
+      "content": "---\nedge: build-admin-browser-interface\ntitle: 构建管理员浏览器界面\nstatus: ready\nmap: ../blueprint.yaml\ncreated: 2026-09-07\nupdated: 2026-09-07\ncontract:\n  scope:\n    in:\n      - 在 GET / 提供单管理员浏览器管理页面\n      - 提供图书登记、读者登记、借书、还书和有效借阅查询工作流\n      - 使用原生 HTML、CSS 和浏览器 JavaScript 调用已验证 API\n    out:\n      - 改变已确认 API 与持久化合同\n      - 多人权限、预约、推荐、收费和外部发布\n  authorization:\n    required:\n      - 当前工作边的独立人工施工授权\n    allowed_actions:\n      - 修改 Shelfwise 仓库内的静态页面资源、服务入口和相关测试\n      - 在本机浏览器和临时服务进程中验证交互\n  evidence:\n    proves:\n      - admin-browser-workflows-ready\n    exit_conditions:\n      - 根页面在常用桌面和窄屏视口可操作\n      - 五条管理员工作流均能通过页面完成并得到 API 回读\n      - 加载、空状态、成功和错误反馈不互相遮挡\n  failure:\n    action: replan\n    rollback:\n      - 停止临时服务并保留已通过的 API 实现与证据\n---\n\n# State transition\n\n- From：`library-api-ready`\n- To：`admin-app-ready`\n- Preconditions：`persistent-library-api-ready=true`\n- Expected effects：`admin-browser-workflows-ready=true`\n\n# Scope\n\n## In scope\n\n- 设计安静、紧凑、适合管理员重复操作的本地工作台。\n- 将登记、借阅、查询和归还组织成清晰且可恢复的交互。\n- 保证文本、表单、状态反馈在桌面与移动宽度下不重叠。\n\n## Out of scope\n\n- 新增用户账户、角色、预约、费用、通知或推荐。\n- 重写或扩张服务端领域边界。\n\n# Execution boundary\n\n- 执行器或责任人：当前获授权的 Codex Edge Run。\n- 允许写入或外部动作：仓库内前端资源、必要的本地静态服务接线与测试；本机浏览器操作。\n- 所需授权：该边的新鲜施工授权。\n- 与同源其他边共享的只有起始状态；不存在未建模的产出依赖。\n\n# Evidence contract\n\n| Evidence | Proves predicate | Observable exit condition |\n| --- | --- | --- |\n| 本机浏览器逐项操作记录与 API readback | `admin-browser-workflows-ready` | 管理员可从 `/` 完成五条核心工作流 |\n\n# Failure and rollback\n\n- 失败分支：`replan`\n- 可回滚边界：仅回退本边未通过的界面改动，保留已验证后端状态。\n- 触发 proof gap 的条件：既有 API 无法支撑已确认页面闭环，或界面在目标视口不可操作。\n"
+    },
+    "verify-shelfwise-v1": {
+      "ref": "briefs/verify-shelfwise-v1.md",
+      "metadata": {
+        "edge": "verify-shelfwise-v1",
+        "title": "验证 Shelfwise v1 完整合同",
+        "status": "ready",
+        "map": "../blueprint.yaml",
+        "created": "2026-09-07",
+        "updated": "2026-09-07",
+        "contract": {
+          "scope": {
+            "in": [
+              "运行自动化测试并用真实 npm start 进程执行 HTTP readback",
+              "在本机浏览器逐项验证管理员核心工作流与响应式布局",
+              "检查重启持久化、生产依赖和外部发布边界",
+              "仅修复阻塞既定验收且不改变目的地合同的问题"
+            ],
+            "out": [
+              "增加新的产品能力或 API",
+              "外部部署、发布和外部系统写入"
+            ]
+          },
+          "authorization": {
+            "required": [
+              "当前工作边的独立人工施工授权"
+            ],
+            "allowed_actions": [
+              "运行仓库测试与本机临时服务",
+              "使用临时数据文件执行 API 和浏览器验收",
+              "修改仓库内仅与既定验收阻塞直接相关的代码、测试和说明"
+            ]
+          },
+          "evidence": {
+            "proves": [
+              "startup-and-page-verified",
+              "registration-workflows-verified",
+              "loan-lifecycle-verified",
+              "restart-persistence-verified",
+              "required-api-contract-verified",
+              "production-dependency-policy-verified"
+            ],
+            "exit_conditions": [
+              "A1 至 A6 均有通过记录并能回指实际命令或浏览器观察",
+              "临时数据文件重启 readback 一致",
+              "package.json 的生产 dependencies 为空",
+              "未发生外部发布、部署或外部写入"
+            ]
+          },
+          "failure": {
+            "action": "replan",
+            "rollback": [
+              "停止临时服务并删除仅用于验收的临时数据"
+            ]
+          }
+        }
+      },
+      "content": "---\nedge: verify-shelfwise-v1\ntitle: 验证 Shelfwise v1 完整合同\nstatus: ready\nmap: ../blueprint.yaml\ncreated: 2026-09-07\nupdated: 2026-09-07\ncontract:\n  scope:\n    in:\n      - 运行自动化测试并用真实 npm start 进程执行 HTTP readback\n      - 在本机浏览器逐项验证管理员核心工作流与响应式布局\n      - 检查重启持久化、生产依赖和外部发布边界\n      - 仅修复阻塞既定验收且不改变目的地合同的问题\n    out:\n      - 增加新的产品能力或 API\n      - 外部部署、发布和外部系统写入\n  authorization:\n    required:\n      - 当前工作边的独立人工施工授权\n    allowed_actions:\n      - 运行仓库测试与本机临时服务\n      - 使用临时数据文件执行 API 和浏览器验收\n      - 修改仓库内仅与既定验收阻塞直接相关的代码、测试和说明\n  evidence:\n    proves:\n      - startup-and-page-verified\n      - registration-workflows-verified\n      - loan-lifecycle-verified\n      - restart-persistence-verified\n      - required-api-contract-verified\n      - production-dependency-policy-verified\n    exit_conditions:\n      - A1 至 A6 均有通过记录并能回指实际命令或浏览器观察\n      - 临时数据文件重启 readback 一致\n      - package.json 的生产 dependencies 为空\n      - 未发生外部发布、部署或外部写入\n  failure:\n    action: replan\n    rollback:\n      - 停止临时服务并删除仅用于验收的临时数据\n---\n\n# State transition\n\n- From：`admin-app-ready`\n- To：`shelfwise-v1`\n- Preconditions：`persistent-library-api-ready=true` 且 `admin-browser-workflows-ready=true`\n- Expected effects：六项 Shelfwise v1 目的地验收 Predicate 均由实际证据证明\n\n# Scope\n\n## In scope\n\n- A1：以临时环境变量启动服务并读取 `/`。\n- A2：通过页面和 API 登记单册图书及读者。\n- A3/A4：借阅、有效借阅查询、归还和非法重复操作。\n- A5：停止并使用同一数据文件重启后的完整回读。\n- A6：指定 HTTP 合同、自动化测试和零第三方生产依赖检查。\n\n## Out of scope\n\n- 对验收合同之外的功能做顺手扩展。\n- 任何外部发布、生产部署或外部系统写入。\n\n# Execution boundary\n\n- 执行器或责任人：当前获授权的 Codex Edge Run。\n- 允许写入或外部动作：本仓库内的验收阻塞修复、本机临时端口、临时数据文件和浏览器。\n- 所需授权：该边的新鲜施工授权。\n- 与同源其他边共享的只有起始状态；不存在未建模的产出依赖。\n\n# Evidence contract\n\n| Evidence | Proves predicate | Observable exit condition |\n| --- | --- | --- |\n| `npm test` 与真实 `npm start` HTTP readback | 启动、登记、借阅、重启、API 和依赖策略 Predicate | A1-A6 自动化检查全部通过 |\n| 本机浏览器桌面与窄屏操作记录 | 页面、登记和借阅生命周期 Predicate | 页面可见、可操作、无重叠且状态回读正确 |\n\n# Failure and rollback\n\n- 失败分支：`replan`\n- 可回滚边界：停止验收进程并删除临时验收数据；保留历史证据，不把失败包装成通过。\n- 触发 proof gap 的条件：任一 A1-A6 缺少真实通过证据，或修复需要改变已确认目的地。\n"
+    }
+  },
+  "loop_iterations": {},
+  "facts": {
+    "git-repository-exists": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "git",
+          "ref": "commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
+          "strength": "observed"
+        }
+      ]
+    },
+    "local-node-runtime-available": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "command",
+          "ref": "node --version => v24.18.0",
+          "strength": "observed"
+        }
+      ]
+    },
+    "node-sqlite-available": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "command",
+          "ref": "node:sqlite in-memory probe => SQLite 3.53.1",
+          "strength": "observed"
+        }
+      ]
+    },
+    "destination-contract-confirmed": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "note",
+          "ref": "conversation-user-message-2026-09-07-destination-confirmation",
+          "strength": "asserted"
+        }
+      ]
+    },
+    "production-dependencies-allowed": {
+      "value": "false",
+      "evidence": [
+        {
+          "kind": "note",
+          "ref": "conversation-user-message-2026-09-07-v1-scope",
+          "strength": "asserted"
+        }
+      ]
+    },
+    "configured-data-file-required": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "note",
+          "ref": "conversation-user-message-2026-09-07-v1-scope",
+          "strength": "asserted"
+        }
+      ]
+    },
+    "external-deployment-authorized": {
+      "value": "false",
+      "evidence": [
+        {
+          "kind": "note",
+          "ref": "conversation-user-message-2026-09-07-v1-scope",
+          "strength": "asserted"
+        }
+      ]
+    },
+    "persistent-library-api-ready": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "npm test；node --check；零生产依赖检查；两次 npm start HTTP readback -> 5 项 HTTP 集成测试全部通过；五个指定 API 可调用；非法引用和重复借还返回 404/409 且活动借阅不变；同一 SQLite 文件三次进程内重开及两次 npm start 均恢复一致；production dependencies 为 0",
+          "observed_at": "2026-09-07T11:45:49Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "npm-test-and-npm-start-readback-2026-09-07",
+          "observed_at": "2026-09-07T11:45:49Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "admin-browser-workflows-ready": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "npm test；node --check；Edge 浏览器逐项操作；390x844 响应式与溢出检查；浏览器控制台检查 -> 6 项自动化测试全部通过；GET / 及静态资源返回 200；浏览器完成登记图书、登记读者、借书、活动查询、重复借书错误和归还；桌面与 390x844 窄屏无横向溢出或控件文字溢出；tab 键盘方向键切换通过；控制台警告/错误为 0",
+          "observed_at": "2026-09-07T12:11:32Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "observation",
+          "ref": "edge-browser-workflow-2026-09-07",
+          "observed_at": "2026-09-07T12:11:32Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "startup-and-page-verified": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "no implementation or acceptance evidence exists in the initial repository",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "final-a1-a6-acceptance-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "observation",
+          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "registration-workflows-verified": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "no implementation or acceptance evidence exists in the initial repository",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "final-a1-a6-acceptance-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "observation",
+          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "loan-lifecycle-verified": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "no implementation or acceptance evidence exists in the initial repository",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "final-a1-a6-acceptance-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "observation",
+          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "restart-persistence-verified": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "no implementation or acceptance evidence exists in the initial repository",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "final-a1-a6-acceptance-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "observation",
+          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "required-api-contract-verified": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "no implementation or acceptance evidence exists in the initial repository",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "final-a1-a6-acceptance-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "observation",
+          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "production-dependency-policy-verified": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "no package manifest or implementation exists in the initial repository",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "final-a1-a6-acceptance-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "observation",
+          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
+          "observed_at": "2026-09-07T12:38:18Z",
+          "strength": "observed"
+        }
+      ]
+    }
+  },
+  "satisfied_nodes": [
+    "shelfwise-empty-repository",
+    "library-api-ready",
+    "admin-app-ready",
+    "shelfwise-v1-ready"
+  ],
+  "last_proof": {
+    "structural": "complete",
+    "reachability": "logical",
+    "destination_reachable": true,
+    "required_predicates": [
+      "startup-and-page-verified",
+      "registration-workflows-verified",
+      "loan-lifecycle-verified",
+      "restart-persistence-verified",
+      "required-api-contract-verified",
+      "production-dependency-policy-verified",
+      "production-dependencies-forbidden",
+      "configured-data-file-required",
+      "external-release-not-authorized"
+    ],
+    "candidate_edges": [],
+    "proven_edges": [],
+    "reachable_nodes": [
+      "shelfwise-empty-repository",
+      "library-api-ready",
+      "admin-app-ready",
+      "shelfwise-v1-ready"
+    ],
+    "applied_edges": [],
+    "assumptions_used": [],
+    "proof_gaps": []
+  },
+  "evidence": [
+    {
+      "id": "build-persistent-library-api-evidence-1",
+      "edge": "build-persistent-library-api",
+      "run": "build-persistent-library-api-run-1",
+      "claim": "持久化图书借阅 API、事务规则和配置数据文件已通过实际检查",
+      "proves": [
+        "persistent-library-api-ready"
+      ],
+      "acceptance_ids": [],
+      "outcome_refs": [
+        {
+          "kind": "command",
+          "ref": "npm-test-and-npm-start-readback-2026-09-07"
+        }
+      ],
+      "checks": [
+        {
+          "command": "npm test；node --check；零生产依赖检查；两次 npm start HTTP readback",
+          "result": "pass",
+          "observed": "5 项 HTTP 集成测试全部通过；五个指定 API 可调用；非法引用和重复借还返回 404/409 且活动借阅不变；同一 SQLite 文件三次进程内重开及两次 npm start 均恢复一致；production dependencies 为 0",
+          "mode": "reported"
+        }
+      ],
+      "limits": {
+        "simulated": [],
+        "inferred": [],
+        "unverified": [],
+        "product_unknowns": []
+      },
+      "executor": "agent:codex",
+      "agent": {
+        "model": "gpt-5",
+        "reasoning": "high"
+      },
+      "recorded_at": "2026-09-07T11:45:49Z"
+    },
+    {
+      "id": "build-admin-browser-interface-evidence-2",
+      "edge": "build-admin-browser-interface",
+      "run": "build-admin-browser-interface-run-1",
+      "claim": "管理员可从根页面完成登记、借书、当前借阅查询和归还，桌面与窄屏布局可操作",
+      "proves": [
+        "admin-browser-workflows-ready"
+      ],
+      "acceptance_ids": [],
+      "outcome_refs": [
+        {
+          "kind": "observation",
+          "ref": "edge-browser-workflow-2026-09-07"
+        }
+      ],
+      "checks": [
+        {
+          "command": "npm test；node --check；Edge 浏览器逐项操作；390x844 响应式与溢出检查；浏览器控制台检查",
+          "result": "pass",
+          "observed": "6 项自动化测试全部通过；GET / 及静态资源返回 200；浏览器完成登记图书、登记读者、借书、活动查询、重复借书错误和归还；桌面与 390x844 窄屏无横向溢出或控件文字溢出；tab 键盘方向键切换通过；控制台警告/错误为 0",
+          "mode": "reported"
+        }
+      ],
+      "limits": {
+        "simulated": [],
+        "inferred": [],
+        "unverified": [],
+        "product_unknowns": []
+      },
+      "executor": "agent:codex",
+      "agent": {
+        "model": "gpt-5",
+        "reasoning": "high"
+      },
+      "recorded_at": "2026-09-07T12:11:32Z"
+    },
+    {
+      "id": "verify-shelfwise-v1-evidence-3",
+      "edge": "verify-shelfwise-v1",
+      "run": "verify-shelfwise-v1-run-1",
+      "claim": "Shelfwise v1 的 A1-A6 已由自动化、真实进程重启回读和桌面/窄屏浏览器操作共同验证",
+      "proves": [
+        "startup-and-page-verified",
+        "registration-workflows-verified",
+        "loan-lifecycle-verified",
+        "restart-persistence-verified",
+        "required-api-contract-verified",
+        "production-dependency-policy-verified"
+      ],
+      "acceptance_ids": [
+        "a1-startup-page",
+        "a2-registration",
+        "a3-a4-loan-lifecycle",
+        "a5-restart-persistence",
+        "a6-api-contract",
+        "a6-production-dependencies"
+      ],
+      "outcome_refs": [
+        {
+          "kind": "command",
+          "ref": "final-a1-a6-acceptance-2026-09-07"
+        },
+        {
+          "kind": "observation",
+          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07"
+        }
+      ],
+      "checks": [
+        {
+          "command": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck",
+          "result": "pass",
+          "observed": "自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
+          "mode": "reported"
+        }
+      ],
+      "limits": {
+        "simulated": [
+          "三个隔离角色的 synthetic user precheck"
+        ],
+        "inferred": [
+          "角色对理解、认知负担、信任、动机和可用性的判断"
+        ],
+        "unverified": [],
+        "product_unknowns": [
+          "真实长期复用；真实无障碍体验；付费与市场需求"
+        ]
+      },
+      "executor": "agent:codex",
+      "agent": {
+        "model": "gpt-5",
+        "reasoning": "high"
+      },
+      "recorded_at": "2026-09-07T12:38:18Z"
+    }
+  ],
+  "updated_at": "2026-09-07T12:39:48Z",
+  "history": [
+    {
+      "at": "2026-09-07T11:22:51Z",
+      "event": "initialized",
+      "structural": "complete",
+      "reachability": "logical"
+    },
+    {
+      "at": "2026-09-07T11:23:04Z",
+      "event": "reachability_proved",
+      "structural": "complete",
+      "reachability": "logical",
+      "gaps": 0
+    },
+    {
+      "at": "2026-09-07T11:25:27Z",
+      "event": "route_approval_requested",
+      "request": "shelfwise-v1-route-approval-request-1",
+      "question": "是否批准当前已证明的完整路线：build-persistent-library-api → build-admin-browser-interface → verify-shelfwise-v1？",
+      "actor": "agent:codex"
+    },
+    {
+      "at": "2026-09-07T11:27:03Z",
+      "event": "destination_approved",
+      "approval": "shelfwise-v1-route-approval-1",
+      "request": "shelfwise-v1-route-approval-request-1",
+      "answer": "我看懂了，也确认按这条完整路线推进。",
+      "actor": "human:owner"
+    },
+    {
+      "at": "2026-09-07T11:27:16Z",
+      "event": "edge_authorization_requested",
+      "request": "build-persistent-library-api-authorization-1",
+      "edge": "build-persistent-library-api",
+      "question": "是否授权执行工作边 build-persistent-library-api？范围仅包括服务端源码、package.json、自动化测试，以及本机临时端口和临时数据文件验证。失败时停止并返回 replan，不触碰用户既有数据。",
+      "actor": "agent:codex"
+    },
+    {
+      "at": "2026-09-07T11:29:30Z",
+      "event": "edge_authorized",
+      "request": "build-persistent-library-api-authorization-1",
+      "edge": "build-persistent-library-api",
+      "run": "build-persistent-library-api-run-1",
+      "decision": "build-persistent-library-api-decision-1",
+      "answer": "我批准你刚才请求执行的这项工作。完成后先把结果和检查记录告诉我。",
+      "actor": "human:owner"
+    },
+    {
+      "at": "2026-09-07T11:45:49Z",
+      "event": "edge_verified",
+      "edge": "build-persistent-library-api",
+      "run": "build-persistent-library-api-run-1",
+      "proves": [
+        "persistent-library-api-ready"
+      ],
+      "acceptance": [],
+      "executor": "agent:codex"
+    },
+    {
+      "at": "2026-09-07T11:46:06Z",
+      "event": "reachability_proved",
+      "structural": "complete",
+      "reachability": "logical",
+      "gaps": 0
+    },
+    {
+      "at": "2026-09-07T11:46:20Z",
+      "event": "edge_authorization_requested",
+      "request": "build-admin-browser-interface-authorization-1",
+      "edge": "build-admin-browser-interface",
+      "question": "是否授权执行工作边 build-admin-browser-interface？范围仅包括 GET / 的本地管理员界面、原生 HTML/CSS/JavaScript、必要的服务接线与本机浏览器验证；不改变已验证 API 合同，不加入第三方生产依赖，也不做外部发布。",
+      "actor": "agent:codex"
+    },
+    {
+      "at": "2026-09-07T11:49:34Z",
+      "event": "edge_authorized",
+      "request": "build-admin-browser-interface-authorization-1",
+      "edge": "build-admin-browser-interface",
+      "run": "build-admin-browser-interface-run-1",
+      "decision": "build-admin-browser-interface-decision-1",
+      "answer": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
+      "actor": "human:owner"
+    },
+    {
+      "at": "2026-09-07T12:11:32Z",
+      "event": "edge_verified",
+      "edge": "build-admin-browser-interface",
+      "run": "build-admin-browser-interface-run-1",
+      "proves": [
+        "admin-browser-workflows-ready"
+      ],
+      "acceptance": [],
+      "executor": "agent:codex"
+    },
+    {
+      "at": "2026-09-07T12:11:50Z",
+      "event": "reachability_proved",
+      "structural": "complete",
+      "reachability": "logical",
+      "gaps": 0
+    },
+    {
+      "at": "2026-09-07T12:12:06Z",
+      "event": "edge_authorization_requested",
+      "request": "verify-shelfwise-v1-authorization-1",
+      "edge": "verify-shelfwise-v1",
+      "question": "是否授权执行工作边 verify-shelfwise-v1？范围仅包括以临时 PORT 和 LIBRARY_DATA_FILE 运行完整自动化与真实 npm start/browser 验收、检查重启持久化和零生产依赖，并只修复阻塞既定 A1-A6 验收的问题；不新增功能、不外部部署或发布。",
+      "actor": "agent:codex"
+    },
+    {
+      "at": "2026-09-07T12:18:22Z",
+      "event": "edge_authorized",
+      "request": "verify-shelfwise-v1-authorization-1",
+      "edge": "verify-shelfwise-v1",
+      "run": "verify-shelfwise-v1-run-1",
+      "decision": "verify-shelfwise-v1-decision-1",
+      "answer": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
+      "actor": "human:owner"
+    },
+    {
+      "at": "2026-09-07T12:38:18Z",
+      "event": "edge_verified",
+      "edge": "verify-shelfwise-v1",
+      "run": "verify-shelfwise-v1-run-1",
+      "proves": [
+        "startup-and-page-verified",
+        "registration-workflows-verified",
+        "loan-lifecycle-verified",
+        "restart-persistence-verified",
+        "required-api-contract-verified",
+        "production-dependency-policy-verified"
+      ],
+      "acceptance": [
+        "a1-startup-page",
+        "a2-registration",
+        "a3-a4-loan-lifecycle",
+        "a5-restart-persistence",
+        "a6-api-contract",
+        "a6-production-dependencies"
+      ],
+      "executor": "agent:codex"
+    },
+    {
+      "at": "2026-09-07T12:38:29Z",
+      "event": "reachability_proved",
+      "structural": "complete",
+      "reachability": "logical",
+      "gaps": 0
+    },
+    {
+      "at": "2026-09-07T12:39:48Z",
+      "event": "arrival_audit_requested",
+      "request": "shelfwise-v1-arrival-audit-request-1",
+      "question": "是否确认 Shelfwise v1 的 A1-A6 已按上述实际记录逐项通过，非目标（会员收费、电子书、推荐、预约、多人权限和外部发布）仍保持排除，并接受遗留风险（规模增长后的纯编号办理摩擦、部分窄屏触控目标小于 44px、真实长期使用与无障碍体验及市场需求尚未验证）？",
+      "acceptance": [
+        "a1-startup-page",
+        "a2-registration",
+        "a3-a4-loan-lifecycle",
+        "a5-restart-persistence",
+        "a6-api-contract",
+        "a6-production-dependencies"
+      ],
+      "actor": "agent:codex"
+    }
+  ]
+}

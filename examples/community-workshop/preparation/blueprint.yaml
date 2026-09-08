@@ -1,0 +1,86 @@
+schema_version: 2
+map_id: prepare-community-workshop
+
+intent:
+  statement: 把已确认的分享需求准备成一场可以开始报名的社区工作坊
+  status: shaped
+  open_questions: []
+
+destination:
+  statement: 场地已确认且议程可以公开阅读
+  requires: [venue-confirmed, agenda-readable]
+  invariants: []
+  acceptance:
+    - id: preparation-audited
+      proves: [venue-confirmed, agenda-readable]
+      proof: 场地确认回执与公开议程均可回读
+
+predicates:
+  - { id: workshop-request-known, fact: workshop-request-known, equals: "true", kind: state }
+  - { id: venue-confirmed, fact: venue-confirmed, equals: "true", kind: resource }
+  - { id: agenda-readable, fact: agenda-readable, equals: "true", kind: state }
+
+initial_state:
+  facts:
+    - id: workshop-request-known
+      value: "true"
+      evidence: [{ kind: document, ref: notes/request.md }]
+    - id: venue-confirmed
+      value: "false"
+      evidence: [{ kind: observation, ref: 尚无场地确认 }]
+    - id: agenda-readable
+      value: "false"
+      evidence: [{ kind: observation, ref: 尚无公开议程 }]
+
+assumptions: []
+invariants: []
+boundaries:
+  in_scope: [确认场地并形成可读议程]
+  out_of_scope: [实际举办、报名转化和参与者满意度]
+  authorization: [场地预订由 Owner 确认]
+
+nodes:
+  - { id: workshop-request-ready, kind: state, label: 工作坊需求已确认, predicates: [workshop-request-known] }
+  - { id: venue-ready, kind: state, label: 场地已确认, predicates: [venue-confirmed] }
+  - { id: preparation-complete, kind: destination, label: 工作坊准备可验收, predicates: [venue-confirmed, agenda-readable] }
+
+edges:
+  - id: confirm-venue
+    from: workshop-request-ready
+    to: venue-ready
+    brief_ref: briefs/confirm-venue.md
+    preconditions: [workshop-request-known]
+    effects: [venue-confirmed]
+    invariants: []
+    certainty: conditional
+    evidence_contract:
+      - { id: venue-confirmation, proves: [venue-confirmed], required: true }
+    on_failure: { action: stop }
+  - id: publish-agenda
+    from: venue-ready
+    to: preparation-complete
+    brief_ref: briefs/publish-agenda.md
+    preconditions: [venue-confirmed]
+    effects: [agenda-readable]
+    invariants: []
+    certainty: expected
+    evidence_contract:
+      - { id: agenda-readback, proves: [agenda-readable], required: true }
+    on_failure: { action: replan }
+
+loops: []
+
+submaps:
+  - id: agenda-readability
+    parent_edge: publish-agenda
+    map_ref: agenda/blueprint.yaml
+    state_ref: agenda/.mapflow/state.json
+    expected_map_id: audit-workshop-agenda
+    expected_map_digest: 5e49fc1126f33d08e530e3ee62379392f229ac7fa1d0e6192044f8a32884f888
+    await: arrival
+    on_parent_close: preserve
+    exports:
+      - id: agenda-readability-export
+        child_acceptance: agenda-readback
+        child_predicates: [agenda-readable]
+        proves_parent: [agenda-readable]

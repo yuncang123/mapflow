@@ -1,0 +1,18 @@
+{
+  "schema": "mapflow.benchmark-case/v1",
+  "id": "cross-session-resume",
+  "version": "1.3.4",
+  "tier": "extended",
+  "title": "新 Codex 会话从 Sidecar 恢复真实进度",
+  "target_user": "把一项工作分成多个会话继续的个人开发者",
+  "core_job": "让新会话只凭工作区身份恢复目的地、正式路线、已验证证据和下一确认点",
+  "critical_journey": ["第一会话建图", "完成一条边", "关闭上下文", "第二会话自然语言恢复", "无重复决策地完成余下工作"],
+  "expected_first_value": "第二会话第一次回答就准确说明当前位置和下一确认对象",
+  "budget": { "max_turns": 12, "max_minutes": 75 },
+  "allowed_writes": ["目标仓库中的产品代码和测试", "目标仓库外同一 workspace identity 的 Mapflow Sidecar"],
+  "human_only_unknowns": ["长时间跨度后的真实记忆体验"],
+  "primary_risks": ["新会话重新建图", "重复询问已确认事项", "越过当前边直接施工", "恢复到另一工作区"],
+  "fixture": "subject/fixture",
+  "operator_mainline": "operator/mainline.md",
+  "required_checkpoints": ["prepared", "handoff-ready", "resumed", "implemented", "arrived"]
+}

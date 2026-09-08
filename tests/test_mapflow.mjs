@@ -6,7 +6,10 @@ import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { proveBlueprint, readBlueprint } from "../tools/mapflow-core.mjs";
+import { initialFacts, proveBlueprint, readBlueprint } from "../tools/mapflow-core.mjs";
+import { createBoardSnapshotReader } from "../tools/mapflow-board-core.mjs";
+import { createBoardServer } from "../tools/mapflow-board.mjs";
+import { readWayfinding, validateWayfinding } from "../tools/mapflow-wayfinding.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const CLI = path.join(ROOT, "tools", "mapflow.mjs");
@@ -18,6 +21,66 @@ function runCli(state, ...args) {
     cwd: ROOT,
     encoding: "utf8",
   });
+}
+
+function requestRouteApproval(state, question = "May I approve the proven complete route?") {
+  return runCli(
+    state,
+    "request-route-approval", "--question", question,
+    "--requester", "agent:codex",
+    "--decision-owner", "human:owner",
+    "--json",
+  );
+}
+
+function approveRoute(state, answer = "The proven complete route is accepted") {
+  const requested = requestRouteApproval(state);
+  assertExit(requested);
+  const requestId = JSON.parse(requested.stdout).request_id;
+  return runCli(
+    state,
+    "approve", "--request", requestId,
+    "--answer", answer,
+    "--actor", "human:owner",
+  );
+}
+
+function requestAuthorization(state, edge, question = `May I execute ${edge}?`) {
+  return runCli(
+    state,
+    "request-authorization", "--edge", edge,
+    "--question", question,
+    "--requester", "agent:codex",
+    "--decision-owner", "human:owner",
+    "--json",
+  );
+}
+
+function requestArrivalAudit(state, question = "Have the destination contract, acceptance evidence, non-goals, and residual risks been independently audited?") {
+  return runCli(
+    state,
+    "request-arrival-audit", "--question", question,
+    "--requester", "agent:codex",
+    "--decision-owner", "human:owner",
+    "--json",
+  );
+}
+
+function authorizeEdge(state, edge, answer = `Approved to execute ${edge}`) {
+  const requested = requestAuthorization(state, edge);
+  assertExit(requested);
+  const requestId = JSON.parse(requested.stdout).request_id;
+  return runCli(
+    state,
+    "authorize", "--request", requestId,
+    "--answer", answer,
+    "--actor", "human:owner",
+  );
+}
+
+function approveAndAuthorize(state, edge, reason = "The complete route is accepted") {
+  assertExit(approveRoute(state, reason));
+  return authorizeEdge(state, edge);
 }
 
 function runInstaller(target, ...args) {
@@ -62,6 +125,7 @@ function verify(state, edge, proves, acceptance = "", outcomeRef = "") {
     "--evidence", `${edge} evidence`,
     "--command", `check ${edge}`,
     "--observed", `${edge} observed`,
+    "--result", "pass",
     "--proves", proves,
     "--executor", "agent:codex",
     "--model", "gpt-5.6-sol",
@@ -70,6 +134,96 @@ function verify(state, edge, proves, acceptance = "", outcomeRef = "") {
   if (acceptance) args.push("--acceptance", acceptance);
   if (outcomeRef) args.push("--outcome-ref", outcomeRef);
   return runCli(state, ...args);
+}
+
+function makeSubmapFixture({ childArrived = true } = {}) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v04-submap-"));
+  const childDirectory = path.join(directory, "child");
+  fs.mkdirSync(childDirectory, { recursive: true });
+  fs.cpSync(path.join(ROOT, "templates"), childDirectory, { recursive: true });
+  const childMap = path.join(childDirectory, "blueprint.yaml");
+  const childLoaded = readBlueprint(childMap);
+  const childStatePath = path.join(childDirectory, "state.json");
+  const childFacts = initialFacts(childLoaded.blueprint);
+  for (const predicateId of ["article-published", "public-url-exists", "sensitive-content-checked", "owner-approved"]) {
+    const predicate = childLoaded.blueprint.predicates.find((item) => item.id === predicateId);
+    childFacts[predicate.fact] = { value: predicate.equals, evidence: [{ kind: "receipt", ref: `fixture-${predicateId}`, strength: "corroborated" }] };
+  }
+  const evidence = childLoaded.blueprint.destination.acceptance.map((acceptance, index) => ({
+    id: `child-evidence-${index + 1}`,
+    edge: index === 0 ? "publish-article" : "write-candidate",
+    claim: `fixture ${acceptance.id}`,
+    proves: [...acceptance.proves],
+    acceptance_ids: [acceptance.id],
+    outcome_refs: [{ kind: "receipt", ref: `fixture-${acceptance.id}` }],
+    checks: [{ command: "fixture readback", result: "pass", observed: "present", mode: "readback" }],
+    limits: { simulated: [], inferred: [], unverified: [], product_unknowns: [] },
+    executor: "human:owner",
+    recorded_at: "2026-09-03T00:00:00Z",
+  }));
+  const childState = {
+    schema: 2,
+    phase: childArrived ? "arrived" : "implementation",
+    destination_status: "approved",
+    map: "blueprint.yaml",
+    map_digest: childLoaded.digest,
+    map_id: childLoaded.blueprint.map_id,
+    active_edge: null,
+    active_run: null,
+    runtime_status: childArrived ? "arrived" : "idle",
+    edge_runs: [], decisions: [], work_events: [], proposals: [], map_receipts: [], receipt_invalidations: [], event_stream: null,
+    verified_edges: ["write-candidate", "obtain-owner-approval", "publish-article"],
+    verified_edge_contracts: {},
+    blueprint_snapshot: structuredClone(childLoaded.blueprint),
+    brief_digests: childLoaded.brief_digests,
+    loop_iterations: {},
+    facts: childFacts,
+    satisfied_nodes: [],
+    last_proof: proveBlueprint(childLoaded.blueprint, childFacts),
+    evidence,
+    updated_at: "2026-09-03T00:00:00Z",
+    history: [],
+    ...(childArrived ? { arrival_audit: { acceptance: childLoaded.blueprint.destination.acceptance.map((item) => item.id), risks: [], confirm: "fixture audit", recorded_at: "2026-09-03T00:00:00Z", run_id: "publish-article-arrival-1" } } : {}),
+  };
+  fs.writeFileSync(childStatePath, `${JSON.stringify(childState, null, 2)}\n`, "utf8");
+
+  const parentDirectory = path.join(directory, "parent");
+  fs.mkdirSync(path.join(parentDirectory, "briefs"), { recursive: true });
+  const parentBlueprint = {
+    schema_version: 2,
+    map_id: "deliver-campaign",
+    intent: { statement: "准备一项可交付活动", status: "shaped", open_questions: [] },
+    destination: { statement: "活动准备已经验收", requires: ["campaign-ready"], invariants: [], acceptance: [{ id: "campaign-readiness-audited", proves: ["campaign-ready"], proof: "子地图到达回执存在" }] },
+    predicates: [
+      { id: "request-known", fact: "request-known", equals: "true", kind: "state" },
+      { id: "campaign-ready", fact: "campaign-ready", equals: "true", kind: "state" },
+    ],
+    initial_state: { facts: [
+      { id: "request-known", value: "true", evidence: [{ kind: "document", ref: "request.md" }] },
+      { id: "campaign-ready", value: "false", evidence: [{ kind: "observation", ref: "not prepared" }] },
+    ] },
+    assumptions: [], invariants: [],
+    boundaries: { in_scope: ["准备活动"], out_of_scope: ["实际举办"], authorization: ["只接受已审计子地图"] },
+    nodes: [
+      { id: "request-ready", kind: "state", label: "需求已明确", predicates: ["request-known"] },
+      { id: "campaign-delivered", kind: "destination", label: "活动准备已交付", predicates: ["campaign-ready"] },
+    ],
+    edges: [{
+      id: "prepare-campaign", from: "request-ready", to: "campaign-delivered", brief_ref: "briefs/prepare-campaign.md",
+      preconditions: ["request-known"], effects: ["campaign-ready"], invariants: [], certainty: "conditional",
+      evidence_contract: [{ id: "child-arrival-receipt", proves: ["campaign-ready"], required: true }], on_failure: { action: "replan" },
+    }],
+    loops: [],
+    submaps: [{
+      id: "campaign-preparation", parent_edge: "prepare-campaign", map_ref: "../child/blueprint.yaml", state_ref: "../child/state.json",
+      expected_map_id: childLoaded.blueprint.map_id, expected_map_digest: childLoaded.digest, await: "arrival", on_parent_close: "preserve",
+      exports: [{ id: "published-article-export", child_acceptance: "public-page-readable", child_predicates: ["article-published", "public-url-exists"], proves_parent: ["campaign-ready"] }],
+    }],
+  };
+  const parentMap = path.join(parentDirectory, "blueprint.yaml");
+  fs.writeFileSync(parentMap, `${JSON.stringify(parentBlueprint, null, 2)}\n`, "utf8");
+  fs.writeFileSync(path.join(parentDirectory, "briefs", "prepare-campaign.md"), `---\ntitle: 准备活动\nedge: prepare-campaign\ncontract:\n  scope:\n    in: [通过子地图准备活动]\n    out: [实际举办活动]\n  authorization:\n    required: []\n    allowed_actions: [读取子地图回执]\n  evidence:\n    proves: [campaign-ready]\n    exit_conditions: [子地图到达回执通过]\n  failure:\n    action: replan\n    rollback: [保留子地图证据]\n---\n\n# 准备活动\n`, "utf8");
+  return { directory, parentMap, parentState: path.join(parentDirectory, "state.json"), childMap, childStatePath, childState };
 }
 
 test("template blueprint is structurally complete and conditionally reachable", () => {
@@ -109,7 +263,7 @@ test("an unreachable OR alternative does not invalidate a reachable route", () =
   assert.deepEqual(proof.proof_gaps, []);
 });
 
-test("a ready dead-end edge cannot be approved when it is not on a destination-reaching route", () => {
+test("a ready dead-end edge cannot request authorization when it is not on a destination-reaching route", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v03-dead-route-"));
   const mapPath = makeMap(directory, (blueprint) => {
     blueprint.predicates.push(
@@ -159,7 +313,8 @@ test("a ready dead-end edge cannot be approved when it is not on a destination-r
 
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  const result = runCli(state, "approve", "--edge", "take-dead-route");
+  assertExit(approveRoute(state));
+  const result = requestAuthorization(state, "take-dead-route");
   assertExit(result, 1);
   assert.match(result.stderr, /not on a destination-reaching route/);
 });
@@ -223,33 +378,93 @@ test("forward proof keeps one value per fact instead of merging incompatible wor
   assert.equal(proof.destination_reachable, false);
 });
 
-test("edge evidence drives facts, satisfied nodes, and arrival", () => {
+test("edge evidence requires a separate human arrival audit request before arrival", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v03-"));
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
 
   assertExit(runCli(state, "init", "--map", mapPath));
   assertExit(runCli(state, "gate"), 1);
-  assertExit(runCli(state, "approve", "--edge", "settle-audience"));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
   assertExit(runCli(state, "gate"));
   assertExit(verify(state, "settle-audience", "audience-known"));
-  assertExit(runCli(state, "select", "--edge", "write-candidate"));
+  assertExit(authorizeEdge(state, "write-candidate"));
   assertExit(verify(state, "write-candidate", "article-drafted,sensitive-content-checked", "sensitive-review-recorded"));
-  assertExit(runCli(state, "select", "--edge", "obtain-owner-approval"));
+  assertExit(authorizeEdge(state, "obtain-owner-approval"));
   assertExit(verify(state, "obtain-owner-approval", "owner-approved"));
-  assertExit(runCli(state, "select", "--edge", "publish-article"));
+  const prematureAudit = requestArrivalAudit(state);
+  assertExit(prematureAudit, 1);
+  assert.match(prematureAudit.stderr, /destination predicates are not observed/);
+  assertExit(authorizeEdge(state, "publish-article"));
   assertExit(verify(state, "publish-article", "article-published,public-url-exists", "public-page-readable", "external:https://example.invalid/article"));
-  assertExit(runCli(state, "arrive", "--confirm", "wrong acceptance", "--acceptance", "public-page-readable"), 1);
-  assertExit(runCli(
+
+  const legacyArrival = runCli(
     state,
     "arrive", "--confirm", "destination and acceptance evidence audited",
     "--acceptance", "public-page-readable,sensitive-review-recorded",
+  );
+  assertExit(legacyArrival, 1);
+  assert.match(legacyArrival.stderr, /request-arrival-audit.*then arrive --request/i);
+
+  const requested = requestArrivalAudit(state);
+  assertExit(requested);
+  const requestId = JSON.parse(requested.stdout).request_id;
+  let data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.phase, "implementation");
+  assert.equal(data.runtime_status, "arrival-audit-required");
+  assert.equal(data.arrival_audit, undefined);
+  assert.equal(data.arrival_audit_requests.at(-1).status, "pending");
+  assert.equal(data.arrival_audit_requests.at(-1).decision_owner, "human:owner");
+  assert.deepEqual(data.arrival_audit_requests.at(-1).acceptance, ["public-page-readable", "sensitive-review-recorded"]);
+  assert.equal(data.arrival_audit_requests.at(-1).state_revision, data.event_stream.last_seq);
+
+  assertExit(runCli(
+    state,
+    "arrive", "--request", requestId,
+    "--answer", "Agent cannot answer the human audit gate",
+    "--actor", "agent:codex",
+  ), 1);
+
+  fs.rmSync(state);
+  assertExit(runCli(state, "rebuild", "--force"));
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.arrival_audit_requests.at(-1).id, requestId);
+  assert.equal(data.arrival_audit_requests.at(-1).status, "pending");
+
+  assertExit(runCli(
+    state,
+    "assign-decision-owner", "--request", requestId,
+    "--decision-owner", "human:reviewer",
+    "--actor", "agent:codex",
+  ));
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.arrival_audit_requests.at(-1).decision_owner, "human:reviewer");
+  assert.equal(data.arrival_audit_requests.at(-1).status, "pending");
+  assert.equal(data.arrival_audit_requests.at(-1).state_revision, data.event_stream.last_seq);
+
+  const wrongAuditor = runCli(
+    state,
+    "arrive", "--request", requestId,
+    "--answer", "Wrong human identity",
+    "--actor", "human:owner",
+  );
+  assertExit(wrongAuditor, 1);
+  assert.match(wrongAuditor.stderr, /actor must match decision owner human:reviewer/);
+
+  assertExit(runCli(
+    state,
+    "arrive", "--request", requestId,
+    "--answer", "destination and acceptance evidence audited",
+    "--actor", "human:reviewer",
     "--non-goals", "automatic audience choice",
     "--risks", "none",
   ));
 
-  const data = JSON.parse(fs.readFileSync(state, "utf8"));
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
   assert.equal(data.phase, "arrived");
+  assert.equal(data.arrival_audit.request, requestId);
+  assert.equal(data.arrival_audit.actor, "human:reviewer");
+  assert.equal(data.arrival_audit_requests.at(-1).status, "granted");
   assert.deepEqual(data.verified_edges, ["settle-audience", "write-candidate", "obtain-owner-approval", "publish-article"]);
   assert.ok(data.satisfied_nodes.includes("article-live"));
   assert.equal(data.facts["article-published"].value, "true");
@@ -266,18 +481,83 @@ test("edge evidence drives facts, satisfied nodes, and arrival", () => {
   assert.match(reprove.stderr, /cannot refresh proof for an arrived map/);
 });
 
+test("pending arrival audit blocks proof refresh and still fails closed after replan", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v05-arrival-stale-"));
+  const mapPath = makeMap(directory);
+  const state = path.join(directory, "state.json");
+
+  assertExit(runCli(state, "init", "--map", mapPath));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
+  assertExit(verify(state, "settle-audience", "audience-known"));
+  assertExit(authorizeEdge(state, "write-candidate"));
+  assertExit(verify(state, "write-candidate", "article-drafted,sensitive-content-checked", "sensitive-review-recorded"));
+  assertExit(authorizeEdge(state, "obtain-owner-approval"));
+  assertExit(verify(state, "obtain-owner-approval", "owner-approved"));
+  assertExit(authorizeEdge(state, "publish-article"));
+  assertExit(verify(state, "publish-article", "article-published,public-url-exists", "public-page-readable", "external:https://example.invalid/article"));
+
+  const firstRequest = requestArrivalAudit(state);
+  assertExit(firstRequest);
+  const firstRequestId = JSON.parse(firstRequest.stdout).request_id;
+  let data = JSON.parse(fs.readFileSync(state, "utf8"));
+  const requestedRevision = data.event_stream.last_seq;
+  const blockedProof = runCli(state, "prove");
+  assertExit(blockedProof, 1);
+  assert.match(blockedProof.stderr, new RegExp(`cannot refresh proof while arrival audit request is pending: ${firstRequestId}`));
+  assert.match(blockedProof.stderr, /answer it with arrive --request/);
+  assert.match(blockedProof.stderr, /replan explicitly/);
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.event_stream.last_seq, requestedRevision);
+  assert.equal(data.arrival_audit_requests.at(-1).status, "pending");
+
+  assertExit(runCli(
+    state,
+    "arrive", "--request", firstRequestId,
+    "--answer", "The frozen evidence and acceptance are accepted",
+    "--actor", "human:owner",
+  ));
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.phase, "arrived");
+
+  const secondDirectory = path.join(directory, "replan-case");
+  fs.mkdirSync(secondDirectory, { recursive: true });
+  const secondState = path.join(secondDirectory, "state.json");
+  assertExit(runCli(secondState, "init", "--map", mapPath));
+  assertExit(approveAndAuthorize(secondState, "settle-audience"));
+  assertExit(verify(secondState, "settle-audience", "audience-known"));
+  assertExit(authorizeEdge(secondState, "write-candidate"));
+  assertExit(verify(secondState, "write-candidate", "article-drafted,sensitive-content-checked", "sensitive-review-recorded"));
+  assertExit(authorizeEdge(secondState, "obtain-owner-approval"));
+  assertExit(verify(secondState, "obtain-owner-approval", "owner-approved"));
+  assertExit(authorizeEdge(secondState, "publish-article"));
+  assertExit(verify(secondState, "publish-article", "article-published,public-url-exists", "public-page-readable", "external:https://example.invalid/article"));
+
+  const secondRequest = requestArrivalAudit(secondState);
+  assertExit(secondRequest);
+  const secondRequestId = JSON.parse(secondRequest.stdout).request_id;
+  assertExit(runCli(
+    secondState,
+    "replan", "--reason", "recheck residual risk before arrival",
+    "--scope", "observation:arrival-risk", "--changes", "none",
+  ));
+  data = JSON.parse(fs.readFileSync(secondState, "utf8"));
+  assert.equal(data.arrival_audit_requests.find((item) => item.id === secondRequestId).status, "stale");
+  assert.equal(data.phase, "wayfinding");
+});
+
 test("unverified evidence cannot apply edge effects", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v03-unverified-"));
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  assertExit(runCli(state, "approve", "--edge", "settle-audience"));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
   const result = runCli(
     state,
     "verify", "--edge", "settle-audience",
     "--evidence", "not actually checked",
     "--command", "not run",
     "--observed", "unknown",
+    "--result", "pass",
     "--proves", "audience-known",
     "--unverified", "audience decision",
     "--executor", "agent:codex",
@@ -288,7 +568,8 @@ test("unverified evidence cannot apply edge effects", () => {
   const data = JSON.parse(fs.readFileSync(state, "utf8"));
   assert.equal(data.facts["audience-known"].value, "unknown");
   assert.deepEqual(data.verified_edges, []);
-  assert.equal(data.active_edge, "settle-audience");
+  assert.equal(data.active_edge, null);
+  assert.equal(data.edge_runs.at(-1).status, "blocked");
   assert.equal(data.evidence.length, 1);
 });
 
@@ -297,13 +578,14 @@ test("human work can produce evidence without agent metadata", () => {
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  assertExit(runCli(state, "approve", "--edge", "settle-audience"));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
   const result = runCli(
     state,
     "verify", "--edge", "settle-audience",
     "--evidence", "owner confirmed the intended audience in meeting minutes",
     "--command", "read meeting minutes",
     "--observed", "audience is explicitly named",
+    "--result", "pass",
     "--proves", "audience-known",
     "--executor", "human:owner",
     "--outcome-ref", "meeting:minutes/audience-decision",
@@ -561,11 +843,11 @@ test("loop edges can repeat only until their runtime budget is exhausted", () =>
 
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  assertExit(runCli(state, "approve", "--edge", "advance-loop"));
+  assertExit(approveAndAuthorize(state, "advance-loop"));
   assertExit(verify(state, "advance-loop", "loop-progress"));
-  assertExit(runCli(state, "select", "--edge", "advance-loop"));
+  assertExit(authorizeEdge(state, "advance-loop"));
   assertExit(verify(state, "advance-loop", "loop-progress"));
-  const exhausted = runCli(state, "select", "--edge", "advance-loop");
+  const exhausted = requestAuthorization(state, "advance-loop");
   assertExit(exhausted, 1);
   assert.match(exhausted.stderr, /loop budget exhausted/);
   assert.equal(JSON.parse(fs.readFileSync(state, "utf8")).loop_iterations["bounded-loop"], 2);
@@ -576,7 +858,7 @@ test("map changes after approval block the write gate", () => {
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  assertExit(runCli(state, "approve", "--edge", "settle-audience"));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
   fs.appendFileSync(mapPath, "\n", "utf8");
   const result = runCli(state, "gate");
   assertExit(result, 1);
@@ -588,7 +870,7 @@ test("bound Task Brief changes after approval block the write gate", () => {
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  assertExit(runCli(state, "approve", "--edge", "settle-audience"));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
   fs.appendFileSync(path.join(directory, "briefs", "settle-audience.md"), "\nchanged execution boundary\n", "utf8");
   const result = runCli(state, "gate");
   assertExit(result, 1);
@@ -600,7 +882,7 @@ test("replan preserves verified edges and evidence", () => {
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  assertExit(runCli(state, "approve", "--edge", "settle-audience"));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
   assertExit(verify(state, "settle-audience", "audience-known"));
   assertExit(runCli(state, "replan", "--reason", "new constraint discovered", "--scope", "observation:new-constraint", "--changes", "none"));
   assertExit(runCli(state, "gate"), 1);
@@ -627,7 +909,7 @@ test("replan cannot redefine a verified edge contract", () => {
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  assertExit(runCli(state, "approve", "--edge", "settle-audience"));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
   assertExit(verify(state, "settle-audience", "audience-known"));
   const changed = JSON.parse(fs.readFileSync(mapPath, "utf8"));
   changed.edges.find((edge) => edge.id === "settle-audience").certainty = "conditional";
@@ -645,7 +927,7 @@ test("replan cannot reinterpret predicates referenced by a verified edge", () =>
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  assertExit(runCli(state, "approve", "--edge", "settle-audience"));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
   assertExit(verify(state, "settle-audience", "audience-known"));
   const changed = JSON.parse(fs.readFileSync(mapPath, "utf8"));
   changed.predicates.find((predicate) => predicate.id === "audience-known").fact = "source-exists";
@@ -663,7 +945,7 @@ test("replan cannot change a destination invariant applicable to a verified edge
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  assertExit(runCli(state, "approve", "--edge", "settle-audience"));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
   assertExit(verify(state, "settle-audience", "audience-known"));
   const changed = JSON.parse(fs.readFileSync(mapPath, "utf8"));
   changed.invariants.find((invariant) => invariant.id === "approval-before-publish").applies_to.push("settle-audience");
@@ -729,7 +1011,7 @@ test("prove and approve cannot accept edits made after a bounded replan", () => 
   const proof = runCli(state, "prove");
   assertExit(proof, 1);
   assert.match(proof.stderr, /Blueprint or bound Task Brief changed/);
-  const approval = runCli(state, "approve", "--edge", "settle-audience");
+  const approval = requestRouteApproval(state);
   assertExit(approval, 1);
   assert.match(approval.stderr, /Blueprint or bound Task Brief changed/);
 });
@@ -811,7 +1093,7 @@ test("replan cannot change a verified edge Task Brief", () => {
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  assertExit(runCli(state, "approve", "--edge", "settle-audience"));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
   assertExit(verify(state, "settle-audience", "audience-known"));
   fs.appendFileSync(path.join(directory, "briefs", "settle-audience.md"), "\nchanged after verification\n", "utf8");
   const result = runCli(
@@ -844,44 +1126,893 @@ test("v0.2 state is rejected with an archive migration message", () => {
   assert.match(result.stderr, /v0\.2 node state is archived and must be re-initialized/);
 });
 
-test("installer creates a self-contained v0.3 runtime without touching AGENTS.md", async () => {
+test("wayfinding-answer persists the answer and advances the modeling cursor", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-wayfinding-answer-"));
+  const current = path.join(directory, "current");
+  fs.mkdirSync(current, { recursive: true });
+  fs.writeFileSync(path.join(current, "wayfinding.yaml"), `schema_version: 1
+phase: shaping
+intent:
+  statement: 收敛一个可验收目的地
+  status: draft
+  open_questions: [需要确认范围]
+origin:
+  id: origin-fog
+  kind: fog
+  label: 起始迷雾
+  facts: []
+destination:
+  id: destination-fog
+  kind: fog
+  label: 目的地迷雾
+  statement: 目标
+  status: pending
+nodes: []
+edges: []
+questions:
+  - id: settle-scope
+    prompt: 这次要做什么？
+    target:
+      kind: destination
+      id: destination-fog
+      label: 目的地迷雾
+      purpose: 收敛目标边界
+    status: pending
+    answer_updates: [wayfinding.intent.status, wayfinding.intent.open_questions]
+`, "utf8");
+  const state = path.join(current, "state.json");
+  const result = runCli(state, "wayfinding-answer", "--question", "settle-scope", "--answer", "只验证核心路径", "--evidence-ref", "note:owner");
+  assertExit(result);
+  assert.match(result.stdout, /automatically advanced: wayfinding\.intent\.open_questions/);
+  assert.match(result.stdout, /still requires modeling confirmation: wayfinding\.intent\.status/);
+  const draft = readWayfinding(path.join(current, "wayfinding.yaml")).draft;
+  assert.equal(draft.questions[0].status, "answered");
+  assert.equal(draft.questions[0].answer, "只验证核心路径");
+  assert.deepEqual(draft.questions[0].evidence_refs, [{ kind: "note", ref: "owner" }]);
+  assert.deepEqual(draft.intent.open_questions, []);
+});
+
+test("wayfinding-write validates and atomically canonicalizes a complete draft", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v05-wayfinding-write-"));
+  const current = path.join(directory, "current");
+  fs.mkdirSync(current, { recursive: true });
+  const state = path.join(current, "state.json");
+  const target = path.join(current, "wayfinding.yaml");
+  const source = path.join(directory, "candidate.json");
+  const draft = {
+    schema_version: 1,
+    phase: "survey",
+    intent: { statement: "Build a small local service", status: "draft", open_questions: ["Who uses it?"] },
+    origin: {
+      id: "origin-fog",
+      kind: "fog",
+      label: "Current workspace",
+      facts: [{ id: "audience-known", value: "unknown", evidence: [] }],
+    },
+    destination: {
+      id: "destination-fog",
+      kind: "fog",
+      label: "Destination not shaped",
+      statement: "A useful local service exists",
+      status: "pending",
+    },
+    nodes: [],
+    edges: [],
+    questions: [{
+      id: "settle-audience",
+      prompt: "Who is the first user?",
+      target: { kind: "destination", id: "destination-fog", label: "Destination not shaped", purpose: "Shape the user-visible outcome" },
+      status: "pending",
+      answer_updates: ["wayfinding.intent.open_questions", "wayfinding.destination.status"],
+    }],
+  };
+  fs.writeFileSync(source, `${JSON.stringify(draft, null, 2)}\n`, "utf8");
+
+  const written = runCli(state, "wayfinding-write", "--draft-file", source, "--json");
+  assertExit(written);
+  const summary = JSON.parse(written.stdout);
+  assert.equal(summary.phase, "survey");
+  assert.equal(summary.nodes, 0);
+  assert.equal(summary.questions, 1);
+  const persisted = readWayfinding(target).draft;
+  assert.equal(persisted.origin.id, "origin-fog");
+  assert.equal((fs.readFileSync(target, "utf8").match(/^updated_at:/gm) ?? []).length, 1);
+
+  const before = fs.readFileSync(target, "utf8");
+  draft.origin.kind = "destination";
+  fs.writeFileSync(source, `${JSON.stringify(draft, null, 2)}\n`, "utf8");
+  const invalid = runCli(state, "wayfinding-write", "--draft-file", source);
+  assertExit(invalid, 1);
+  assert.match(invalid.stderr, /origin.kind is invalid/);
+  assert.equal(fs.readFileSync(target, "utf8"), before);
+
+  draft.origin.kind = "fog";
+  const factualAnswer = runCli(
+    state,
+    "wayfinding-answer", "--question", "settle-audience",
+    "--answer", "The first user is a local librarian",
+    "--evidence-ref", "note:owner",
+  );
+  assertExit(factualAnswer);
+  let revised = structuredClone(readWayfinding(target).draft);
+  revised.phase = "regression";
+  revised.intent.status = "shaped";
+  revised.destination.kind = "destination";
+  revised.destination.status = "confirmed";
+  revised.destination.requires = ["service-usable"];
+  revised.destination.invariants = [];
+  revised.destination.acceptance = [{ id: "service-accepted", proves: ["service-usable"], proof: "核心路径可回读" }];
+  revised.boundaries = { in_scope: ["核心路径"], out_of_scope: ["非核心功能"], authorization: [] };
+  fs.writeFileSync(source, `${JSON.stringify(revised, null, 2)}\n`, "utf8");
+  const implicitConfirmation = runCli(state, "wayfinding-write", "--draft-file", source);
+  assertExit(implicitConfirmation, 1);
+  assert.match(implicitConfirmation.stderr, /factual constraints or candidate revisions are not confirmation/);
+  assert.equal(readWayfinding(target).draft.destination.status, "pending");
+
+  revised = structuredClone(readWayfinding(target).draft);
+  revised.intent.status = "draft";
+  revised.destination.kind = "fog";
+  revised.destination.status = "pending";
+  revised.destination.requires = ["service-usable"];
+  revised.destination.invariants = [];
+  revised.destination.acceptance = [{ id: "service-accepted", proves: ["service-usable"], proof: "核心路径可回读" }];
+  revised.boundaries = { in_scope: ["核心路径"], out_of_scope: ["非核心功能"], authorization: [] };
+  revised.questions.push({
+    id: "confirm-revised-destination",
+    prompt: "Do you explicitly confirm the revised destination contract?",
+    target: { kind: "destination", id: "destination-fog", label: "Destination not shaped", purpose: "Confirm the revised contract" },
+    status: "pending",
+    answer_updates: ["wayfinding.intent.status", "wayfinding.destination.status"],
+  });
+  fs.writeFileSync(source, `${JSON.stringify(revised, null, 2)}\n`, "utf8");
+  assertExit(runCli(state, "wayfinding-write", "--draft-file", source));
+  assertExit(runCli(
+    state,
+    "wayfinding-answer", "--question", "confirm-revised-destination",
+    "--answer", "I confirm the revised destination contract",
+    "--evidence-ref", "note:owner",
+  ));
+  revised = structuredClone(readWayfinding(target).draft);
+  revised.phase = "regression";
+  revised.intent.status = "shaped";
+  revised.destination.kind = "destination";
+  revised.destination.status = "confirmed";
+  fs.writeFileSync(source, `${JSON.stringify(revised, null, 2)}\n`, "utf8");
+  assertExit(runCli(state, "wayfinding-write", "--draft-file", source));
+  assert.equal(readWayfinding(target).draft.destination.status, "confirmed");
+});
+
+test("wayfinding permits one current confirmation question and preserves answered history", () => {
+  const draft = {
+    schema_version: 1,
+    phase: "shaping",
+    intent: { statement: "Shape one destination", status: "draft", open_questions: ["Which outcome matters?"] },
+    origin: { id: "origin-fog", kind: "fog", label: "Current situation", facts: [] },
+    destination: {
+      id: "destination-fog",
+      kind: "fog",
+      label: "Destination not shaped",
+      statement: "A useful outcome exists",
+      status: "pending",
+    },
+    nodes: [],
+    edges: [],
+    questions: [
+      {
+        id: "audience-answered",
+        prompt: "Who is the first user?",
+        target: { kind: "destination", id: "destination-fog", label: "Destination not shaped", purpose: "Fix the audience" },
+        status: "answered",
+        answer: "A local librarian",
+      },
+      {
+        id: "outcome-current",
+        prompt: "Which outcome matters first?",
+        target: { kind: "destination", id: "destination-fog", label: "Destination not shaped", purpose: "Fix the first outcome" },
+        status: "pending",
+      },
+    ],
+  };
+
+  assert.equal(validateWayfinding(structuredClone(draft)).questions.length, 2);
+
+  draft.questions.push(
+    {
+      id: "scope-hidden",
+      prompt: "Which scope is excluded?",
+      target: { kind: "destination", id: "destination-fog", label: "Destination not shaped", purpose: "Fix the non-goal" },
+      status: "pending",
+    },
+    {
+      id: "storage-hidden",
+      prompt: "Which storage is allowed?",
+      target: { kind: "destination", id: "destination-fog", label: "Destination not shaped", purpose: "Fix the storage boundary" },
+    },
+  );
+  assert.throws(
+    () => validateWayfinding(draft),
+    /at most one pending question; found: outcome-current, scope-hidden, storage-hidden/,
+  );
+});
+
+test("wayfinding cannot enter regression with an incomplete destination contract", () => {
+  const draft = {
+    schema_version: 1,
+    phase: "regression",
+    intent: { statement: "Deliver one auditable result", status: "shaped", open_questions: [] },
+    origin: { id: "origin", kind: "state", label: "Observed origin", facts: [] },
+    destination: {
+      id: "destination",
+      kind: "destination",
+      label: "Auditable destination",
+      statement: "The goal is reached",
+      status: "confirmed",
+      requires: ["goal-reached", "scope-preserved"],
+      invariants: [],
+      acceptance: [{ id: "goal-readback", proves: ["goal-reached"], proof: "Goal can be read back" }],
+    },
+    boundaries: { in_scope: ["goal route"], out_of_scope: ["unrelated expansion"], authorization: [] },
+    nodes: [],
+    edges: [],
+    questions: [],
+  };
+
+  assert.throws(
+    () => validateWayfinding(draft),
+    /acceptance does not cover required predicates: scope-preserved/,
+  );
+  draft.destination.acceptance.push({ id: "scope-readback", proves: ["scope-preserved"], proof: "Scope remains bounded" });
+  delete draft.boundaries;
+  assert.throws(() => validateWayfinding(draft), /requires explicit boundaries/);
+});
+
+test("wayfinding-write requires sourced human confirmation for every candidate node and edge", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-candidate-confirmation-"));
+  const current = path.join(directory, "current");
+  fs.mkdirSync(current, { recursive: true });
+  const state = path.join(current, "state.json");
+  const target = path.join(current, "wayfinding.yaml");
+  const source = path.join(directory, "candidate.json");
+  const draft = {
+    schema_version: 1,
+    phase: "regression",
+    intent: { statement: "Deliver one auditable result", status: "shaped", open_questions: [] },
+    origin: {
+      id: "origin",
+      kind: "state",
+      label: "Observed origin",
+      facts: [{ id: "source-ready", value: "true", evidence: [{ kind: "observation", ref: "source-readback" }] }],
+    },
+    destination: {
+      id: "destination",
+      kind: "destination",
+      label: "Auditable destination",
+      statement: "The goal is reached",
+      status: "confirmed",
+      requires: ["goal-reached"],
+      invariants: ["scope-preserved"],
+      acceptance: [{ id: "goal-readback", proves: ["goal-reached"], proof: "Goal can be read back" }],
+    },
+    boundaries: { in_scope: ["goal route"], out_of_scope: ["unrelated expansion"], authorization: [] },
+    nodes: [{ id: "milestone", kind: "state", label: "Milestone ready", purpose: "Provide an independent verification start", status: "pending" }],
+    edges: [{
+      id: "verify-goal",
+      from: "milestone",
+      to: "destination",
+      label: "Verify the goal",
+      purpose: "Establish the destination through readback",
+      status: "pending",
+      brief_ref: "briefs/verify-goal.md",
+      preconditions: ["source-ready"],
+      effects: ["goal-reached"],
+      invariants: ["scope-preserved"],
+      evidence_contract: [{ id: "goal-evidence", proves: ["goal-reached"], required: true, proof: "Readback passes" }],
+      acceptance: [{ id: "goal-readback", proves: ["goal-reached"], proof: "Goal can be read back" }],
+      non_goals: ["Do not expand scope"],
+      certainty: "expected",
+      on_failure: { action: "replan", scope: "edge:verify-goal" },
+      proof: { status: "logical", summary: "The readback establishes the goal", missing: [], evidence_refs: [] },
+    }],
+    questions: [{
+      id: "confirm-milestone",
+      prompt: "Do you confirm this milestone?",
+      target: { kind: "node", id: "milestone", label: "Milestone ready", purpose: "Confirm the independent state" },
+      status: "pending",
+      answer_updates: ["wayfinding.nodes.milestone.status"],
+    }],
+  };
+  fs.writeFileSync(target, `${JSON.stringify(draft, null, 2)}\n`, "utf8");
+
+  let candidate = structuredClone(draft);
+  candidate.nodes[0].status = "confirmed";
+  fs.writeFileSync(source, `${JSON.stringify(candidate, null, 2)}\n`, "utf8");
+  let result = runCli(state, "wayfinding-write", "--draft-file", source);
+  assertExit(result, 1);
+  assert.match(result.stderr, /node confirmation requires an answered wayfinding question for milestone/);
+
+  assertExit(runCli(
+    state,
+    "wayfinding-answer", "--question", "confirm-milestone",
+    "--answer", "I confirm this milestone",
+    "--evidence-ref", "note:owner",
+  ));
+  candidate = structuredClone(readWayfinding(target).draft);
+  candidate.nodes[0].status = "confirmed";
+  candidate.questions.push({
+    id: "confirm-verify-goal",
+    prompt: "Do you confirm this independent work edge?",
+    target: { kind: "edge", id: "verify-goal", label: "Verify the goal", purpose: "Confirm the edge contract" },
+    status: "pending",
+    answer_updates: ["wayfinding.edges.verify-goal.status"],
+  });
+  fs.writeFileSync(source, `${JSON.stringify(candidate, null, 2)}\n`, "utf8");
+  assertExit(runCli(state, "wayfinding-write", "--draft-file", source));
+
+  candidate = structuredClone(readWayfinding(target).draft);
+  candidate.edges[0].status = "confirmed";
+  fs.writeFileSync(source, `${JSON.stringify(candidate, null, 2)}\n`, "utf8");
+  result = runCli(state, "wayfinding-write", "--draft-file", source);
+  assertExit(result, 1);
+  assert.match(result.stderr, /edge confirmation requires an answered wayfinding question for verify-goal/);
+
+  assertExit(runCli(
+    state,
+    "wayfinding-answer", "--question", "confirm-verify-goal",
+    "--answer", "I confirm this work edge and its contract",
+    "--evidence-ref", "note:owner",
+  ));
+  candidate = structuredClone(readWayfinding(target).draft);
+  candidate.edges[0].status = "confirmed";
+  fs.writeFileSync(source, `${JSON.stringify(candidate, null, 2)}\n`, "utf8");
+  assertExit(runCli(state, "wayfinding-write", "--draft-file", source));
+  const persisted = readWayfinding(target).draft;
+  assert.equal(persisted.nodes[0].status, "confirmed");
+  assert.equal(persisted.edges[0].status, "confirmed");
+});
+
+test("a draft Intent or open question blocks destination approval", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v04-intent-"));
+  const mapPath = makeMap(directory, (blueprint) => {
+    blueprint.intent = { statement: "也许写点东西", status: "draft", open_questions: ["真正读者是谁"] };
+  });
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+  const result = requestRouteApproval(state);
+  assertExit(result, 1);
+  assert.match(result.stderr, /shaped Intent with no open questions/);
+
+  const shapedDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v04-decision-"));
+  const shapedMap = makeMap(shapedDirectory);
+  const shapedState = path.join(shapedDirectory, "state.json");
+  assertExit(runCli(shapedState, "init", "--map", shapedMap));
+  const missingRequest = spawnSync(process.execPath, [CLI, "--state", shapedState, "approve", "--answer", "Approved"], { cwd: ROOT, encoding: "utf8" });
+  assertExit(missingRequest, 1);
+  assert.match(missingRequest.stderr, /request is required/);
+});
+
+test("route approval and per-run human authorization are separate gates", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v05-authorization-"));
+  const mapPath = makeMap(directory);
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+
+  const legacyCombined = runCli(
+    state,
+    "approve", "--edge", "settle-audience",
+    "--reason", "This must not double as implementation permission",
+  );
+  assertExit(legacyCombined, 1);
+  assert.match(legacyCombined.stderr, /does not accept --edge|request-authorization/);
+
+  const directRouteApproval = runCli(state, "approve", "--answer", "The complete route is accepted", "--actor", "human:owner");
+  assertExit(directRouteApproval, 1);
+  assert.match(directRouteApproval.stderr, /request is required/);
+
+  const invalidDecisionOwner = runCli(
+    state,
+    "request-route-approval", "--question", "Do you approve this proven route?",
+    "--decision-owner", "agent:codex",
+  );
+  assertExit(invalidDecisionOwner, 1);
+  assert.match(invalidDecisionOwner.stderr, /decision-owner must use human:<identity>/);
+
+  const routeRequested = requestRouteApproval(state, "Do you approve this proven route?");
+  assertExit(routeRequested);
+  const routeRequestId = JSON.parse(routeRequested.stdout).request_id;
+  let data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.route_approval_requests.at(-1).status, "pending");
+  assert.equal(data.route_approval_requests.at(-1).decision_owner, "human:owner");
+  assert.equal(data.route_approvals.length, 0);
+  assert.equal(data.current_route_approval, null);
+  assert.equal(data.runtime_status, "route-approval-required");
+
+  const assigned = runCli(
+    state,
+    "assign-decision-owner", "--request", routeRequestId,
+    "--decision-owner", "human:reviewer",
+    "--actor", "agent:codex",
+    "--json",
+  );
+  assertExit(assigned);
+  assert.deepEqual(JSON.parse(assigned.stdout), {
+    request_id: routeRequestId,
+    previous_owner: "human:owner",
+    decision_owner: "human:reviewer",
+    status: "pending",
+  });
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.route_approval_requests.at(-1).decision_owner, "human:reviewer");
+  assert.equal(data.route_approval_requests.at(-1).status, "pending");
+  assert.equal(data.current_route_approval, null);
+  assert.equal(data.history.at(-1).event, "decision_owner_assigned");
+
+  const wrongOwner = runCli(
+    state,
+    "approve", "--request", routeRequestId,
+    "--answer", "This actor does not own the decision",
+    "--actor", "human:owner",
+  );
+  assertExit(wrongOwner, 1);
+  assert.match(wrongOwner.stderr, /actor must match decision owner human:reviewer/);
+
+  const invalidAssignment = runCli(
+    state,
+    "assign-decision-owner", "--request", routeRequestId,
+    "--decision-owner", "agent:codex",
+  );
+  assertExit(invalidAssignment, 1);
+  assert.match(invalidAssignment.stderr, /decision-owner must use human:<identity>/);
+
+  assertExit(runCli(
+    state,
+    "approve", "--request", routeRequestId,
+    "--answer", "The complete route is accepted",
+    "--actor", "human:reviewer",
+  ));
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.phase, "implementation");
+  assert.equal(data.destination_status, "approved");
+  assert.equal(data.active_edge, null);
+  assert.equal(data.active_run, null);
+  assert.equal(data.runtime_status, "idle");
+  assert.equal(data.edge_runs.length, 0);
+  assert.equal(data.decisions.length, 0);
+  assert.equal(data.route_approvals.length, 1);
+  assert.equal(data.route_approval_requests.at(-1).status, "granted");
+  assert.equal(data.route_approvals[0].request, routeRequestId);
+  assert.equal(data.current_route_approval, data.route_approvals[0].id);
+  assertExit(runCli(state, "gate"), 1);
+
+  const directAuthorization = runCli(
+    state,
+    "authorize", "--request", "settle-audience-authorization-1",
+    "--answer", "Approved",
+    "--actor", "human:owner",
+  );
+  assertExit(directAuthorization, 1);
+  assert.match(directAuthorization.stderr, /authorization request.*missing|unknown authorization request/i);
+
+  const requested = requestAuthorization(state, "settle-audience", "May I interview the owner to settle the audience?");
+  assertExit(requested);
+  const requestId = JSON.parse(requested.stdout).request_id;
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.authorization_requests.at(-1).status, "pending");
+  assert.equal(data.authorization_requests.at(-1).decision_owner, "human:owner");
+  assert.equal(data.authorization_requests.at(-1).route_approval, data.current_route_approval);
+  assert.equal(data.active_run, null);
+
+  assertExit(runCli(
+    state,
+    "authorize", "--request", requestId,
+    "--answer", "Approved for this work only",
+    "--actor", "human:owner",
+  ));
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.authorization_requests.at(-1).status, "granted");
+  assert.equal(data.active_edge, "settle-audience");
+  assert.equal(data.edge_runs.at(-1).authorization_request, requestId);
+  assert.equal(data.decisions.at(-1).authorization_request, requestId);
+
+  assertExit(runCli(state, "cancel", "--reason", "exercise reuse guard"));
+  const reused = runCli(
+    state,
+    "authorize", "--request", requestId,
+    "--answer", "Try to reuse the same answer",
+    "--actor", "human:owner",
+  );
+  assertExit(reused, 1);
+  assert.match(reused.stderr, /not pending/);
+});
+
+test("Work Events create Proposals; confirmation alone changes Facts and events rebuild state", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v04-proposal-"));
+  const mapPath = makeMap(directory);
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+  assertExit(runCli(
+    state, "propose", "--id", "audience-from-interview", "--fact", "audience-known", "--value", "true",
+    "--source", "conversation:owner", "--summary", "Owner named the audience", "--strength", "observed",
+    "--outcome-ref", "meeting:minutes/audience", "--actor", "human:owner",
+  ));
+  let data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.facts["audience-known"].value, "unknown");
+  assert.equal(data.proposals[0].status, "pending");
+  assertExit(runCli(state, "confirm", "--proposal", "audience-from-interview", "--by", "human:owner"));
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.facts["audience-known"].value, "true");
+  assert.equal(data.facts["audience-known"].evidence.at(-1).strength, "observed");
+  assert.equal(data.proposals[0].status, "confirmed");
+
+  assertExit(runCli(
+    state, "propose", "--id", "draft-from-tool", "--fact", "article-drafted", "--value", "true",
+    "--source", "tool:editor", "--summary", "Editor reported a draft", "--strength", "asserted",
+    "--outcome-ref", "document:drafts/article.md", "--actor", "tool:editor",
+  ));
+  assertExit(runCli(state, "prove"));
+  const stale = runCli(state, "confirm", "--proposal", "draft-from-tool", "--by", "human:owner");
+  assertExit(stale, 1);
+  assert.match(stale.stderr, /base revision is stale/);
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.proposals.find((item) => item.id === "draft-from-tool").status, "stale");
+  assert.equal(data.facts["article-drafted"].value, "false");
+
+  const eventsPath = path.join(directory, "events.jsonl");
+  const before = JSON.parse(fs.readFileSync(state, "utf8"));
+  fs.rmSync(state);
+  assertExit(runCli(state, "rebuild", "--events", eventsPath));
+  const rebuilt = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(rebuilt.event_stream.head_digest, before.event_stream.head_digest);
+  assert.deepEqual(rebuilt.proposals, before.proposals);
+  assert.equal(rebuilt.facts["audience-known"].value, "true");
+
+  rebuilt.facts["audience-known"].value = "false";
+  fs.writeFileSync(state, `${JSON.stringify(rebuilt, null, 2)}\n`, "utf8");
+  const projectionTampered = runCli(state, "status");
+  assertExit(projectionTampered, 1);
+  assert.match(projectionTampered.stderr, /state content does not match the event projection/);
+  assertExit(runCli(state, "rebuild", "--events", eventsPath));
+
+  const lines = fs.readFileSync(eventsPath, "utf8").trimEnd().split(/\r?\n/);
+  const first = JSON.parse(lines[0]);
+  first.data.details.reachability = "tampered";
+  lines[0] = JSON.stringify(first);
+  fs.writeFileSync(eventsPath, `${lines.join("\n")}\n`, "utf8");
+  const tampered = runCli(state, "status");
+  assertExit(tampered, 1);
+  assert.match(tampered.stderr, /event digest mismatch/);
+});
+
+test("Edge Runs expose wait, resume, cancel, retry, and failure replan states", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v04-run-"));
+  const mapPath = makeMap(directory);
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+  assertExit(approveAndAuthorize(state, "settle-audience", "路线完整且首项可独立执行"));
+  let data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.route_approvals[0].reason, "路线完整且首项可独立执行");
+  assert.equal(data.decisions[0].reason, "Approved to execute settle-audience");
+  assert.equal(data.edge_runs[0].status, "active");
+  assertExit(runCli(state, "wait", "--reason", "等待 Owner 访谈"));
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.edge_runs[0].status, "waiting");
+  assert.equal(data.active_edge, null);
+  assertExit(runCli(state, "resume", "--run", "settle-audience-run-1", "--reason", "访谈已开始"));
+  assertExit(runCli(state, "block", "--reason", "记录缺页"));
+  assertExit(runCli(state, "resume", "--run", "settle-audience-run-1", "--reason", "记录已补齐"));
+  assertExit(runCli(state, "cancel", "--reason", "改用新的访谈"));
+  assertExit(authorizeEdge(state, "settle-audience", "批准重新执行受众确认"));
+  const failed = runCli(
+    state, "verify", "--edge", "settle-audience", "--evidence", "访谈没有形成结论",
+    "--command", "read interview record", "--observed", "audience unresolved", "--result", "fail", "--executor", "human:owner",
+  );
+  assertExit(failed, 1);
+  assert.match(failed.stderr, /on_failure replan applied/);
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.edge_runs.at(-1).status, "failed");
+  assert.equal(data.active_run, null);
+  assert.equal(data.phase, "wayfinding");
+  assert.equal(data.runtime_status, "needs-replan");
+});
+
+test("waiting and blocked runs release the active slot without corrupting another active run", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v04-dormant-run-"));
+  const mapPath = makeMap(directory, (blueprint) => {
+    const alternative = structuredClone(blueprint.edges.find((edge) => edge.id === "settle-audience"));
+    alternative.id = "interview-audience";
+    alternative.brief_ref = "briefs/interview-audience.md";
+    blueprint.edges.push(alternative);
+  });
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+  assertExit(approveAndAuthorize(state, "settle-audience", "路线完整，先等待资料"));
+  assertExit(runCli(state, "wait", "--reason", "资料尚未到达"));
+  assertExit(authorizeEdge(state, "interview-audience", "批准改走可立即执行的访谈"));
+  assertExit(runCli(state, "cancel", "--run", "settle-audience-run-1", "--reason", "不再等待资料"));
+  let data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.active_edge, "interview-audience");
+  assert.equal(data.runtime_status, "running");
+  assert.equal(data.edge_runs.find((run) => run.id === "settle-audience-run-1").status, "cancelled");
+  assertExit(runCli(state, "cancel", "--reason", "测试完成"));
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.runtime_status, "idle");
+});
+
+test("a cold board keeps the registered Task Brief when the live Brief changed", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v04-brief-snapshot-"));
+  const mapPath = makeMap(directory);
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+  const registered = JSON.parse(fs.readFileSync(state, "utf8")).brief_snapshots["settle-audience"].content;
+  const briefPath = path.join(directory, "briefs", "settle-audience.md");
+  fs.appendFileSync(briefPath, "\nUNREGISTERED BRIEF CHANGE\n", "utf8");
+  const reader = createBoardSnapshotReader({ mapPath, statePath: state });
+  const snapshot = reader();
+  assert.equal(snapshot.model.projection.source_status, "stale");
+  const projected = snapshot.model.edges.find((edge) => edge.id === "settle-audience").brief.content;
+  assert.equal(projected, registered);
+  assert.doesNotMatch(projected, /UNREGISTERED BRIEF CHANGE/);
+});
+
+test("a branch failure action waits for fresh authorization before starting the alternative edge", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v04-branch-"));
+  const mapPath = makeMap(directory, (blueprint) => {
+    const original = blueprint.edges.find((edge) => edge.id === "settle-audience");
+    original.on_failure = { action: "branch", to: "interview-audience" };
+    blueprint.edges.push({
+      ...structuredClone(original),
+      id: "interview-audience",
+      brief_ref: "briefs/interview-audience.md",
+      on_failure: { action: "replan" },
+    });
+  });
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+  assertExit(approveAndAuthorize(state, "settle-audience", "路线完整，先读取已有资料"));
+  const failed = runCli(
+    state, "verify", "--edge", "settle-audience", "--evidence", "资料没有明确读者",
+    "--command", "read source", "--observed", "audience absent", "--result", "fail", "--executor", "human:owner",
+  );
+  assertExit(failed, 1);
+  let data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.edge_runs.find((run) => run.edge === "settle-audience").status, "failed");
+  assert.equal(data.active_edge, null);
+  assert.equal(data.edge_runs.some((run) => run.edge === "interview-audience"), false);
+  assert.equal(data.pending_branch, "interview-audience");
+  assert.equal(data.runtime_status, "authorization-required");
+  assert.equal(data.history.at(-1).event, "edge_failed_branch_available");
+  assertExit(authorizeEdge(state, "interview-audience", "批准执行失败分支"));
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.active_edge, "interview-audience");
+  assert.equal(data.edge_runs.find((run) => run.edge === "interview-audience").status, "active");
+});
+
+test("a parent edge accepts only an arrived child receipt and propagates stale state to the board", async () => {
+  const fixture = makeSubmapFixture({ childArrived: false });
+  const parentBlueprint = JSON.parse(fs.readFileSync(fixture.parentMap, "utf8"));
+  parentBlueprint.submaps[0].on_parent_close = "invalidate";
+  fs.writeFileSync(fixture.parentMap, `${JSON.stringify(parentBlueprint, null, 2)}\n`, "utf8");
+  assertExit(runCli(fixture.parentState, "init", "--map", fixture.parentMap));
+  assertExit(approveAndAuthorize(fixture.parentState, "prepare-campaign", "复杂准备工作由独立子地图验收"));
+  const premature = runCli(fixture.parentState, "verify-submap", "--edge", "prepare-campaign", "--executor", "human:owner");
+  assertExit(premature, 1);
+  assert.match(premature.stderr, /has not completed an arrival audit/);
+
+  const childState = { ...fixture.childState, phase: "arrived", runtime_status: "arrived", arrival_audit: { acceptance: ["public-page-readable", "sensitive-review-recorded"], risks: [], confirm: "fixture audit", recorded_at: "2026-09-03T00:00:00Z", run_id: "publish-article-arrival-1" } };
+  fs.writeFileSync(fixture.childStatePath, `${JSON.stringify(childState, null, 2)}\n`, "utf8");
+  assertExit(runCli(fixture.parentState, "verify-submap", "--edge", "prepare-campaign", "--executor", "human:owner"));
+  let parent = JSON.parse(fs.readFileSync(fixture.parentState, "utf8"));
+  assert.equal(parent.facts["campaign-ready"].value, "true");
+  assert.equal(parent.edge_runs[0].status, "passed");
+  assert.equal(parent.map_receipts.length, 1);
+  assert.equal(parent.map_receipts[0].arrival.acceptance[0].id, "public-page-readable");
+
+  const reader = createBoardSnapshotReader({ mapPath: fixture.parentMap, statePath: fixture.parentState });
+  let snapshot = reader();
+  assert.equal(snapshot.model.submaps[0].receipt_status, "current");
+  assert.equal(snapshot.model.edges[0].status, "verified");
+  assert.equal(reader.readSubmap("campaign-preparation").model.map.actual_arrival, "audited");
+
+  const server = createBoardServer({ mapPath: fixture.parentMap, statePath: fixture.parentState });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = server.address();
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/submaps/campaign-preparation`);
+    assert.equal(response.status, 200);
+    const childModel = await response.json();
+    assert.equal(childModel.projection.binding_id, "campaign-preparation");
+    assert.equal(childModel.map.actual_arrival, "audited");
+    assert.equal((await fetch(`http://127.0.0.1:${address.port}/api/submaps/campaign-preparation`, { method: "POST" })).status, 405);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  const invalidatingReplan = runCli(fixture.parentState, "replan", "--reason", "try to replace accepted child", "--scope", "observation:receipt-integrity", "--changes", "none");
+  assertExit(invalidatingReplan, 1);
+  assert.match(invalidatingReplan.stderr, /cannot invalidate accepted submap receipts in place.*initialize a successor parent map/);
+  parent = JSON.parse(fs.readFileSync(fixture.parentState, "utf8"));
+  assert.equal(parent.phase, "implementation");
+  assert.deepEqual(parent.receipt_invalidations, []);
+
+  fs.appendFileSync(fixture.childMap, "\n# changed after receipt\n", "utf8");
+  snapshot = reader();
+  assert.equal(snapshot.model.submaps[0].source_status, "stale");
+  assert.equal(snapshot.model.submaps[0].receipt_status, "stale");
+  assert.equal(snapshot.model.edges[0].status, "stale");
+  const invalidTree = runCli(fixture.parentState, "validate", "--map", fixture.parentMap);
+  assertExit(invalidTree, 1);
+  assert.match(invalidTree.stderr, /restore the pinned child version or initialize a successor parent map/);
+  const arrivalRequest = runCli(fixture.parentState, "request-arrival-audit", "--question", "May the parent map arrive?");
+  assertExit(arrivalRequest, 1);
+  assert.match(arrivalRequest.stderr, /submap receipt is stale.*restore the pinned child Blueprint\/state revision or initialize a successor parent map/);
+});
+
+test("the board resolves nested submaps by semantic binding path", async () => {
+  const fixture = makeSubmapFixture({ childArrived: true });
+  const grandDirectory = path.join(fixture.directory, "grandchild");
+  fs.cpSync(path.join(ROOT, "templates"), grandDirectory, { recursive: true });
+  const grandMap = path.join(grandDirectory, "blueprint.yaml");
+  const grandBlueprint = structuredClone(readBlueprint(grandMap).blueprint);
+  grandBlueprint.map_id = "publish-article-detail";
+  fs.writeFileSync(grandMap, `${JSON.stringify(grandBlueprint, null, 2)}\n`, "utf8");
+  const grandLoaded = readBlueprint(grandMap);
+
+  const childBlueprint = structuredClone(readBlueprint(fixture.childMap).blueprint);
+  childBlueprint.submaps.push({
+    id: "publishing-detail",
+    parent_edge: "publish-article",
+    map_ref: "../grandchild/blueprint.yaml",
+    state_ref: "../grandchild/.mapflow/state.json",
+    expected_map_id: grandLoaded.blueprint.map_id,
+    expected_map_digest: grandLoaded.digest,
+    await: "arrival",
+    on_parent_close: "preserve",
+    exports: [{
+      id: "publishing-detail-export",
+      child_acceptance: "public-page-readable",
+      child_predicates: ["article-published", "public-url-exists"],
+      proves_parent: ["article-published", "public-url-exists"],
+    }],
+  });
+  fs.writeFileSync(fixture.childMap, `${JSON.stringify(childBlueprint, null, 2)}\n`, "utf8");
+  const changedChild = readBlueprint(fixture.childMap);
+  const childState = JSON.parse(fs.readFileSync(fixture.childStatePath, "utf8"));
+  childState.map_digest = changedChild.digest;
+  childState.blueprint_snapshot = structuredClone(changedChild.blueprint);
+  childState.brief_digests = changedChild.brief_digests;
+  fs.writeFileSync(fixture.childStatePath, `${JSON.stringify(childState, null, 2)}\n`, "utf8");
+
+  const parentBlueprint = JSON.parse(fs.readFileSync(fixture.parentMap, "utf8"));
+  parentBlueprint.submaps[0].expected_map_digest = changedChild.digest;
+  fs.writeFileSync(fixture.parentMap, `${JSON.stringify(parentBlueprint, null, 2)}\n`, "utf8");
+  assertExit(runCli(fixture.parentState, "init", "--map", fixture.parentMap));
+
+  const reader = createBoardSnapshotReader({ mapPath: fixture.parentMap, statePath: fixture.parentState });
+  const child = reader.readSubmap("campaign-preparation").model;
+  assert.equal(child.submaps[0].path, "campaign-preparation/publishing-detail");
+  const grandchild = reader.readSubmap("campaign-preparation/publishing-detail").model;
+  assert.equal(grandchild.map.id, grandLoaded.blueprint.map_id);
+  assert.equal(grandchild.projection.binding_path, "campaign-preparation/publishing-detail");
+
+  const server = createBoardServer({ mapPath: fixture.parentMap, statePath: fixture.parentState });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = server.address();
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/submaps/campaign-preparation/publishing-detail`);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).projection.binding_path, "campaign-preparation/publishing-detail");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("project-local installation is rejected without touching the target workspace", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-target-"));
   const agents = path.join(target, "AGENTS.md");
   fs.writeFileSync(agents, "# project rules\n", "utf8");
-  assertExit(runInstaller(target, "--profile", "core"));
+  const before = fs.readdirSync(target).sort();
+  const result = runInstaller(target, "--profile", "core");
+  assertExit(result, 1);
+  assert.match(result.stderr, /--target is no longer supported/);
   assert.equal(fs.readFileSync(agents, "utf8"), "# project rules\n");
-  assert.ok(fs.existsSync(path.join(target, ".mapflow", "mapflow.mjs")));
-  assert.ok(fs.existsSync(path.join(target, ".mapflow", "mapflow-core.mjs")));
-  assert.ok(fs.existsSync(path.join(target, ".mapflow", "mapflow-board.mjs")));
-  assert.ok(fs.existsSync(path.join(target, ".mapflow", "mapflow-board-core.mjs")));
-  assert.ok(fs.existsSync(path.join(target, ".mapflow", "board", "index.html")));
-  assert.ok(fs.existsSync(path.join(target, ".mapflow", "board", "app.js")));
-  assert.ok(fs.existsSync(path.join(target, ".mapflow", "vendor", "js-yaml", "js-yaml.mjs")));
-  assert.ok(fs.existsSync(path.join(target, ".mapflow", "vendor", "cytoscape", "cytoscape.min.js")));
-  assert.ok(fs.existsSync(path.join(target, ".mapflow", "templates", "task-brief.md")));
-  assert.ok(fs.existsSync(path.join(target, ".mapflow", "templates", "briefs", "publish-article.md")));
-  assert.equal(fs.existsSync(path.join(target, ".mapflow", "templates", "work-item.md")), false);
-  const installedWorkflow = fs.readFileSync(path.join(target, ".mapflow", "workflow.md"), "utf8");
-  assert.match(installedWorkflow, /\.mapflow\/templates\/task-brief\.md/);
-  assert.match(installedWorkflow, /active_edge/);
-  assert.ok(fs.existsSync(path.join(target, ".agents", "skills", "edge-delivery", "SKILL.md")));
+  assert.deepEqual(fs.readdirSync(target).sort(), before);
+  assert.equal(fs.existsSync(path.join(target, ".mapflow")), false);
+});
+
+test("global installer provides auto-enable runtime and keeps workspace state outside Git", async () => {
+  const userProfile = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-global-"));
+  const globalRoot = path.join(userProfile, ".agents", "skills");
+  assertExit(runGlobalInstaller(userProfile));
+  const installedRoot = path.join(globalRoot, "mapflow");
+  const runtime = path.join(installedRoot, "runtime", "mapflow.mjs");
+  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "SKILL.md")));
+  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "workflow.md")));
+  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "blueprint", "map-model.md")));
+  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "skill-routing.md")));
+  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "skills", "edge-slicing", "SKILL.md")));
+  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "skills", "edge-delivery", "SKILL.md")));
+  assert.ok(fs.existsSync(runtime));
+  assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-workspace.mjs")));
+  assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-wayfinding.mjs")));
+  assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "board", "index.html")));
+  assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "vendor", "js-yaml", "js-yaml.mjs")));
+  assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "vendor", "cytoscape", "cytoscape.min.js")));
+  assert.ok(fs.existsSync(path.join(installedRoot, "templates", "task-brief.md")));
   assert.match(
-    fs.readFileSync(path.join(target, ".agents", "skills", "mapflow", "SKILL.md"), "utf8"),
-    /相邻 Skill：`\.\.\/<name>\/SKILL\.md`/,
+    fs.readFileSync(path.join(installedRoot, "examples", "community-workshop", "README.md"), "utf8"),
+    /node <mapflow-package>\/runtime\/mapflow\.mjs/,
   );
-  assert.equal(fs.existsSync(path.join(target, ".agents", "skills", "node-delivery")), false);
-  const manifest = JSON.parse(fs.readFileSync(path.join(target, ".mapflow", "install-manifest.json"), "utf8"));
-  assert.equal(manifest.version, "0.3.0");
-  const installedInit = spawnSync(process.execPath, [
-    path.join(target, ".mapflow", "mapflow.mjs"),
-    "init", "--map", path.join(target, ".mapflow", "templates", "blueprint.yaml"),
-  ], { cwd: target, encoding: "utf8" });
-  assertExit(installedInit);
-  assert.ok(fs.existsSync(path.join(target, ".mapflow", "state.json")));
-  const installedBoardModule = await import(`${pathToFileURL(path.join(target, ".mapflow", "mapflow-board.mjs")).href}?test=${Date.now()}`);
-  const boardServer = installedBoardModule.createBoardServer({
-    mapPath: path.join(target, ".mapflow", "templates", "blueprint.yaml"),
-  });
+  const entry = fs.readFileSync(path.join(globalRoot, "mapflow", "SKILL.md"), "utf8");
+  assert.match(entry, /行为真源：`references\/workflow\.md`/);
+  assert.match(entry, /运行时：`runtime\/mapflow\.mjs`/);
+  assert.match(entry, /enable --root <当前工作目录> --json/);
+  assert.match(entry, /仓库外 Workspace Sidecar/);
+  assert.doesNotMatch(entry, /node \.mapflow\/mapflow\.mjs/);
+  assert.match(entry, /内含 Skill：`skills\/<name>\/SKILL\.md`/);
+  assert.doesNotMatch(entry, /`\.\.\/<name>\/SKILL\.md`/);
+  assert.match(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: true/);
+  const globalManifest = JSON.parse(fs.readFileSync(path.join(globalRoot, "mapflow", "install-manifest.json"), "utf8"));
+  assert.equal(globalManifest.version, "0.5.5");
+  assert.equal(globalManifest.runtime, "mapflow/runtime/mapflow.mjs");
+  assert.equal(globalManifest.workspace_schema, "mapflow.workspace/v1");
+  assert.ok(globalManifest.capabilities.includes("workspace-sidecar"));
+  assert.ok(globalManifest.capabilities.includes("auto-enable"));
+  assert.ok(globalManifest.capabilities.includes("arrival-audit-request"));
+
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-consumer-"));
+  assertExit(spawnSync("git", ["init", "--quiet", workspace], { encoding: "utf8", windowsHide: true }));
+  fs.writeFileSync(path.join(workspace, "project.txt"), "project-owned\n", "utf8");
+  const workspaceBefore = fs.readdirSync(workspace).sort();
+  const gitStatusBefore = spawnSync("git", ["-C", workspace, "status", "--short"], { encoding: "utf8", windowsHide: true }).stdout;
+  const mapflowHome = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-sidecars-"));
+  const enableArgs = ["enable", "--root", workspace, "--mapflow-home", mapflowHome, "--json"];
+  const firstEnable = spawnSync(process.execPath, [runtime, ...enableArgs], { cwd: workspace, encoding: "utf8" });
+  assertExit(firstEnable);
+  const enabled = JSON.parse(firstEnable.stdout);
+  assert.equal(enabled.created, true);
+  assert.equal(enabled.wayfinding_exists, true);
+  assert.equal(enabled.wayfinding_initialized, true);
+  assert.deepEqual(enabled.formal_topology, { present: false, nodes: 0, edges: 0 });
+  assert.equal(enabled.wayfinding.phase, "survey");
+  assert.equal(enabled.wayfinding.draft_nodes, 2);
+  assert.equal(enabled.wayfinding.draft_edges, 0);
+  assert.equal(enabled.wayfinding.current_question.target.id, "workspace-origin-fog");
+  const initialWayfinding = readWayfinding(enabled.paths.wayfinding).draft;
+  assert.equal(initialWayfinding.origin.kind, "fog");
+  assert.equal(initialWayfinding.destination.kind, "fog");
+  assert.equal(initialWayfinding.questions.filter((question) => question.status === "pending").length, 1);
+  assert.equal(path.relative(workspace, enabled.sidecar).startsWith(".."), true);
+  assert.equal(fs.existsSync(path.join(workspace, ".mapflow")), false);
+  const secondEnable = spawnSync(process.execPath, [runtime, ...enableArgs], { cwd: workspace, encoding: "utf8" });
+  assertExit(secondEnable);
+  assert.equal(JSON.parse(secondEnable.stdout).created, false);
+  assert.equal(JSON.parse(secondEnable.stdout).sidecar, enabled.sidecar);
+  assert.equal(JSON.parse(secondEnable.stdout).wayfinding_initialized, false);
+
+  fs.copyFileSync(path.join(installedRoot, "templates", "blueprint.yaml"), enabled.paths.map);
+  fs.cpSync(path.join(installedRoot, "templates", "briefs"), enabled.paths.briefs, { recursive: true });
+  const init = spawnSync(process.execPath, [
+    runtime, "init", "--root", workspace, "--mapflow-home", mapflowHome,
+  ], { cwd: workspace, encoding: "utf8" });
+  assertExit(init);
+  assert.ok(fs.existsSync(enabled.paths.state));
+  assert.ok(fs.existsSync(enabled.paths.events));
+  const status = spawnSync(process.execPath, [
+    runtime, "status", "--root", workspace, "--mapflow-home", mapflowHome, "--json",
+  ], { cwd: workspace, encoding: "utf8" });
+  assertExit(status);
+  assert.equal(JSON.parse(status.stdout).map_id, "publish-article");
+  assert.deepEqual(fs.readdirSync(workspace).sort(), workspaceBefore);
+  const gitStatusAfter = spawnSync("git", ["-C", workspace, "status", "--short"], { encoding: "utf8", windowsHide: true }).stdout;
+  assert.equal(gitStatusAfter, gitStatusBefore);
+
+  const installedBoardModule = await import(`${pathToFileURL(path.join(installedRoot, "runtime", "mapflow-board.mjs")).href}?test=${Date.now()}`);
+  const boardServer = installedBoardModule.createBoardServer({ mapPath: enabled.paths.map, statePath: enabled.paths.state });
   await new Promise((resolve, reject) => {
     boardServer.once("error", reject);
     boardServer.listen(0, "127.0.0.1", resolve);
@@ -895,36 +2026,12 @@ test("installer creates a self-contained v0.3 runtime without touching AGENTS.md
   } finally {
     await new Promise((resolve) => boardServer.close(resolve));
   }
-  assertExit(runInstaller(target), 1);
-  fs.mkdirSync(path.join(target, ".agents", "skills", "node-delivery"), { recursive: true });
-  fs.writeFileSync(path.join(target, ".agents", "skills", "node-delivery", "SKILL.md"), "obsolete\n", "utf8");
-  fs.writeFileSync(path.join(target, ".mapflow", "templates", "work-item.md"), "obsolete\n", "utf8");
-  assertExit(runInstaller(target, "--force"));
-  assert.equal(fs.existsSync(path.join(target, ".agents", "skills", "node-delivery")), false);
-  assert.equal(fs.existsSync(path.join(target, ".mapflow", "templates", "work-item.md")), false);
-});
 
-test("global installer preserves the user-authored entry behavior and installs edge skills", () => {
-  const userProfile = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-global-"));
-  const globalRoot = path.join(userProfile, ".agents", "skills");
-  assertExit(runGlobalInstaller(userProfile));
-  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "SKILL.md")));
-  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "workflow.md")));
-  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "blueprint.md")));
-  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "skill-routing.md")));
-  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "skills", "edge-slicing", "SKILL.md")));
-  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "skills", "edge-delivery", "SKILL.md")));
-  const entry = fs.readFileSync(path.join(globalRoot, "mapflow", "SKILL.md"), "utf8");
-  assert.match(entry, /全局包：`references\/workflow\.md`/);
-  assert.match(entry, /项目状态：`\.mapflow\/state\.json`/);
-  assert.match(entry, /内含 Skill：`skills\/<name>\/SKILL\.md`/);
-  assert.doesNotMatch(entry, /`\.\.\/<name>\/SKILL\.md`/);
-  assert.match(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: true/);
-  const globalManifest = JSON.parse(fs.readFileSync(path.join(globalRoot, "mapflow", "install-manifest.json"), "utf8"));
-  assert.equal(globalManifest.runtime, "project-local:.mapflow/mapflow.mjs");
   assertExit(runGlobalInstaller(userProfile), 1);
   fs.mkdirSync(path.join(globalRoot, "mapflow", "skills", "node-slicing"), { recursive: true });
   fs.writeFileSync(path.join(globalRoot, "mapflow", "skills", "node-slicing", "SKILL.md"), "obsolete\n", "utf8");
+  fs.writeFileSync(path.join(globalRoot, "mapflow", "references", "blueprint.md"), "obsolete\n", "utf8");
   assertExit(runGlobalInstaller(userProfile, "--force"));
   assert.equal(fs.existsSync(path.join(globalRoot, "mapflow", "skills", "node-slicing")), false);
+  assert.equal(fs.existsSync(path.join(globalRoot, "mapflow", "references", "blueprint.md")), false);
 });

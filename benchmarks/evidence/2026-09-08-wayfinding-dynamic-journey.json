@@ -1,0 +1,73 @@
+{
+  "schema": "mapflow.synthetic-user-precheck/v1",
+  "created_at": "2026-09-08T03:36:18+08:00",
+  "product_version": "0.5.5",
+  "label": "synthetic user precheck",
+  "question": "Can a personal Mapflow user recover an ownerless human gate, read the current truth, and inspect and collapse a submap without confusing projection changes with truth changes?",
+  "target_user": "personal Mapflow user working through a multi-step project",
+  "critical_journey": [
+    "read destination, phase, reachability, arrival, and current gate",
+    "identify the ownerless-request recovery action and its effects",
+    "double-click the submap from the navigation list",
+    "inspect parent edge, child map, acceptance, and receipt",
+    "collapse the submap and verify the truth revision is unchanged"
+  ],
+  "deterministic": {
+    "regression": { "passed": true, "tests": 100, "failed": 0, "duration_seconds": 59.5 },
+    "board": { "passed": true, "tests": 27, "failed": 0 },
+    "runtime": { "passed": true, "tests": 51, "failed": 0 },
+    "case_packages": { "passed": true, "passed_cases": 7, "failed_cases": 0 },
+    "syntax_checks": { "passed": true, "files": 5 },
+    "diff_check": { "passed": true }
+  },
+  "browser_observation": {
+    "ownerless_gate_action": "补登路线确认责任人",
+    "ownerless_gate_actor": "当前会话 Agent",
+    "submap_objects": [5, 12, 5],
+    "truth_revision": "77973b1bd02a",
+    "truth_revision_changed": false,
+    "parent_edge": "complete-workshop-preparation",
+    "child_map": "prepare-community-workshop",
+    "acceptance": "1/1",
+    "receipt": "workshop-preparation-receipt-1"
+  },
+  "panel": [
+    { "role": "low-patience personal user", "verdict": "continue", "score": 89, "first_value_seconds": 15.2, "p0": 0, "p1": 0 },
+    { "role": "truth and continuity auditor", "verdict": "continue", "score": 90, "first_value_seconds": 12.884, "p0": 0, "p1": 0 },
+    { "role": "interaction design auditor", "verdict": "continue", "score": 82, "first_value_seconds": 11.5, "p0": 0, "p1": 0 }
+  ],
+  "aggregate": {
+    "gate": "ready-for-small-human-test",
+    "median_score": 89,
+    "continue": 3,
+    "reviewers": 3,
+    "confirmed_p0": 0,
+    "confirmed_p1": 0
+  },
+  "remaining_nonblocking_findings": [
+    "expanded canvas labels remain small in the current layout",
+    "first-time users may need one expansion to understand the truth-count and view-object difference",
+    "one historical evidence message remains in English"
+  ],
+  "global_install": {
+    "installed": true,
+    "version": "0.5.5",
+    "profile": "core",
+    "path": "C:\\Users\\chaoyuan12\\.agents\\skills\\mapflow",
+    "source_hash_files_compared": 33,
+    "source_hash_files_matched": 33
+  },
+  "not_run": [
+    "fresh real Codex Agent segments on v0.5.5",
+    "complete Greenfield journey",
+    "seven-case Release matrix"
+  ],
+  "human_only_unknowns": [
+    "real repeated use",
+    "accessibility",
+    "large and deeply nested maps",
+    "long-running concurrent refresh",
+    "project success rate",
+    "market demand"
+  ]
+}

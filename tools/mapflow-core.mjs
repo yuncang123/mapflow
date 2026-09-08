@@ -14,6 +14,9 @@ const PREDICATE_KINDS = new Set(["state", "authorization", "resource", "progress
 const CERTAINTIES = new Set(["expected", "conditional"]);
 const FAILURE_ACTIONS = new Set(["replan", "branch", "stop"]);
 const EVIDENCE_KINDS = new Set(["git", "document", "command", "receipt", "meeting", "note", "observation", "external"]);
+const EVIDENCE_STRENGTHS = new Set(["asserted", "observed", "corroborated"]);
+const INTENT_STATES = new Set(["draft", "shaped"]);
+const PARENT_CLOSE_POLICIES = new Set(["preserve", "cancel", "invalidate"]);
 
 export class ModelError extends Error {}
 
@@ -84,11 +87,15 @@ function requireReferences(values, known, label) {
 
 function validateEvidenceRef(value, label) {
   const ref = object(value, label);
-  allowedKeys(ref, ["kind", "ref", "observed_at"], label);
+  allowedKeys(ref, ["kind", "ref", "observed_at", "strength", "source_event"], label);
   string(ref.kind, `${label}.kind`);
   if (!EVIDENCE_KINDS.has(ref.kind)) fail(`${label}.kind is invalid: ${ref.kind}`);
   string(ref.ref, `${label}.ref`);
   if (ref.observed_at !== undefined) string(ref.observed_at, `${label}.observed_at`);
+  if (ref.strength !== undefined && !EVIDENCE_STRENGTHS.has(ref.strength)) {
+    fail(`${label}.strength is invalid: ${ref.strength}`);
+  }
+  if (ref.source_event !== undefined) id(ref.source_event, `${label}.source_event`);
 }
 
 function assertCompatiblePredicates(predicateIds, predicateMap, label) {
@@ -106,13 +113,28 @@ function assertCompatiblePredicates(predicateIds, predicateMap, label) {
 export function validateBlueprint(value) {
   const blueprint = object(value, "blueprint");
   allowedKeys(blueprint, [
-    "schema_version", "map_id", "destination", "predicates", "initial_state", "assumptions",
-    "invariants", "boundaries", "nodes", "edges", "loops", "extensions",
+    "schema_version", "map_id", "intent", "destination", "predicates", "initial_state", "assumptions",
+    "invariants", "boundaries", "nodes", "edges", "loops", "submaps", "extensions",
   ], "blueprint");
   if (blueprint.schema_version !== BLUEPRINT_SCHEMA_VERSION) {
     fail(`unsupported blueprint schema: ${blueprint.schema_version}`);
   }
   id(blueprint.map_id, "map_id");
+
+  if (blueprint.intent === undefined) {
+    blueprint.intent = {
+      statement: blueprint.destination?.statement ?? "Legacy Mapflow intent",
+      status: "shaped",
+      open_questions: [],
+      legacy_inferred: true,
+    };
+  }
+  const intent = object(blueprint.intent, "intent");
+  allowedKeys(intent, ["statement", "status", "open_questions", "legacy_inferred"], "intent");
+  string(intent.statement, "intent.statement");
+  if (!INTENT_STATES.has(intent.status)) fail(`intent.status is invalid: ${intent.status}`);
+  meaningfulStrings(intent.open_questions, "intent.open_questions", { nonEmpty: false });
+  if (intent.legacy_inferred !== undefined && intent.legacy_inferred !== true) fail("intent.legacy_inferred must be true when present");
 
   const destination = object(blueprint.destination, "destination");
   allowedKeys(destination, ["statement", "requires", "invariants", "acceptance"], "destination");
@@ -252,13 +274,18 @@ export function validateBlueprint(value) {
     if (!FAILURE_ACTIONS.has(onFailure.action)) fail(`edge ${edge.id}.on_failure.action is invalid: ${onFailure.action}`);
     if (onFailure.action === "branch") {
       id(onFailure.to, `edge ${edge.id}.on_failure.to`);
-      requireReferences([onFailure.to], nodeMap, `edge ${edge.id}.on_failure.to`);
     } else if (onFailure.to !== undefined) {
       fail(`edge ${edge.id}.on_failure.to is only valid for branch`);
     }
   }
   for (const invariant of invariantMap.values()) {
     requireReferences(invariant.applies_to, edgeMap, `invariant ${invariant.id}.applies_to`);
+  }
+  for (const edge of edgeMap.values()) {
+    if (edge.on_failure.action === "branch") {
+      requireReferences([edge.on_failure.to], edgeMap, `edge ${edge.id}.on_failure.to`);
+      if (edge.on_failure.to === edge.id) fail(`edge ${edge.id}.on_failure.to cannot branch to itself`);
+    }
   }
   const destinationInvariantPredicates = destination.invariants.flatMap((invariantId) => invariantMap.get(invariantId).requires);
   assertCompatiblePredicates(
@@ -290,6 +317,48 @@ export function validateBlueprint(value) {
     if (!Number.isInteger(loop.max_iterations) || loop.max_iterations < 1) {
       fail(`loop ${loop.id}.max_iterations must be a positive integer`);
     }
+  }
+
+  if (blueprint.submaps === undefined) blueprint.submaps = [];
+  const submaps = array(blueprint.submaps, "submaps");
+  const submapMap = collectionMap(submaps, "submaps");
+  const boundEdges = new Set();
+  for (const binding of submapMap.values()) {
+    allowedKeys(binding, [
+      "id", "parent_edge", "map_ref", "state_ref", "expected_map_id", "expected_map_digest",
+      "await", "on_parent_close", "exports",
+    ], `submap ${binding.id}`);
+    id(binding.parent_edge, `submap ${binding.id}.parent_edge`);
+    requireReferences([binding.parent_edge], edgeMap, `submap ${binding.id}.parent_edge`);
+    if (boundEdges.has(binding.parent_edge)) fail(`edge ${binding.parent_edge} has more than one submap binding`);
+    boundEdges.add(binding.parent_edge);
+    for (const field of ["map_ref", "state_ref", "expected_map_id", "expected_map_digest"]) {
+      string(binding[field], `submap ${binding.id}.${field}`);
+    }
+    if (path.isAbsolute(binding.map_ref) || path.isAbsolute(binding.state_ref)) {
+      fail(`submap ${binding.id} map_ref and state_ref must be relative to the parent blueprint`);
+    }
+    id(binding.expected_map_id, `submap ${binding.id}.expected_map_id`);
+    if (!/^[a-f0-9]{64}$/.test(binding.expected_map_digest)) fail(`submap ${binding.id}.expected_map_digest must be a sha256 hex digest`);
+    if (binding.await !== "arrival") fail(`submap ${binding.id}.await must be arrival`);
+    if (!PARENT_CLOSE_POLICIES.has(binding.on_parent_close)) {
+      fail(`submap ${binding.id}.on_parent_close is invalid: ${binding.on_parent_close}`);
+    }
+    const exports = array(binding.exports, `submap ${binding.id}.exports`, { nonEmpty: true });
+    const exportMap = collectionMap(exports, `submap ${binding.id}.exports`);
+    const parentEdge = edgeMap.get(binding.parent_edge);
+    const exportedParentPredicates = new Set();
+    for (const item of exportMap.values()) {
+      allowedKeys(item, ["id", "child_acceptance", "child_predicates", "proves_parent"], `submap ${binding.id} export ${item.id}`);
+      id(item.child_acceptance, `submap ${binding.id} export ${item.id}.child_acceptance`);
+      ids(item.child_predicates, `submap ${binding.id} export ${item.id}.child_predicates`, { nonEmpty: true });
+      ids(item.proves_parent, `submap ${binding.id} export ${item.id}.proves_parent`, { nonEmpty: true });
+      const outside = item.proves_parent.filter((predicateId) => !parentEdge.effects.includes(predicateId));
+      if (outside.length > 0) fail(`submap ${binding.id} exports predicates outside parent edge effects: ${outside.join(", ")}`);
+      item.proves_parent.forEach((predicateId) => exportedParentPredicates.add(predicateId));
+    }
+    const uncoveredEffects = parentEdge.effects.filter((predicateId) => !exportedParentPredicates.has(predicateId));
+    if (uncoveredEffects.length > 0) fail(`submap ${binding.id} does not export parent edge effects: ${uncoveredEffects.join(", ")}`);
   }
 
   const acceptanceCoverage = new Set(acceptance.flatMap((item) => item.proves));
@@ -390,6 +459,48 @@ export function readBlueprint(filePath) {
     brief_digests: briefDigests,
     briefs,
   };
+}
+
+export function validateSubmapTree(filePath) {
+  const rootPath = path.resolve(filePath);
+  const seenMapIds = new Map();
+  let bindings = 0;
+  function visit(currentPath, ancestors = []) {
+    const identityPath = process.platform === "win32" ? currentPath.toLowerCase() : currentPath;
+    if (ancestors.includes(identityPath)) fail(`submap cycle detected at: ${currentPath}`);
+    const loaded = readBlueprint(currentPath);
+    const previousPath = seenMapIds.get(loaded.blueprint.map_id);
+    if (previousPath) fail(`duplicate submap map_id ${loaded.blueprint.map_id}: ${previousPath}, ${currentPath}`);
+    seenMapIds.set(loaded.blueprint.map_id, identityPath);
+    const directory = path.dirname(currentPath);
+    for (const binding of loaded.blueprint.submaps) {
+      bindings += 1;
+      const childPath = path.resolve(directory, binding.map_ref.replaceAll("/", path.sep));
+      const childIdentityPath = process.platform === "win32" ? childPath.toLowerCase() : childPath;
+      if ([...ancestors, identityPath].includes(childIdentityPath)) fail(`submap cycle detected at: ${childPath}`);
+      const child = readBlueprint(childPath);
+      if (child.blueprint.map_id !== binding.expected_map_id) {
+        fail(`submap ${binding.id} expected map_id ${binding.expected_map_id}, found ${child.blueprint.map_id}`);
+      }
+      if (child.digest !== binding.expected_map_digest) {
+        fail(`submap ${binding.id} expected digest ${binding.expected_map_digest}, found ${child.digest}; restore the pinned child version or initialize a successor parent map`);
+      }
+      const acceptanceMap = new Map(child.blueprint.destination.acceptance.map((item) => [item.id, item]));
+      const predicateIds = new Set(child.blueprint.predicates.map((item) => item.id));
+      for (const exported of binding.exports) {
+        const acceptance = acceptanceMap.get(exported.child_acceptance);
+        if (!acceptance) fail(`submap ${binding.id} export ${exported.id} references unknown child acceptance: ${exported.child_acceptance}`);
+        const unknownPredicates = exported.child_predicates.filter((predicateId) => !predicateIds.has(predicateId));
+        if (unknownPredicates.length > 0) fail(`submap ${binding.id} export ${exported.id} references unknown child predicates: ${unknownPredicates.join(", ")}`);
+        const notCovered = exported.child_predicates.filter((predicateId) => !acceptance.proves.includes(predicateId));
+        if (notCovered.length > 0) fail(`submap ${binding.id} export ${exported.id} predicates lack acceptance coverage: ${notCovered.join(", ")}`);
+      }
+      visit(childPath, [...ancestors, identityPath]);
+    }
+    return loaded;
+  }
+  const loaded = visit(rootPath);
+  return { ...loaded, maps: seenMapIds.size, bindings };
 }
 
 export function initialFacts(blueprint) {
@@ -980,4 +1091,184 @@ export function proveBlueprint(blueprint, observedFacts = initialFacts(blueprint
     assumptions_used: seeded.usedAssumptions,
     proof_gaps: gaps,
   };
+}
+
+// Goal regression is a projection of the route-design reasoning. It deliberately
+// keeps hypothetical suffix proofs separate from observed runtime facts.
+export function buildGoalRegression(blueprint, observedFacts = initialFacts(blueprint), { proof = null, destinationStatus = "draft", loopIterations = {} } = {}) {
+  validateBlueprint(blueprint);
+  const { predicates: predicateMap, nodes: nodeMap, edges: edgeMap, invariants: invariantMap } = maps(blueprint);
+  const facts = structuredClone(observedFacts);
+  const forwardProof = proof ?? proveBlueprint(blueprint, facts);
+  const observedNodeIds = new Set();
+  for (const node of blueprint.nodes) {
+    const settled = node.predicates.every((predicateId) => {
+      const predicate = predicateMap.get(predicateId);
+      const value = factValue(facts, predicate.fact);
+      return value === predicate.equals && !["unknown", "conflict"].includes(value);
+    });
+    if (settled) observedNodeIds.add(node.id);
+  }
+  const modelReachableNodeIds = new Set(forwardProof.reachable_nodes ?? []);
+  const destinationNode = blueprint.nodes.find((node) => node.kind === "destination")
+    ?? blueprint.nodes.find((node) => node.id === blueprint.map_id)
+    ?? null;
+  const destinationPredicateIds = [...new Set([
+    ...blueprint.destination.requires,
+    ...blueprint.destination.invariants.flatMap((invariantId) => invariantMap.get(invariantId).requires),
+  ])];
+  const invariantRequirements = (edge) => invariantPredicates(edge, blueprint, invariantMap);
+
+  const targetPredicatesFor = (nodeId, root = false) => {
+    const node = nodeMap.get(nodeId);
+    return [...new Set(root ? destinationPredicateIds : (node?.predicates ?? []))];
+  };
+  const statusForNode = (nodeId) => {
+    const node = nodeMap.get(nodeId);
+    if (!node) return "unreachable";
+    if (node.predicates.some((predicateId) => ["unknown", "conflict"].includes(factValue(facts, predicateMap.get(predicateId).fact)))) {
+      return "fog";
+    }
+    if (observedNodeIds.has(nodeId)) return "observed";
+    if (modelReachableNodeIds.has(nodeId)) {
+      return forwardProof.reachability === "conditional" ? "conditional" : "logical";
+    }
+    return "unreachable";
+  };
+  const suffixForNode = (nodeId, root = false) => {
+    const node = nodeMap.get(nodeId);
+    const seeded = structuredClone(facts);
+    const seededPredicates = targetPredicatesFor(nodeId, root);
+    for (const predicateId of seededPredicates) {
+      const predicate = predicateMap.get(predicateId);
+      seeded[predicate.fact] = { value: predicate.equals, evidence: [] };
+    }
+    const suffixProof = proveBlueprint(blueprint, seeded, { loopIterations });
+    return {
+      status: suffixProof.destination_reachable
+        ? suffixProof.reachability
+        : "unreachable",
+      structural: suffixProof.structural,
+      destination_reachable: suffixProof.destination_reachable,
+      proven_edges: [...(suffixProof.proven_edges ?? [])],
+      proof_gaps: (suffixProof.proof_gaps ?? []).filter((gap) => (
+        !gap.at_edge || suffixProof.candidate_edges?.includes(gap.at_edge)
+      )),
+      seeded_predicates: seededPredicates,
+      target_node: node?.id ?? nodeId,
+    };
+  };
+
+  const stepMap = new Map();
+  const queue = [];
+  if (destinationNode) queue.push({ nodeId: destinationNode.id, depth: 0, root: true });
+  else queue.push({ nodeId: "<destination>", depth: 0, root: true });
+  const queuedDepth = new Map();
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const existingDepth = queuedDepth.get(current.nodeId);
+    if (existingDepth !== undefined && existingDepth <= current.depth) continue;
+    queuedDepth.set(current.nodeId, current.depth);
+    const targetNode = nodeMap.get(current.nodeId) ?? {
+      id: current.nodeId,
+      label: blueprint.destination.statement,
+      kind: "destination",
+      predicates: destinationPredicateIds,
+    };
+    const targetPredicates = targetPredicatesFor(current.nodeId, current.root);
+    const declaredIncoming = [...edgeMap.values()].filter((edge) => edge.to === targetNode.id);
+    const producers = declaredIncoming.length > 0
+      ? declaredIncoming
+      : [...edgeMap.values()].filter((edge) => (
+        edge.effects.some((effectId) => targetPredicates.includes(effectId))
+        || (current.root && destinationPredicateIds.some((predicateId) => edge.effects.includes(predicateId)))
+      ));
+    const suffix = suffixForNode(current.nodeId, current.root);
+    const prefixStatus = statusForNode(current.nodeId);
+    const step = {
+      depth: current.depth,
+      target_node: targetNode.id,
+      target_label: targetNode.label,
+      target_kind: targetNode.kind,
+      required_predicates: targetPredicates,
+      prefix_reachability: {
+        status: prefixStatus,
+        observed: observedNodeIds.has(current.nodeId),
+        modeled: modelReachableNodeIds.has(current.nodeId),
+      },
+      suffix_proof: suffix,
+      bridge_status: suffix.status === "unreachable"
+        ? "suffix-unproven"
+        : observedNodeIds.has(current.nodeId)
+          ? "connected"
+          : modelReachableNodeIds.has(current.nodeId)
+            ? "model-only"
+            : "awaiting-prefix",
+      confirmed: true,
+      human_confirmed: true,
+      formal: true,
+      confirmation_source: "formal-blueprint",
+      incoming_edges: producers.map((edge) => {
+        const requirements = [...new Set([
+          ...nodeMap.get(edge.from).predicates,
+          ...edge.preconditions,
+          ...invariantRequirements(edge),
+        ])];
+        return {
+          edge_id: edge.id,
+          from: edge.from,
+          to: edge.to,
+          required_predicates: requirements,
+          effects: [...edge.effects],
+          brief_ref: edge.brief_ref,
+          certainty: edge.certainty,
+          acceptance_contract: cloneContracts(edge.evidence_contract),
+          non_goals: [],
+          suffix_proven: suffix.proven_edges.includes(edge.id),
+          confirmed: true,
+          human_confirmed: true,
+          formal: true,
+          confirmation_source: "formal-blueprint",
+        };
+      }),
+    };
+    stepMap.set(current.nodeId, step);
+    for (const edge of producers) {
+      if (nodeMap.has(edge.from)) queue.push({ nodeId: edge.from, depth: current.depth + 1, root: false });
+    }
+  }
+
+  const steps = [...stepMap.values()].sort((left, right) => left.depth - right.depth || left.target_node.localeCompare(right.target_node));
+  const edges = [...new Set(steps.flatMap((step) => step.incoming_edges.map((edge) => edge.edge_id)))];
+  const originNode = blueprint.nodes.find((node) => node.kind === "fog")
+    ?? blueprint.nodes.find((node) => node.predicates.some((predicateId) => (
+      predicateSatisfied(predicateId, facts, blueprint)
+    )))
+    ?? null;
+  const terminalSteps = steps.filter((step) => step.incoming_edges.length === 0);
+  const completeChain = terminalSteps.length > 0 && terminalSteps.every((step) => {
+    const node = nodeMap.get(step.target_node);
+    return node?.kind === "fog" || observedNodeIds.has(step.target_node);
+  });
+  return {
+    roots: destinationNode ? [destinationNode.id] : [],
+    origin_nodes: originNode ? [originNode.id] : [],
+    destination: destinationNode ? {
+      node_id: destinationNode.id,
+      label: destinationNode.label,
+      status: blueprint.intent.status === "draft" || destinationStatus === "draft" ? "fog" : "defined",
+    } : {
+      node_id: null,
+      label: blueprint.destination.statement,
+      status: "fog",
+    },
+    steps,
+    edge_ids: edges,
+    complete_chain: completeChain,
+    generated_from: "destination-backward-regression",
+  };
+}
+
+function cloneContracts(contracts) {
+  return (contracts ?? []).map((contract) => structuredClone(contract));
 }

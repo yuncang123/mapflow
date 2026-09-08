@@ -19,6 +19,7 @@
       <div>
         <p class="eyebrow">MAPFLOW / FIELD VIEW</p>
         <h1 id="destination-title">正在读取地图…</h1>
+        <p id="destination-context" class="destination-context"></p>
       </div>
     </div>
     <div class="status-rack" aria-label="地图状态摘要">
@@ -41,6 +42,26 @@
     </div>
   </header>
 
+  <section id="current-action" class="current-action" aria-labelledby="current-action-title" aria-live="polite">
+    <div class="current-action-heading">
+      <p class="eyebrow">CURRENT GATE</p>
+      <span id="current-action-state" class="current-action-state">读取中</span>
+      <h2 id="current-action-title">正在确定下一动作…</h2>
+    </div>
+    <div class="current-action-field current-action-question">
+      <span>当前问题</span>
+      <strong id="current-action-question">—</strong>
+    </div>
+    <div class="current-action-field">
+      <span>责任人</span>
+      <strong id="current-action-owner">—</strong>
+    </div>
+    <div class="current-action-field">
+      <span>完成后</span>
+      <strong id="current-action-after">—</strong>
+    </div>
+  </section>
+
   <main class="workbench">
     <aside class="route-lens" aria-labelledby="route-lens-title">
       <div class="panel-heading">
@@ -61,12 +82,14 @@
         <button type="button" class="lens-button is-active" data-lens="proven" aria-pressed="true">当前路线</button>
         <button type="button" class="lens-button" data-lens="all" aria-pressed="false">全部候选</button>
         <button type="button" class="lens-button" data-lens="fog" aria-pressed="false">迷雾与缺口</button>
+        <button type="button" class="lens-button" data-lens="goal-regression" aria-pressed="false">目标回归</button>
       </div>
 
-      <div id="map-counts" class="map-counts" aria-label="地图计数"></div>
+      <p class="count-scope-label">主地图真相计数</p>
+      <div id="map-counts" class="map-counts" aria-label="主地图真相计数"></div>
 
       <div class="element-list-heading">
-        <span>可导航对象</span>
+        <span>当前视图对象</span>
         <span id="visible-count" class="mono">0</span>
       </div>
       <div id="element-list" class="element-list" aria-live="polite"></div>
@@ -75,7 +98,7 @@
     <section class="map-stage" aria-labelledby="map-stage-title">
       <div class="map-toolbar">
         <div>
-          <p class="eyebrow">SURVEY CANVAS</p>
+          <p id="canvas-eyebrow" class="eyebrow">MAP CANVAS</p>
           <h2 id="map-stage-title">当前地图</h2>
         </div>
         <div class="toolbar-actions">
@@ -84,6 +107,8 @@
         </div>
       </div>
       <div class="canvas-frame">
+        <div id="wayfinding-rail" class="wayfinding-rail" hidden aria-label="建模阶段"></div>
+        <div id="canvas-explanation" class="canvas-explanation" hidden></div>
         <div class="bearing bearing-top" aria-hidden="true">N · 000°</div>
         <div class="bearing bearing-side" aria-hidden="true">E · 090°</div>
         <div id="cy" role="application" aria-label="Mapflow 状态节点和工作边地图"></div>
@@ -91,8 +116,10 @@
         <div class="map-legend" aria-label="地图图例">
           <span><i class="legend-line active"></i>活动边</span>
           <span><i class="legend-line verified"></i>已验证</span>
-          <span><i class="legend-node fog"></i>迷雾</span>
-          <span><i class="legend-node gap"></i>缺口</span>
+              <span><i class="legend-node fog"></i>迷雾</span>
+              <span><i class="legend-node destination-fog"></i>目的地迷雾</span>
+              <span><i class="legend-node gap"></i>缺口</span>
+              <span><i class="legend-line regression"></i>反向回归候选</span>
         </div>
       </div>
     </section>

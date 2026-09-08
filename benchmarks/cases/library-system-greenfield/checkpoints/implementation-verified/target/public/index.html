@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7f8f5">
+    <title>Shelfwise · 社区图书室</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="header-inner">
+        <a class="brand" href="/" aria-label="Shelfwise 首页">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span>
+            <strong>Shelfwise</strong>
+            <small>社区图书室</small>
+          </span>
+        </a>
+        <div class="header-status" aria-label="当前借阅概况">
+          <span>当前借出</span>
+          <strong id="loan-count">--</strong>
+          <button class="icon-button" id="refresh-loans" type="button" title="刷新当前借阅" aria-label="刷新当前借阅">↻</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="workspace-grid">
+      <section class="ledger" aria-labelledby="ledger-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">借阅台账</p>
+            <h1 id="ledger-title">当前借阅</h1>
+          </div>
+          <p class="updated-at" id="updated-at">正在读取</p>
+        </div>
+
+        <div class="loan-columns" aria-hidden="true">
+          <span>图书</span>
+          <span>读者</span>
+          <span>借出时间</span>
+          <span></span>
+        </div>
+        <div class="loan-list" id="loan-list" aria-live="polite" aria-busy="true">
+          <div class="loading-state">正在读取借阅记录…</div>
+        </div>
+      </section>
+
+      <section class="action-panel" aria-labelledby="action-title">
+        <div class="section-heading compact-heading">
+          <div>
+            <p class="eyebrow">流通办理</p>
+            <h2 id="action-title">办理</h2>
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="办理类型">
+          <button id="tab-loan" type="button" role="tab" aria-selected="true" aria-controls="panel-loan" data-panel="loan" tabindex="0">借书</button>
+          <button id="tab-book" type="button" role="tab" aria-selected="false" aria-controls="panel-book" data-panel="book" tabindex="-1">登记图书</button>
+          <button id="tab-reader" type="button" role="tab" aria-selected="false" aria-controls="panel-reader" data-panel="reader" tabindex="-1">登记读者</button>
+        </div>
+
+        <div class="tab-panel" id="panel-loan" role="tabpanel" aria-labelledby="tab-loan">
+          <form id="loan-form">
+            <div class="field-row">
+              <label for="loan-book-id">图书编号</label>
+              <input id="loan-book-id" name="bookId" type="number" min="1" step="1" inputmode="numeric" placeholder="例如 12" required>
+            </div>
+            <div class="field-row">
+              <label for="loan-reader-id">读者编号</label>
+              <input id="loan-reader-id" name="readerId" type="number" min="1" step="1" inputmode="numeric" placeholder="例如 8" required>
+            </div>
+            <p class="form-message" role="alert"></p>
+            <button class="primary-button" type="submit">确认借出</button>
+          </form>
+        </div>
+
+        <div class="tab-panel" id="panel-book" role="tabpanel" aria-labelledby="tab-book" hidden>
+          <form id="book-form">
+            <div class="field-row">
+              <label for="book-title">书名</label>
+              <input id="book-title" name="title" autocomplete="off" required>
+            </div>
+            <div class="field-row">
+              <label for="book-author">作者</label>
+              <input id="book-author" name="author" autocomplete="off">
+            </div>
+            <div class="field-row">
+              <label for="book-isbn">ISBN</label>
+              <input id="book-isbn" name="isbn" inputmode="numeric" autocomplete="off">
+            </div>
+            <p class="form-message" role="alert"></p>
+            <button class="primary-button" type="submit">登记图书</button>
+          </form>
+        </div>
+
+        <div class="tab-panel" id="panel-reader" role="tabpanel" aria-labelledby="tab-reader" hidden>
+          <form id="reader-form">
+            <div class="field-row">
+              <label for="reader-name">姓名</label>
+              <input id="reader-name" name="name" autocomplete="name" required>
+            </div>
+            <div class="field-row">
+              <label for="reader-contact">联系方式</label>
+              <input id="reader-contact" name="contact" autocomplete="off">
+            </div>
+            <p class="form-message" role="alert"></p>
+            <button class="primary-button" type="submit">登记读者</button>
+          </form>
+        </div>
+
+        <aside class="action-result" id="action-result" aria-live="polite" hidden>
+          <span id="result-kicker">办理完成</span>
+          <strong id="result-title"></strong>
+          <small id="result-detail"></small>
+        </aside>
+      </section>
+    </main>
+  </body>
+</html>
