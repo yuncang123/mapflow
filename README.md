@@ -6,7 +6,7 @@
 反向目标回归 → 正向可达性证明 → 反例驱动修图
 ```
 
-Mapflow 使用四值 Fact、Predicate 派生的 State Node、独立 Work Edge、Task Brief 和 Evidence Record，把人脑中的工作路线以及人与 Agent、工具、文档、Git、会议、外部系统的流式协作落成可证明的地图。v0.5 把完整运行时安装在用户级目录，并按本地工作区建立仓库外 sidecar；Mapflow 是本地仓库的助手，不成为仓库内容或 Git 真相的一部分。完整行为只在 [docs/workflow.md](docs/workflow.md) 定义。
+Mapflow 使用四值 Fact、Predicate 派生的 State Node、独立 Work Edge、Task Brief 和 Evidence Record，把人脑中的工作路线以及人与 Agent、工具、文档、Git、会议、外部系统的流式协作落成可证明的地图。v0.6 把完整运行时安装在用户级目录，按本地工作区建立仓库外 sidecar，并可从真实空白状态回放地图演化；Mapflow 是本地仓库的助手，不成为仓库内容或 Git 真相的一部分。完整行为只在 [docs/workflow.md](docs/workflow.md) 定义。
 
 ## 开始
 
@@ -31,13 +31,14 @@ node tools/mapflow.mjs wayfinding-answer --root D:/path/to/workspace \
   --question <question-id> --answer "<human answer>" --evidence-ref note:<source>
 ```
 
-Windows 默认把 Mapflow 数据放到 `%LOCALAPPDATA%/Mapflow/workspaces/<workspace-id>/`；Linux/macOS 使用 `$XDG_STATE_HOME/mapflow` 或 `~/.local/state/mapflow`。可用绝对且位于工作区之外的 `MAPFLOW_HOME` 覆盖。Blueprint、Brief、events、state 和看板运行数据均不写入目标仓库。
+Windows 默认把 Mapflow 数据放到 `%LOCALAPPDATA%/Mapflow/workspaces/<workspace-id>/`；Linux/macOS 使用 `$XDG_STATE_HOME/mapflow` 或 `~/.local/state/mapflow`。可用绝对且位于工作区之外的 `MAPFLOW_HOME` 覆盖。Blueprint、Brief、Wayfinding/runtime events、state 和看板运行数据均不写入目标仓库。
 
 ```text
 <mapflow-home>/workspaces/<workspace-id>/
 ├─ workspace.json
-   └─ current/
+└─ current/
    ├─ wayfinding.yaml
+   ├─ wayfinding-events.jsonl
    ├─ blueprint.yaml
    ├─ briefs/
    ├─ events.jsonl
@@ -59,13 +60,21 @@ node tools/mapflow.mjs prove --map templates/blueprint.yaml
 node tools/mapflow.mjs board --map templates/blueprint.yaml
 ```
 
-浏览器打开 `http://127.0.0.1:4173`。看板每秒检查一次 Blueprint、Task Brief 和运行状态；内容未变时由 ETag 返回 `304`，状态变化不会打乱视口，只有节点或边的拓扑变化才重新布图。当前工作区已经启用并建图后，直接启动运行态看板：
+浏览器打开 `http://127.0.0.1:4173`。看板每秒检查一次 Blueprint、Task Brief 和运行状态；内容未变时由 ETag 返回 `304`。底部“地图演化镜头”可从真实空白帧开始，逐步回放勘探、目的地定形、反向目标回归、正式建图、路线/施工人工门、Evidence 和到达审计；历史态只读，当前真相更新时只提示，不会强制跳回。当前工作区已经启用并建图后，直接启动运行态看板：
 
 ```bash
 node tools/mapflow.mjs board
 ```
 
-看板只读显示 Intent、Fact 可信度、Proposal、Decision、Edge Run、Evidence、Acceptance 和 stale；勘探阶段还会显示 `wayfinding.yaml` 中的始发候选、完整目的地合同、候选工作边和每个问题的建模目标，但这些对象不计入正式拓扑。问题回答和草稿更新后会动态刷新；“目标回归”镜头从目的地按里程碑向始发地展开，并分别显示目标侧后缀证明、当前事实前缀和尚未接通的桥。父边绑定子地图时，收缩态投影为一个可点击摘要节点，展开后同一节点成为原图内的 compound container；任意深度的子图按语义 binding path 逐层读取并使用独立 namespace，展开状态只留在浏览器会话。每个回归节点和工作边都必须有带来源的独立人工确认；候选链闭合后写入 Blueprint，首次用 `init` 登记，已有正式地图的局部修订才用 `replan`。
+看板只读显示 Intent、Fact 可信度、Proposal、Decision、Edge Run、Evidence、Acceptance 和 stale；勘探阶段还会显示 `wayfinding.yaml` 中的始发候选、完整目的地合同、候选工作边和每个问题的建模目标，但这些对象不计入正式拓扑。问题回答和草稿更新后会动态刷新并追加可信演化帧；“目标回归”镜头从目的地按里程碑向始发地展开，并分别显示目标侧后缀证明、当前事实前缀和尚未接通的桥。父边绑定子地图时，实时态收缩为一个可点击摘要节点，展开后同一节点成为原图内的 compound container；历史父帧不会混入子地图当前态。每个回归节点和工作边都必须有带来源的独立人工确认；候选链闭合后写入 Blueprint，首次用 `init` 登记并桥接 Wayfinding journal，已有正式地图的局部修订才用 `replan`。完整行为和兼容边界见 [工作流](docs/workflow.md)。
+
+要直接验收一条从空白到到达审计的软件项目演化链，运行：
+
+```bash
+npm run demo:evolution
+```
+
+它会在系统临时目录创建一个空 Git 工作区，通过真实 CLI 建立“个人图书管理系统 MVP”地图并启动本地看板。演示中的人工身份和检查是确定性 fixture，只证明 Mapflow 产品链路，不代表真实项目交付。细节见 [图书管理系统演化演示](examples/library-system-evolution/README.md)。
 
 查看一套已经完成父子回执的非编码 fixture：
 

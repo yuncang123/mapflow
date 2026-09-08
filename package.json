@@ -1,6 +1,6 @@
 {
   "name": "mapflow",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "description": "Evidence-driven multiresolution work mapping workflow",
@@ -11,7 +11,8 @@
     "test:regression": "node tools/benchmark.mjs deterministic-test --level runtime",
     "benchmark:doctor": "node tools/benchmark.mjs doctor",
     "benchmark:list": "node tools/benchmark.mjs list",
-    "benchmark:plan": "node tools/benchmark.mjs regression-plan"
+    "benchmark:plan": "node tools/benchmark.mjs regression-plan",
+    "demo:evolution": "node tools/evolution-demo.mjs"
   },
   "bin": {
     "mapflow": "./tools/mapflow.mjs"

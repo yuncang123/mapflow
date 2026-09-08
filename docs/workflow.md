@@ -11,11 +11,11 @@ Mapflow 维护五层边界：
 ```text
 Definition（Blueprint） → Event（append-only） → Run/Evidence → Fact → Projection（state/看板）
 ```
-Workspace Sidecar 内的 `events.jsonl` 是运行事件真相，`state.json` 是可重建的当前投影。Projection 可以动态刷新，但不反向宣布事实。逻辑可达只表示模型内存在路线，不表示现实已经到达。
+Workspace Sidecar 内的 `wayfinding-events.jsonl` 是候选建模历史，`events.jsonl` 是正式运行事件真相，`state.json` 是可重建的当前投影。首次 `init` 的 runtime event 用 digest bridge 固定当时的 Wayfinding head，使空白、建模和实施可以连续审计，同时不混淆候选真相与正式运行真相。Projection 可以动态刷新和回放，但不反向宣布事实。逻辑可达只表示模型内存在路线，不表示现实已经到达。
 
 Mapflow 采用两层所有权：用户级安装包拥有入口 Skill、runtime、看板、模板和引用文档；每个本地工作区拥有一个由 Workspace Identity 绑定的仓库外 sidecar，其中保存当前 Blueprint、Brief、events 和 state。Git worktree 以 canonical worktree root 区分，普通目录以自身路径区分；remote URL 和共享 Git common dir 不参与身份，避免 fork 或多个 worktree 串图。Mapflow 可以读取目标工作区并把 Git 状态作为 realization/evidence，但不得把自身文件写入目标工作区或加入其 Git。
 
-用户级入口只需 bootstrap 安装一次。此后用户明确说“启用 mapflow”时，入口第一步必须执行幂等 `enable --root <当前工作目录> --json`：不存在则建立 sidecar，并在尚无 Blueprint/State/Wayfinding 时创建包含“始发地仍在迷雾中”“目的地仍在迷雾中”和一个始发勘探问题的初始 `wayfinding.yaml`；已存在则恢复同一路径且不覆盖任何草稿。两枚迷雾节点是仓库外候选真相，不是占位 Blueprint，不计入正式拓扑，也不表示存在连接路径。`enable` 不把遗留 `.mapflow` 自动迁移成新真相。默认 state home 遵循本机用户状态目录，`MAPFLOW_HOME` 仅接受位于工作区之外的绝对路径覆盖；解析结果落入工作区时必须拒绝。
+用户级入口只需 bootstrap 安装一次。此后用户明确说“启用 mapflow”时，入口第一步必须执行幂等 `enable --root <当前工作目录> --json`：不存在则建立 sidecar，先在 `wayfinding-events.jsonl` 记录“尚无地图”的真实空白帧，再创建并记录包含“始发地仍在迷雾中”“目的地仍在迷雾中”和一个始发勘探问题的初始 `wayfinding.yaml`；已存在则恢复同一路径且不覆盖任何草稿。两枚迷雾节点是仓库外候选真相，不是占位 Blueprint，不计入正式拓扑，也不表示存在连接路径。`enable` 不把遗留 `.mapflow` 自动迁移成新真相；升级前已经存在的 Wayfinding 只能建立 `partial` migration anchor，不能补造空白和既往问答。默认 state home 遵循本机用户状态目录，`MAPFLOW_HOME` 仅接受位于工作区之外的绝对路径覆盖；解析结果落入工作区时必须拒绝。
 
 ## 2. 阶段与入口语句
 
@@ -176,6 +176,8 @@ Agent 随后用 `request-authorization --edge ... --question ...` 建立一个�
 
 ### 5.3 追加事件与重建
 
+`wayfinding-answer` 和发生语义变化的 `wayfinding-write` 都必须把 actor、确认目标、原因、来源引用和规范化草稿快照追加到 `wayfinding-events.jsonl`。纯 `updated_at` 变化不产生演化帧。Wayfinding 当前 YAML 与 journal head 不一致、seq/hash/digest 损坏或追加失败时，命令恢复修改前文件并拒绝继续，不能让当前草稿与演化历史静默分叉。首次 `init` 后该 Wayfinding segment 被 bridge 冻结，后续 `wayfinding-answer/write` 必须拒绝；已登记地图的变化通过带精确范围和 change set 的 `replan` 进入 runtime stream。
+
 每个 runtime transition 使用 CloudEvents 风格的 `id/source/type/time/subject/data` envelope，并加连续 `seq`、`base_revision`、`previous_digest`、actor 和事件摘要。保存顺序是先追加 event，再原子替换 state；若中断导致二者不一致，普通命令和看板拒绝继续。校验同时覆盖 envelope、map/stream identity、seq、source/id 唯一性、base revision、hash chain，以及 state 内容是否等于最新事件携带的 projection。`rebuild --events ...` 只从通过这些检查的事件恢复 state。没有 `--force` 时拒绝从被截短的 stream 回滚已有投影。
 
 state 还冻结 `brief_snapshots`，使看板在冷启动后遇到 Blueprint 或 Task Brief 的未登记改动时，仍能显示批准时的 Brief 原文；当前文件只能作为 stale 提示，不能替换冻结合同。旧 schema 2 state 缺少该字段时按空快照兼容读取。
@@ -264,6 +266,10 @@ node <runtime> board --root path/to/workspace
 看板首屏只投影一个当前动作门，明确显示“谁处理、处理什么、完成后发生什么”。`ready` 只表示工作边前置条件满足；路线未批准、施工授权未请求或未获人工回答时，界面不得把它称为“可执行”。旧状态若已经到达但缺少两阶段 Route Approval 记录，显示为“历史到达记录，当前批准 ID 不可用”，不能伪造批准，也不能显示成“尚未批准”。
 
 服务只绑定 `127.0.0.1`，默认端口为 `4173`，可用 `--port` 修改。浏览器通过 ETag 轮询：同一拓扑的 Fact、run、proposal、edge、evidence 与 acceptance 变化只更新样式和检查器，节点或边的增删与重连才重新布图。绑定子地图的父边在收缩态由一个可点击摘要节点替代，节点用父边业务标题显示 child phase、Acceptance、receipt 和 stale，并可双击展开；展开后同一节点成为 namespaced Cytoscape compound container，按需请求 `/api/submaps/<binding-path>`，路径如 `preparation/venue-selection`，projection-only portal edge 保持父图方向。收缩和键盘操作均通过选中容器后的检查器按钮完成。展开/收缩和视口只存浏览器会话，不写 Blueprint、events 或 state。
+
+“地图演化镜头”通过只读 `/api/evolution` 和 `/api/evolution/frames/<segment>:<seq>` 按历史 snapshot 重建当时的完整 BoardModel，而不是从最终图倒推动画。用户可以拖动原生 range、前后步、播放/暂停、调速和回到实时态；每帧同时显示 actor、目标对象、变化原因，以及节点、边、Fact、Evidence 和 Acceptance 的语义差异。历史态必须醒目标识为只读；后台仍轮询当前真相，但只提示新增帧，不得抢走用户当前历史视图。完整性损坏时回放 fail closed；旧 sidecar 明确显示 partial coverage。
+
+父、子地图保留独立事件流。父历史帧不能混入 child 当前态；第一版历史父帧禁用子地图展开并说明应进入 child 独立演化流。Map Receipt 固定 child revision，后续组合回放以 root/children stream-head vector 和 receipt pin 表达因果关系，绝不按墙上时间把 sibling child 伪装成权威全序。
 
 只给 `board --map ...` 时进入定义态，不会意外混入当前工作区 sidecar 的 state；`board --root ...` 才按 Workspace Identity 读取运行事实。诊断或 fixture 可以显式传 `--state`，但这不是面向实际项目的默认入口。
 

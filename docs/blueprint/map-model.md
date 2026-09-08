@@ -1,4 +1,4 @@
-# Mapflow v0.5 地图模型
+# Mapflow v0.6 地图模型
 
 本文件解释 `templates/blueprint.yaml` 和 `templates/blueprint.schema.json` 的领域关系。行为顺序以 `docs/workflow.md` 为准。
 
@@ -87,7 +87,7 @@ Loop 列出参与循环的边、progress predicate、exit predicate 和 `max_ite
 
 用户级 runtime 先按 Workspace Identity 解析仓库外 Workspace Sidecar。Git worktree 使用 canonical worktree root，非 Git 工作使用当前目录；每个 sidecar 用 manifest 反向校验绑定根目录，身份不一致时 fail closed。Blueprint、Brief、事件和投影都属于 sidecar，目标工作区只作为事实、执行和证据来源。
 
-sidecar 的 `events.jsonl` 追加 CloudEvents 风格 envelope，并用 seq 与 hash chain 形成 runtime 真相；`state.json` 使用 schema 2 保存可重建投影。每个事件携带 transition details 和 projection snapshot，`rebuild` 可验证后恢复 state；事件重复、截断、篡改或 event/state head 不一致会阻塞。
+sidecar 的 `wayfinding-events.jsonl` 以 `mapflow.wayfinding-event/v1` 保存空白、问题回答和候选草稿快照，`events.jsonl` 追加 CloudEvents 风格 envelope 并用 seq 与 hash chain 形成 runtime 真相；`state.json` 使用 schema 2 保存可重建投影。首次 runtime event 以 `source_wayfinding` digest bridge 固定候选 journal head。每个 runtime event 携带 transition details 和 projection snapshot，`rebuild` 可验证后恢复 state；事件重复、截断、篡改、bridge 不一致或 event/state head 不一致都会阻塞回放或继续写入。旧 sidecar 没有完整 Wayfinding journal 时只能声明 partial coverage，不能根据最终 Blueprint 伪造过去。
 
 state 保存 Blueprint identity/digest/snapshot、冻结的 Task Brief snapshots、phase、destination status、Route Approval Requests、Route Approvals、Authorization Requests、Arrival Audit Requests、active run/edge、Edge Runs、Decision Records、Work Events、Proposals、Map Receipts、verified edges 及其冻结合同、loop iterations、observed facts、derived satisfied nodes、最近 proof 和 Evidence Record。Evidence Record 以通用 executor 标识人工、Agent、工具或外部系统；只有 Agent executor 需要模型与推理元数据。digest 同时覆盖 Blueprint 和所有绑定 Task Brief 的内容。状态投影以 `actual_arrival: audited/not-audited` 区分逻辑可达与实际到达。Blueprint 或 Brief 在批准后发生变化会阻塞，必须显式 replan；replan 同时撤销当前 Route Approval，并使 pending 路线批准、施工授权与到达审计请求失效。arrived 状态不会接纳地图变更或刷新状态证明。
 

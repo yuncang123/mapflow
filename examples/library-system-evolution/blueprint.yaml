@@ -1,0 +1,102 @@
+schema_version: 2
+map_id: library-system-mvp
+
+intent:
+  statement: 为个人藏书建立可搜索、可借还、可验收的本地 MVP
+  status: shaped
+  open_questions: []
+
+destination:
+  statement: 个人图书管理系统 MVP 已通过自动检查和核心旅程演示
+  requires: [mvp-built, tests-pass, demo-accepted]
+  invariants: []
+  acceptance:
+    - id: library-tests-pass
+      proves: [mvp-built, tests-pass]
+      proof: 自动检查覆盖新增、搜索、借出和归还
+    - id: library-demo-accepted
+      proves: [demo-accepted]
+      proof: Owner 按核心旅程完成回读
+
+predicates:
+  - { id: repository-present, fact: repository-present, equals: "true", kind: state }
+  - { id: core-journey-unknown, fact: core-journey-known, equals: unknown, kind: state }
+  - { id: core-journey-known, fact: core-journey-known, equals: "true", kind: state }
+  - { id: mvp-built, fact: mvp-built, equals: "true", kind: state }
+  - { id: tests-pass, fact: tests-pass, equals: "true", kind: state }
+  - { id: demo-accepted, fact: demo-accepted, equals: "true", kind: state }
+
+initial_state:
+  facts:
+    - id: repository-present
+      value: "true"
+      evidence: [{ kind: git, ref: "demo workspace initialized" }]
+    - { id: core-journey-known, value: unknown, evidence: [] }
+    - { id: mvp-built, value: "false", evidence: [{ kind: observation, ref: "no implementation exists" }] }
+    - { id: tests-pass, value: "false", evidence: [{ kind: observation, ref: "tests have not run" }] }
+    - { id: demo-accepted, value: "false", evidence: [{ kind: observation, ref: "demo has not been audited" }] }
+
+assumptions: []
+invariants: []
+
+boundaries:
+  in_scope: [新增、搜索、借出、归还的本地单用户核心旅程]
+  out_of_scope: [多用户权限、云同步、推荐算法、生产部署]
+  authorization: [每条工作边单独获得 Owner 授权]
+
+nodes:
+  - id: workspace-origin-fog
+    kind: fog
+    label: 仓库存在，核心旅程尚未确认
+    predicates: [repository-present, core-journey-unknown]
+  - id: core-journey-confirmed
+    kind: state
+    label: 核心用户旅程已确认
+    predicates: [repository-present, core-journey-known]
+  - id: mvp-implemented
+    kind: state
+    label: MVP 已实现并通过自动检查
+    predicates: [mvp-built, tests-pass]
+  - id: workspace-destination-fog
+    kind: destination
+    label: MVP 已通过核心旅程验收
+    predicates: [mvp-built, tests-pass, demo-accepted]
+
+edges:
+  - id: confirm-core-journey
+    from: workspace-origin-fog
+    to: core-journey-confirmed
+    brief_ref: briefs/confirm-core-journey.md
+    preconditions: [repository-present, core-journey-unknown]
+    effects: [core-journey-known]
+    invariants: []
+    certainty: expected
+    evidence_contract:
+      - { id: core-journey-record, proves: [core-journey-known], required: true }
+    on_failure: { action: replan }
+  - id: implement-library-mvp
+    from: core-journey-confirmed
+    to: mvp-implemented
+    brief_ref: briefs/implement-library-mvp.md
+    preconditions: [repository-present, core-journey-known]
+    effects: [mvp-built, tests-pass]
+    invariants: []
+    certainty: expected
+    evidence_contract:
+      - { id: implementation-and-tests, proves: [mvp-built, tests-pass], required: true }
+    on_failure: { action: replan }
+  - id: accept-library-mvp
+    from: mvp-implemented
+    to: workspace-destination-fog
+    brief_ref: briefs/accept-library-mvp.md
+    preconditions: [mvp-built, tests-pass]
+    effects: [demo-accepted]
+    invariants: []
+    certainty: expected
+    evidence_contract:
+      - { id: owner-demo-record, proves: [demo-accepted], required: true }
+    on_failure: { action: replan }
+
+loops: []
+submaps: []
+extensions: { x-purpose: evolution-demo }

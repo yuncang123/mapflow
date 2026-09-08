@@ -136,6 +136,46 @@
     </aside>
   </main>
 
+  <section id="evolution-player" class="evolution-player" aria-labelledby="evolution-title">
+    <div class="evolution-heading">
+      <div>
+        <p class="eyebrow">EVOLUTION LENS</p>
+        <h2 id="evolution-title">地图演化镜头</h2>
+      </div>
+      <div class="evolution-status-line">
+        <span id="evolution-mode" class="evolution-mode is-live">实时态</span>
+        <span id="evolution-coverage" class="evolution-coverage">正在读取演化记录</span>
+      </div>
+    </div>
+    <div class="evolution-controls" role="group" aria-label="地图演化播放控制">
+      <button id="evolution-first" type="button" class="quiet-button" title="第一帧">|◀</button>
+      <button id="evolution-previous" type="button" class="quiet-button" title="上一帧">◀</button>
+      <button id="evolution-play" type="button" class="evolution-play" aria-pressed="false">播放</button>
+      <button id="evolution-next" type="button" class="quiet-button" title="下一帧">▶</button>
+      <button id="evolution-live" type="button" class="quiet-button">回到实时</button>
+      <label class="evolution-slider-field" for="evolution-slider">
+        <span class="sr-only">选择演化帧</span>
+        <input id="evolution-slider" type="range" min="0" max="0" value="0" step="1" disabled aria-valuetext="尚无可回放帧">
+      </label>
+      <label class="evolution-speed-field" for="evolution-speed">
+        <span>速度</span>
+        <select id="evolution-speed">
+          <option value="2000">0.5×</option>
+          <option value="1000" selected>1×</option>
+          <option value="500">2×</option>
+        </select>
+      </label>
+    </div>
+    <div class="evolution-reading" aria-live="polite">
+      <div>
+        <span id="evolution-counter" class="mono">实时</span>
+        <strong id="evolution-summary">当前真相持续刷新</strong>
+        <span id="evolution-meta">历史回放不会写入 Sidecar</span>
+      </div>
+      <p id="evolution-diff">选择任一历史帧查看节点、边、Fact、Evidence 与验收的变化。</p>
+    </div>
+  </section>
+
   <footer class="soundings" aria-labelledby="soundings-title">
     <div class="soundings-heading">
       <div>

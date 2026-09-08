@@ -69,6 +69,27 @@ export function createBoardServer({ mapPath = null, statePath = null, assetsRoot
         return;
       }
       const url = new URL(request.url ?? "/", `http://${HOST}`);
+      if (url.pathname === "/api/evolution") {
+        const snapshot = readSnapshot.readEvolutionCatalog();
+        if (request.headers["if-none-match"] === snapshot.etag) {
+          response.writeHead(304, { ...securityHeaders("application/json; charset=utf-8"), ETag: snapshot.etag });
+          response.end();
+          return;
+        }
+        sendJson(response, 200, snapshot.model, { ETag: snapshot.etag });
+        return;
+      }
+      const evolutionFrameMatch = url.pathname.match(/^\/api\/evolution\/frames\/(wayfinding|runtime):(\d+)$/);
+      if (evolutionFrameMatch) {
+        const snapshot = readSnapshot.readEvolutionFrame(`${evolutionFrameMatch[1]}:${evolutionFrameMatch[2]}`);
+        if (request.headers["if-none-match"] === snapshot.etag) {
+          response.writeHead(304, { ...securityHeaders("application/json; charset=utf-8"), ETag: snapshot.etag });
+          response.end();
+          return;
+        }
+        sendJson(response, 200, snapshot.model, { ETag: snapshot.etag });
+        return;
+      }
       if (url.pathname === "/api/board" || url.pathname === "/health") {
         const snapshot = readSnapshot();
         if (request.headers["if-none-match"] === snapshot.etag) {

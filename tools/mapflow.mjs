@@ -20,6 +20,16 @@ import {
 } from "./mapflow-core.mjs";
 import { WorkspaceError, resolveWorkspace } from "./mapflow-workspace.mjs";
 import { WayfindingError, answerWayfindingQuestion, initialWayfindingDraft, readWayfinding, writeWayfinding } from "./mapflow-wayfinding.mjs";
+import {
+  EvolutionError,
+  appendWayfindingEvent,
+  ensureWayfindingMigrationAnchor,
+  fileCheckpoint,
+  readWayfindingEvents,
+  restoreFileCheckpoint,
+  semanticWayfindingDigest,
+  workspaceIdentityForState,
+} from "./mapflow-evolution.mjs";
 
 const PHASES = new Set(["wayfinding", "implementation", "arrived"]);
 const DESTINATION_STATES = new Set(["draft", "approved", "changed"]);
@@ -347,7 +357,7 @@ function projectionSnapshot(state) {
 
 function appendPendingEvent(statePath, state) {
   const pending = PENDING_EVENTS.get(state);
-  if (!pending) return;
+  if (!pending) return null;
   const previous = state.event_stream?.head_digest ?? null;
   const seq = (state.event_stream?.last_seq ?? 0) + 1;
   const source = `mapflow://${state.map_id}`;
@@ -373,6 +383,7 @@ function appendPendingEvent(statePath, state) {
   };
   envelope.event_digest = eventDigest(envelope);
   const eventsPath = eventsPathForState(statePath, state);
+  const checkpoint = fileCheckpoint(eventsPath);
   fs.mkdirSync(path.dirname(eventsPath), { recursive: true });
   fs.appendFileSync(eventsPath, `${JSON.stringify(envelope)}\n`, "utf8");
   state.event_stream = {
@@ -380,17 +391,27 @@ function appendPendingEvent(statePath, state) {
     last_seq: seq,
     head_digest: envelope.event_digest,
   };
-  PENDING_EVENTS.delete(state);
+  return { eventsPath, checkpoint };
 }
 
 function saveState(statePath, state, { appendEvent = true } = {}) {
   validateState(state);
-  if (appendEvent) appendPendingEvent(statePath, state);
-  validateState(state);
-  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  const previousEventStream = structuredClone(state.event_stream);
   const temporary = `${statePath}.tmp-${process.pid}`;
-  fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-  fs.renameSync(temporary, statePath);
+  let eventAppend = null;
+  try {
+    if (appendEvent) eventAppend = appendPendingEvent(statePath, state);
+    validateState(state);
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    fs.renameSync(temporary, statePath);
+    PENDING_EVENTS.delete(state);
+  } catch (error) {
+    fs.rmSync(temporary, { force: true });
+    if (eventAppend) restoreFileCheckpoint(eventAppend.eventsPath, eventAppend.checkpoint);
+    state.event_stream = previousEventStream;
+    throw error;
+  }
 }
 
 function record(state, event, details = {}) {
@@ -818,6 +839,73 @@ function printHelp() {
   process.stdout.write("  board      serve a read-only dynamic map (--map MAP, --port PORT)\n");
 }
 
+function sha256File(filePath) {
+  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
+function wayfindingPathsForState(statePath) {
+  const directory = path.dirname(path.resolve(statePath));
+  return {
+    draftPath: path.join(directory, "wayfinding.yaml"),
+    eventsPath: path.join(directory, "wayfinding-events.jsonl"),
+  };
+}
+
+function assertWayfindingJournalMatchesCurrent(eventsPath, draftPath) {
+  const journal = readWayfindingEvents(eventsPath);
+  if (!journal.events.length || !fs.existsSync(draftPath)) return journal;
+  const recorded = journal.events.at(-1).data.draft_digest;
+  const actual = sha256File(draftPath);
+  if (recorded !== actual) {
+    fail(`wayfinding draft does not match the event journal head: ${draftPath}`);
+  }
+  return journal;
+}
+
+function mutateWayfindingWithEvent(statePath, event, mutate) {
+  if (fs.existsSync(statePath)) {
+    fail("formal runtime already exists; preserve the bridged Wayfinding segment and register bounded changes with replan");
+  }
+  const { draftPath, eventsPath } = wayfindingPathsForState(statePath);
+  const draftCheckpoint = fileCheckpoint(draftPath);
+  const journalCheckpoint = fileCheckpoint(eventsPath);
+  const workspaceId = workspaceIdentityForState(statePath);
+  try {
+    ensureWayfindingMigrationAnchor({ eventsPath, wayfindingPath: draftPath, workspaceId });
+    assertWayfindingJournalMatchesCurrent(eventsPath, draftPath);
+    const result = mutate(draftPath);
+    const loaded = readWayfinding(draftPath);
+    appendWayfindingEvent(eventsPath, {
+      workspaceId,
+      ...event(result, loaded),
+      snapshot: loaded.draft,
+      draftDigest: loaded.digest,
+      coverage: readWayfindingEvents(eventsPath).coverage.complete ? "complete" : "partial",
+      coverageReason: readWayfindingEvents(eventsPath).coverage.reason,
+    });
+    return { result, loaded };
+  } catch (error) {
+    restoreFileCheckpoint(draftPath, draftCheckpoint);
+    restoreFileCheckpoint(eventsPath, journalCheckpoint);
+    throw error;
+  }
+}
+
+function sourceWayfindingBridge(statePath) {
+  const { draftPath, eventsPath } = wayfindingPathsForState(statePath);
+  if (!fs.existsSync(draftPath)) return null;
+  const workspaceId = workspaceIdentityForState(statePath);
+  ensureWayfindingMigrationAnchor({ eventsPath, wayfindingPath: draftPath, workspaceId });
+  const journal = assertWayfindingJournalMatchesCurrent(eventsPath, draftPath);
+  return {
+    stream: journal.events.at(-1).stream,
+    seq: journal.events.length,
+    head_digest: journal.head_digest,
+    draft_digest: sha256File(draftPath),
+    coverage: journal.coverage.complete ? "complete" : "partial",
+  };
+}
+
 function commandEnable(options) {
   const workspace = resolveWorkspace({
     root: options.get("root") ?? process.cwd(),
@@ -830,8 +918,50 @@ function commandEnable(options) {
     && !fs.existsSync(workspace.statePath)
     && !fs.existsSync(workspace.wayfindingPath)
   ) {
-    writeWayfinding(workspace.wayfindingPath, initialWayfindingDraft());
-    wayfindingInitialized = true;
+    const draftCheckpoint = fileCheckpoint(workspace.wayfindingPath);
+    const journalCheckpoint = fileCheckpoint(workspace.wayfindingEventsPath);
+    try {
+      appendWayfindingEvent(workspace.wayfindingEventsPath, {
+        workspaceId: workspace.workspace_id,
+        type: "mapflow.workspace.enabled.v1",
+        actor: "system:mapflow",
+        subject: `workspace/${workspace.workspace_id}`,
+        summary: "启用 Mapflow；此时尚无地图",
+        reason: "为真实演化建立可验证的空白起点",
+        target: { kind: "workspace", id: workspace.workspace_id },
+        snapshot: null,
+        coverage: "complete",
+        details: { formal_nodes: 0, formal_edges: 0, sidecar_truth: "absent-before-enable" },
+      });
+      const written = writeWayfinding(workspace.wayfindingPath, initialWayfindingDraft());
+      appendWayfindingEvent(workspace.wayfindingEventsPath, {
+        workspaceId: workspace.workspace_id,
+        type: "mapflow.wayfinding.initialized.v1",
+        actor: "system:mapflow",
+        subject: "node/workspace-origin-fog",
+        summary: "建立始发地迷雾与目的地迷雾",
+        reason: "从现场勘探问题开始，而不是预设正式地图",
+        target: { kind: "node", id: "workspace-origin-fog" },
+        snapshot: written.draft,
+        draftDigest: written.digest,
+        coverage: "complete",
+      });
+      wayfindingInitialized = true;
+    } catch (error) {
+      restoreFileCheckpoint(workspace.wayfindingPath, draftCheckpoint);
+      restoreFileCheckpoint(workspace.wayfindingEventsPath, journalCheckpoint);
+      throw error;
+    }
+  } else if (
+    fs.existsSync(workspace.wayfindingPath)
+    && !fs.existsSync(workspace.statePath)
+    && !fs.existsSync(workspace.wayfindingEventsPath)
+  ) {
+    ensureWayfindingMigrationAnchor({
+      eventsPath: workspace.wayfindingEventsPath,
+      wayfindingPath: workspace.wayfindingPath,
+      workspaceId: workspace.workspace_id,
+    });
   }
   const wayfinding = fs.existsSync(workspace.wayfindingPath)
     ? readWayfinding(workspace.wayfindingPath).draft
@@ -870,6 +1000,7 @@ function commandEnable(options) {
       briefs: workspace.briefsPath,
       state: workspace.statePath,
       events: workspace.eventsPath,
+      wayfinding_events: workspace.wayfindingEventsPath,
     },
     legacy_project_state: workspace.legacy_project_state,
   };
@@ -890,16 +1021,32 @@ function commandEnable(options) {
 }
 
 function commandWayfindingAnswer(statePath, options) {
-  const draftPath = path.join(path.dirname(path.resolve(statePath)), "wayfinding.yaml");
+  const { draftPath } = wayfindingPathsForState(statePath);
   if (!fs.existsSync(draftPath)) fail(`wayfinding draft is missing: ${draftPath}`);
   const refs = options.get("evidence-ref")
     ? outcomeRefs(new Map([["outcome-ref", options.get("evidence-ref")]]))
     : [];
-  const result = answerWayfindingQuestion(draftPath, {
-    questionId: required(options, "question"),
-    answer: required(options, "answer"),
-    evidenceRefs: refs,
-  });
+  const questionId = required(options, "question");
+  const answer = required(options, "answer");
+  const { result } = mutateWayfindingWithEvent(
+    statePath,
+    (answered) => ({
+      type: "mapflow.wayfinding.question.answered.v1",
+      actor: options.get("actor") ?? "human:owner",
+      subject: `question/${answered.question.id}`,
+      summary: `回答建模问题：${answered.question.prompt}`,
+      reason: answered.question.answer,
+      target: answered.question.target,
+      details: {
+        question_id: answered.question.id,
+        answer: answered.question.answer,
+        evidence_refs: answered.question.evidence_refs,
+        applied_updates: answered.appliedUpdates,
+        pending_updates: answered.pendingUpdates,
+      },
+    }),
+    (targetPath) => answerWayfindingQuestion(targetPath, { questionId, answer, evidenceRefs: refs }),
+  );
   process.stdout.write(`answered wayfinding question: ${result.question.id}; target: ${result.question.target.kind}:${result.question.target.id}\n`);
   process.stdout.write(`automatically advanced: ${result.appliedUpdates.join(", ") || "question status only"}\n`);
   process.stdout.write(`still requires modeling confirmation: ${result.pendingUpdates.join(", ") || "none"}\n`);
@@ -955,13 +1102,50 @@ function assertHumanConfirmationTransitions(current, candidate) {
 }
 
 function commandWayfindingWrite(statePath, options) {
-  const draftPath = path.join(path.dirname(path.resolve(statePath)), "wayfinding.yaml");
+  if (fs.existsSync(statePath)) {
+    fail("formal runtime already exists; preserve the bridged Wayfinding segment and register bounded changes with replan");
+  }
+  const { draftPath, eventsPath } = wayfindingPathsForState(statePath);
   const sourcePath = path.resolve(process.cwd(), required(options, "draft-file"));
   if (path.resolve(sourcePath) === path.resolve(draftPath)) fail("draft-file must be a separate candidate file");
   const { draft } = readWayfinding(sourcePath);
   const current = fs.existsSync(draftPath) ? readWayfinding(draftPath).draft : null;
   assertHumanConfirmationTransitions(current, draft);
-  const { digest } = writeWayfinding(draftPath, draft);
+  if (current && semanticWayfindingDigest(current) === semanticWayfindingDigest(draft)) {
+    assertWayfindingJournalMatchesCurrent(eventsPath, draftPath);
+    const digest = sha256File(draftPath);
+    const summary = {
+      path: path.resolve(draftPath),
+      digest,
+      phase: current.phase,
+      nodes: current.nodes.length,
+      edges: current.edges.length,
+      questions: current.questions.length,
+      changed: false,
+    };
+    process.stdout.write(options.has("json") ? `${JSON.stringify(summary, null, 2)}\n` : `wayfinding draft unchanged: ${draftPath}\n`);
+    return;
+  }
+  const previousPhase = current?.phase ?? "empty";
+  const { loaded: { digest } } = mutateWayfindingWithEvent(
+    statePath,
+    () => ({
+      type: "mapflow.wayfinding.draft.written.v1",
+      actor: options.get("actor") ?? "agent:codex",
+      subject: `wayfinding/${draft.destination?.id ?? draft.origin.id}`,
+      summary: `更新建模草稿：${previousPhase} → ${draft.phase}`,
+      reason: options.get("reason") ?? "将已确认的建模结果投影到画板",
+      target: draft.questions.find((question) => (question.status ?? "pending") === "pending")?.target
+        ?? { kind: "destination", id: draft.destination.id },
+      details: {
+        previous_phase: previousPhase,
+        phase: draft.phase,
+        candidate_nodes: draft.nodes.length,
+        candidate_edges: draft.edges.length,
+      },
+    }),
+    (targetPath) => writeWayfinding(targetPath, draft),
+  );
   const summary = {
     path: path.resolve(draftPath),
     digest,
@@ -969,6 +1153,7 @@ function commandWayfindingWrite(statePath, options) {
     nodes: draft.nodes.length,
     edges: draft.edges.length,
     questions: draft.questions.length,
+    changed: true,
   };
   process.stdout.write(options.has("json") ? `${JSON.stringify(summary, null, 2)}\n` : `wrote validated wayfinding draft: ${draftPath}\n`);
 }
@@ -992,6 +1177,7 @@ function commandInit(statePath, options) {
   if (fs.existsSync(statePath) && !options.has("force")) fail(`state already exists: ${statePath} (use --force to replace)`);
   const absoluteMap = path.resolve(process.cwd(), required(options, "map"));
   const { blueprint, digest, brief_digests: briefDigests, briefs } = validateSubmapTree(absoluteMap);
+  const sourceWayfinding = sourceWayfindingBridge(statePath);
   const state = {
     schema: STATE_SCHEMA_VERSION,
     phase: "wayfinding",
@@ -1033,7 +1219,11 @@ function commandInit(statePath, options) {
     fs.rmSync(initialEventsPath, { force: true });
   }
   refreshDerivedState(state, blueprint);
-  record(state, "initialized", { structural: state.last_proof.structural, reachability: state.last_proof.reachability });
+  record(state, "initialized", {
+    structural: state.last_proof.structural,
+    reachability: state.last_proof.reachability,
+    ...(sourceWayfinding ? { source_wayfinding: sourceWayfinding } : {}),
+  });
   saveState(statePath, state);
   process.stdout.write(`initialized ${statePath} from ${blueprint.map_id}\n`);
 }
@@ -2103,6 +2293,6 @@ if (path.resolve(process.argv[1] ?? "") === path.resolve(fileURLToPath(import.me
     process.exitCode = await main(process.argv.slice(2));
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = error instanceof CliError || error instanceof ModelError || error instanceof WayfindingError || error instanceof WorkspaceError ? 1 : 2;
+    process.exitCode = error instanceof CliError || error instanceof ModelError || error instanceof WayfindingError || error instanceof WorkspaceError || error instanceof EvolutionError ? 1 : 2;
   }
 }

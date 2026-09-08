@@ -11,7 +11,7 @@ Mapflow 的用户级入口路由。本仓库维护副本：`docs/workflow.md`；
 
 ## 入口动作
 
-1. 以当前工作目录为 `--root`，执行 `node <runtime> enable --root <当前工作目录> --json`。这是幂等的自动启用步骤：创建或恢复仓库外 Workspace Sidecar，并返回 Blueprint、Wayfinding、Brief、events 和 state 的绝对路径。全新 sidecar 会自动包含“始发地仍在迷雾中”“目的地仍在迷雾中”和一个指向始发候选的勘探问题；它们不是正式 Blueprint，也不存在连接边。完成条件：命令成功，能够读取返回的 `workspace_root`、`sidecar`、`paths`、`formal_topology` 和 `wayfinding.current_question`。不得在目标工作区创建 `.mapflow`、复制 Skill、修改 `AGENTS.md` 或改动 Git。
+1. 以当前工作目录为 `--root`，执行 `node <runtime> enable --root <当前工作目录> --json`。这是幂等的自动启用步骤：创建或恢复仓库外 Workspace Sidecar，并返回 Blueprint、Wayfinding、Wayfinding events、Brief、runtime events 和 state 的绝对路径。全新 sidecar 会先记录真实空白帧，再自动包含“始发地仍在迷雾中”“目的地仍在迷雾中”和一个指向始发候选的勘探问题；它们不是正式 Blueprint，也不存在连接边。完成条件：命令成功，能够读取返回的 `workspace_root`、`sidecar`、`paths.wayfinding_events`、`formal_topology` 和 `wayfinding.current_question`。不得在目标工作区创建 `.mapflow`、复制 Skill、修改 `AGENTS.md` 或改动 Git。
 2. 读取目标工作区自身的约定、行为真源，以及返回路径中已经存在的 Blueprint、events 和 state。完成条件：能够报告 Intent、目的地、四值事实、证明等级、活动 Edge Run、等待/阻塞项、子地图 receipt、满足的 State Node 和 proof gaps。仓库中的遗留 `.mapflow` 只报告，不自动导入、迁移或删除。
 3. 没有 Blueprint 时，先从当前工作环境的权威来源固定起始 Fact；只有仓库型工作才加载 `repository-recon`。先回答并重写步骤 1 已创建的始发迷雾与勘探问题，不要另造第二套草稿。第一组事实确认后，把通用始发候选改为现场语义，并为当前唯一的收敛问题声明目标节点/边、目标 ID、目的和回答后更新的字段。`wayfinding.yaml` 同时最多有一个 `pending` 问题；未来节点和边只留在候选清单，当前问题经人回答、`wayfinding-answer` 留痕并更新草稿后，才建立下一个问题。然后加载 `destination-shaping`，把目标谓词、验收、不变量和 boundaries 写入候选目的地；目的地确认后再加载 `blueprint-planning` 逐项反推节点和边。每个候选先建立唯一目标问题，经带来源的明确人工回答后，`wayfinding-write` 才能升级为 `confirmed`。候选链闭合后用 `edge-slicing` 建立独立 Brief，再写入 Blueprint、执行 `validate/prove`；空白 Sidecar 用 `init` 首次登记，已有正式地图的局部修订用 `replan`。完成条件：看板能解释当前起点、完整目的地合同、唯一确认对象和候选链，正式地图通过结构校验并得到一次正向可达性结论。
 

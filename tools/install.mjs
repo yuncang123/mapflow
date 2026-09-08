@@ -59,8 +59,10 @@ function globalSourceEntries() {
     ["tools/mapflow-core.mjs", "mapflow/runtime/mapflow-core.mjs"],
     ["tools/mapflow-workspace.mjs", "mapflow/runtime/mapflow-workspace.mjs"],
     ["tools/mapflow-wayfinding.mjs", "mapflow/runtime/mapflow-wayfinding.mjs"],
+    ["tools/mapflow-evolution.mjs", "mapflow/runtime/mapflow-evolution.mjs"],
     ["tools/mapflow-board.mjs", "mapflow/runtime/mapflow-board.mjs"],
     ["tools/mapflow-board-core.mjs", "mapflow/runtime/mapflow-board-core.mjs"],
+    ["tools/evolution-demo.mjs", "mapflow/runtime/evolution-demo.mjs"],
     ["tools/board", "mapflow/runtime/board"],
     ["tools/vendor", "mapflow/runtime/vendor"],
     ["skills/mapflow/SKILL.md", "mapflow/SKILL.md"],
@@ -70,6 +72,7 @@ function globalSourceEntries() {
     ["docs/blueprint/map-model.md", "mapflow/references/blueprint/map-model.md"],
     ["templates", "mapflow/templates"],
     ["examples/community-workshop", "mapflow/examples/community-workshop"],
+    ["examples/library-system-evolution", "mapflow/examples/library-system-evolution"],
   ];
   for (const skill of CORE_SKILLS.filter((name) => name !== "mapflow")) {
     entries.push([`skills/${skill}`, `mapflow/skills/${skill}`]);
@@ -161,6 +164,7 @@ function installGlobal(targetRoot, options) {
     blueprint_schema: 2,
     workspace_schema: "mapflow.workspace/v1",
     event_schema: "mapflow.event/v1",
+    wayfinding_event_schema: "mapflow.wayfinding-event/v1",
     receipt_schema: "mapflow.arrival-receipt/v1",
     capabilities: [
       "intent",
@@ -172,6 +176,7 @@ function installGlobal(targetRoot, options) {
       "workspace-sidecar",
       "wayfinding-draft",
       "auto-enable",
+      "evolution-playback",
     ],
     runtime: "mapflow/runtime/mapflow.mjs",
   };

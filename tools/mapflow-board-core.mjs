@@ -13,7 +13,8 @@ import {
   readBlueprint,
   validateBlueprint,
 } from "./mapflow-core.mjs";
-import { readWayfinding } from "./mapflow-wayfinding.mjs";
+import { readWayfinding, validateWayfinding } from "./mapflow-wayfinding.mjs";
+import { readWayfindingEvents } from "./mapflow-evolution.mjs";
 
 export class BoardError extends Error {}
 
@@ -49,7 +50,7 @@ function stableJson(value) {
   return JSON.stringify(value);
 }
 
-function emptyBoardModel() {
+export function emptyBoardModel() {
   const intent = {
     statement: "尚未记录 Intent",
     status: "draft",
@@ -325,7 +326,7 @@ function buildWayfindingRegression({ draft, nodes, edges }) {
   };
 }
 
-function compileWayfindingBoardModel({ draft, digest, sourceStatus = "current", sourceError = null }) {
+export function compileWayfindingBoardModel({ draft, digest, sourceStatus = "current", sourceError = null }) {
   const destinationConfirmed = draft.destination
     && ["confirmed", "destination"].includes(draft.destination.status);
   const originFacts = draft.origin.facts ?? [];
@@ -624,6 +625,105 @@ function eventDigest(event) {
   const payload = clone(event);
   delete payload.event_digest;
   return hash(stableJson(payload));
+}
+
+function readRuntimeEvolutionEvents(eventsPath) {
+  if (!eventsPath || !fs.existsSync(eventsPath)) return [];
+  const lines = fs.readFileSync(eventsPath, "utf8").split(/\r?\n/).filter((line) => line.trim() !== "");
+  const events = [];
+  const identities = new Set();
+  let previous = null;
+  let streamIdentity = null;
+  for (let index = 0; index < lines.length; index += 1) {
+    const seq = index + 1;
+    let event;
+    try {
+      event = JSON.parse(lines[index]);
+    } catch (error) {
+      fail(`invalid runtime evolution event JSON at line ${seq}: ${error.message}`);
+    }
+    if (!event || typeof event !== "object" || Array.isArray(event)) fail(`runtime evolution event at seq ${seq} must be an object`);
+    if (event.schema !== "mapflow.event/v1" || event.specversion !== "1.0") fail(`unsupported runtime evolution event at seq ${seq}`);
+    for (const field of ["id", "source", "type", "time", "subject", "stream", "base_revision", "actor", "event_digest"]) {
+      if (typeof event[field] !== "string" || event[field].trim() === "") fail(`runtime evolution event ${field} is invalid at seq ${seq}`);
+    }
+    if (!event.data || typeof event.data !== "object" || Array.isArray(event.data)) fail(`runtime evolution event data is invalid at seq ${seq}`);
+    const projection = event.data.projection;
+    if (!projection || typeof projection !== "object" || Array.isArray(projection) || projection.event_stream !== undefined) {
+      fail(`runtime evolution projection is invalid at seq ${seq}`);
+    }
+    if (!/^mapflow\.[a-z0-9.]+\.v1$/.test(event.type)) fail(`runtime evolution event type is invalid at seq ${seq}`);
+    if (event.seq !== seq) fail(`runtime evolution sequence gap at line ${seq}: found ${event.seq}`);
+    if (event.previous_digest !== previous) fail(`runtime evolution hash chain is broken at seq ${seq}`);
+    if (event.event_digest !== eventDigest(event)) fail(`runtime evolution digest mismatch at seq ${seq}`);
+    if (event.base_revision !== (previous ?? projection.map_digest)) fail(`runtime evolution base revision mismatch at seq ${seq}`);
+    if (event.source !== `mapflow://${projection.map_id}` || event.stream !== `map/${projection.map_id}`) {
+      fail(`runtime evolution map identity mismatch at seq ${seq}`);
+    }
+    if (Number.isNaN(Date.parse(event.time))) fail(`runtime evolution time is invalid at seq ${seq}`);
+    const identity = `${event.source}\0${event.stream}`;
+    if (streamIdentity === null) streamIdentity = identity;
+    if (streamIdentity !== identity) fail(`runtime evolution stream identity changed at seq ${seq}`);
+    const eventIdentity = `${event.source}\0${event.id}`;
+    if (identities.has(eventIdentity)) fail(`duplicate runtime evolution event identity at seq ${seq}`);
+    identities.add(eventIdentity);
+    previous = event.event_digest;
+    events.push(event);
+  }
+  return events;
+}
+
+function eventLabel(type, details = {}) {
+  const labels = {
+    "mapflow.initialized.v1": "登记首张正式 Blueprint",
+    "mapflow.route.approved.v1": "人工批准完整路线",
+    "mapflow.edge.authorized.v1": "人工授权工作边",
+    "mapflow.edge.verified.v1": "验证工作边与 Evidence",
+    "mapflow.replan.requested.v1": "反例驱动修图",
+    "mapflow.arrival.audited.v1": "完成到达审计",
+  };
+  if (labels[type]) return labels[type];
+  const plain = type.replace(/^mapflow\./, "").replace(/\.v1$/, "").replaceAll(".", " ");
+  return details.edge ? `${plain} · ${details.edge}` : plain;
+}
+
+function evolutionDiff(previousModel, nextModel) {
+  function collectionDiff(previous = [], next = []) {
+    const before = new Map(previous.map((item) => [item.id, item]));
+    const after = new Map(next.map((item) => [item.id, item]));
+    return {
+      added: [...after.keys()].filter((id) => !before.has(id)),
+      removed: [...before.keys()].filter((id) => !after.has(id)),
+      changed: [...after.keys()].filter((id) => before.has(id) && stableJson(before.get(id)) !== stableJson(after.get(id))),
+    };
+  }
+  const nodes = collectionDiff(previousModel?.nodes, nextModel.nodes);
+  const edges = collectionDiff(previousModel?.edges, nextModel.edges);
+  const beforeFacts = previousModel?.facts ?? {};
+  const afterFacts = nextModel.facts ?? {};
+  const facts = [...new Set([...Object.keys(beforeFacts), ...Object.keys(afterFacts)])]
+    .filter((id) => stableJson(beforeFacts[id]) !== stableJson(afterFacts[id]));
+  const acceptance = collectionDiff(previousModel?.acceptance, nextModel.acceptance);
+  const beforeEvidence = new Set((previousModel?.evidence ?? []).map((item) => item.id ?? stableJson(item)));
+  const evidence = (nextModel.evidence ?? [])
+    .map((item) => item.id ?? stableJson(item))
+    .filter((id) => !beforeEvidence.has(id));
+  return { nodes, edges, facts: { changed: facts }, acceptance, evidence: { added: evidence } };
+}
+
+function markEvolutionChanges(model, diff) {
+  const addedNodes = new Set(diff.nodes.added);
+  const changedNodes = new Set(diff.nodes.changed);
+  const addedEdges = new Set(diff.edges.added);
+  const changedEdges = new Set(diff.edges.changed);
+  for (const node of model.nodes) {
+    if (addedNodes.has(node.id)) node.evolution_status = "added";
+    else if (changedNodes.has(node.id)) node.evolution_status = "changed";
+  }
+  for (const edge of model.edges) {
+    if (addedEdges.has(edge.id)) edge.evolution_status = "added";
+    else if (changedEdges.has(edge.id)) edge.evolution_status = "changed";
+  }
 }
 
 function stateFacts(state, blueprint) {
@@ -1032,6 +1132,114 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
 
   let latestContext = null;
   const childLastGood = new Map();
+  // Evolution is runtime/sidecar truth. A definition-only --map view must not
+  // discover adjacent journals and silently mix them into the projection.
+  const evolutionDirectory = statePath ? path.dirname(path.resolve(statePath)) : null;
+  const wayfindingEventsPath = evolutionDirectory ? path.join(evolutionDirectory, "wayfinding-events.jsonl") : null;
+  const runtimeEventsPath = evolutionDirectory ? path.join(evolutionDirectory, "events.jsonl") : null;
+
+  function loadEvolution() {
+    const wayfinding = wayfindingEventsPath
+      ? readWayfindingEvents(wayfindingEventsPath)
+      : { events: [], head_digest: null, coverage: { complete: false, from: null, reason: "Wayfinding history was not recorded" } };
+    const runtimeEvents = readRuntimeEvolutionEvents(runtimeEventsPath);
+    const currentWayfindingPath = evolutionDirectory ? path.join(evolutionDirectory, "wayfinding.yaml") : null;
+    if (wayfinding.events.length) {
+      if (!currentWayfindingPath || !fs.existsSync(currentWayfindingPath)) fail("recorded Wayfinding journal has no current draft");
+      const actualDraftDigest = hash(fs.readFileSync(currentWayfindingPath, "utf8"));
+      if (actualDraftDigest !== wayfinding.events.at(-1).data.draft_digest) {
+        fail("current Wayfinding draft does not match the recorded journal head");
+      }
+    }
+    let coverage = clone(wayfinding.coverage);
+    let bridge = null;
+    if (runtimeEvents.length) {
+      bridge = runtimeEvents[0].data?.details?.source_wayfinding ?? null;
+      if (wayfinding.events.length) {
+        if (!bridge) fail("runtime evolution is missing its Wayfinding digest bridge");
+        const wayfindingHead = wayfinding.events.at(-1);
+        const expectedCoverage = wayfinding.coverage.complete ? "complete" : "partial";
+        if (
+          bridge.stream !== wayfindingHead.stream
+          || bridge.seq !== wayfinding.events.length
+          || bridge.head_digest !== wayfinding.head_digest
+          || bridge.draft_digest !== wayfindingHead.data.draft_digest
+          || bridge.coverage !== expectedCoverage
+        ) {
+          fail("runtime evolution Wayfinding digest bridge does not match the recorded journal head");
+        }
+      } else {
+        coverage = {
+          complete: false,
+          from: "runtime-init",
+          reason: "Wayfinding history was not recorded before runtime initialization",
+        };
+      }
+    }
+    const frames = [
+      ...wayfinding.events.map((event) => ({
+        id: `wayfinding:${event.seq}`,
+        segment: "wayfinding",
+        seq: event.seq,
+        digest: event.event_digest,
+        at: event.time,
+        type: event.type,
+        actor: event.actor,
+        subject: event.subject,
+        phase: event.data.snapshot?.phase ?? "empty",
+        summary: event.data.summary,
+        reason: event.data.reason,
+        target: event.data.target,
+        raw: event,
+      })),
+      ...runtimeEvents.map((event) => ({
+        id: `runtime:${event.seq}`,
+        segment: "runtime",
+        seq: event.seq,
+        digest: event.event_digest,
+        at: event.time,
+        type: event.type,
+        actor: event.actor,
+        subject: event.subject,
+        phase: event.data.projection.phase,
+        summary: eventLabel(event.type, event.data.details),
+        reason: event.data.details?.reason ?? event.data.details?.answer ?? null,
+        target: event.data.details?.edge
+          ? { kind: "edge", id: event.data.details.edge }
+          : { kind: "map", id: event.data.projection.map_id },
+        bridge_from: event.seq === 1 && bridge ? { frame: `wayfinding:${bridge.seq}`, digest: bridge.head_digest } : null,
+        raw: event,
+      })),
+    ];
+    return { frames, coverage, bridge, wayfinding, runtimeEvents };
+  }
+
+  function publicFrame(frame, index, total) {
+    const { raw, ...metadata } = frame;
+    return { ...metadata, index, total };
+  }
+
+  function compileEvolutionFrame(frame) {
+    if (frame.segment === "wayfinding") {
+      const snapshot = frame.raw.data.snapshot;
+      if (snapshot === null) return emptyBoardModel();
+      validateWayfinding(clone(snapshot));
+      return compileWayfindingBoardModel({
+        draft: clone(snapshot),
+        digest: frame.raw.data.draft_digest ?? frame.digest,
+      });
+    }
+    const state = clone(frame.raw.data.projection);
+    const blueprint = validateBlueprint(clone(state.blueprint_snapshot));
+    return compileBoardModel({
+      blueprint,
+      digest: state.map_digest,
+      briefs: clone(state.brief_snapshots ?? {}),
+      state,
+      stateDigest: frame.digest,
+      submaps: [],
+    });
+  }
 
   function childSnapshot(resolvedMap, binding, parentState, { bindingPath = binding.id, includeSubmaps = false } = {}) {
     const rootDirectory = path.dirname(resolvedMap);
@@ -1229,6 +1437,96 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
     snapshot.model.projection.parent_edge = binding.parent_edge;
     snapshot.model.projection.namespace = segments.join("::");
     return { model: snapshot.model, etag: `"${snapshot.model.projection.revision}"` };
+  };
+
+  readSnapshot.readEvolutionCatalog = function readEvolutionCatalog() {
+    try {
+      const loaded = loadEvolution();
+      const frames = loaded.frames.map((frame, index) => publicFrame(frame, index, loaded.frames.length));
+      const revision = hash(stableJson({
+        wayfinding: loaded.wayfinding.head_digest,
+        runtime: loaded.runtimeEvents.at(-1)?.event_digest ?? null,
+        count: frames.length,
+      }));
+      return {
+        model: {
+          schema: 1,
+          recording_status: frames.length ? "current" : "not-recorded",
+          coverage: loaded.coverage,
+          live_frame: frames.at(-1)?.id ?? null,
+          total: frames.length,
+          frames,
+          submaps: {
+            mode: "independent-streams",
+            policy: "历史父帧不混入子地图当前态；子图按独立事件流和 receipt revision 组合",
+          },
+          error: null,
+        },
+        etag: `"${revision}"`,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const revision = hash(`evolution-gap:${message}`);
+      return {
+        model: {
+          schema: 1,
+          recording_status: "stale",
+          coverage: { complete: false, from: null, reason: message },
+          live_frame: null,
+          total: 0,
+          frames: [],
+          submaps: { mode: "independent-streams", policy: "完整性恢复前不提供历史子图" },
+          error: message,
+        },
+        etag: `"${revision}"`,
+      };
+    }
+  };
+
+  readSnapshot.readEvolutionFrame = function readEvolutionFrame(frameId) {
+    const loaded = loadEvolution();
+    const index = loaded.frames.findIndex((frame) => frame.id === frameId);
+    if (index < 0) fail(`unknown evolution frame: ${frameId}`);
+    const frame = loaded.frames[index];
+    const model = compileEvolutionFrame(frame);
+    const previousModel = index > 0 ? compileEvolutionFrame(loaded.frames[index - 1]) : null;
+    const diff = evolutionDiff(previousModel, model);
+    markEvolutionChanges(model, diff);
+    model.evolution = {
+      historical: true,
+      frame: frame.id,
+      index,
+      total: loaded.frames.length,
+      coverage: clone(loaded.coverage),
+      submaps: {
+        mode: "independent-streams",
+        historical_expansion: false,
+        reason: "父帧不会泄漏子地图当前态；请进入子地图的独立演化流或使用 receipt revision pin",
+      },
+    };
+    return {
+      model: {
+        schema: 1,
+        frame: publicFrame(frame, index, loaded.frames.length),
+        event: {
+          type: frame.type,
+          at: frame.at,
+          actor: frame.actor,
+          subject: frame.subject,
+          summary: frame.summary,
+          reason: frame.reason,
+          target: frame.target,
+          bridge_from: frame.bridge_from,
+        },
+        board: model,
+        diff,
+        stream_heads: {
+          root: { segment: frame.segment, seq: frame.seq, digest: frame.digest },
+          children: {},
+        },
+      },
+      etag: `"${frame.digest}"`,
+    };
   };
   return readSnapshot;
 }

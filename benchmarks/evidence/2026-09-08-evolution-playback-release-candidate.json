@@ -1,0 +1,50 @@
+{
+  "schema": "mapflow.release-candidate-evidence/v1",
+  "created_at": "2026-09-08T18:36:00+08:00",
+  "product_version": "0.6.0",
+  "verdict": "ready-for-personal-human-acceptance",
+  "deterministic": {
+    "evolution_tests": { "passed": true, "tests": 10, "failed": 0 },
+    "full_tests": { "passed": true, "tests": 110, "failed": 0 },
+    "regression": { "passed": true, "tests": 110, "failed": 0, "levels": ["oracle", "runtime"] },
+    "case_packages": { "passed": true, "passed_cases": 7, "failed_cases": 0, "impact_map": "pass" },
+    "diff_check": { "passed": true }
+  },
+  "distribution": {
+    "installed": true,
+    "version": "0.6.0",
+    "profile": "core",
+    "path": "C:\\Users\\chaoyuan12\\.agents\\skills\\mapflow",
+    "dry_run_entries": 24,
+    "files_verified": 60,
+    "byte_identical": 57,
+    "intentional_rewrites_verified": 3,
+    "mismatches": 0
+  },
+  "demo": {
+    "runtime": "global-install",
+    "frames": 32,
+    "url": "http://127.0.0.1:4197/",
+    "observed_states": [
+      "blank-genesis",
+      "origin-and-destination-fog",
+      "destination-shaping",
+      "backward-regression",
+      "per-object-human-confirmation",
+      "runtime-init-bridge",
+      "route-approval",
+      "per-edge-authorization",
+      "evidence-verification",
+      "arrival-audit"
+    ],
+    "interactions": ["first", "previous", "play", "pause", "next", "slider", "return-live"],
+    "browser_console_errors": 0
+  },
+  "not_run": [
+    "real unfamiliar external-project journey",
+    "agent segments",
+    "complete release matrix",
+    "GitHub tag and release"
+  ],
+  "evidence_boundary": "The deterministic fixture proves the Mapflow product chain, not real project delivery, human acceptance, accessibility, or long-term outcomes."
+}

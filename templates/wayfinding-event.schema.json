@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mapflow.local/schemas/wayfinding-event.v1.json",
+  "title": "Mapflow Wayfinding Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "specversion", "id", "source", "stream", "type", "time",
+    "actor", "subject", "seq", "base_revision", "previous_digest",
+    "coverage", "data", "event_digest"
+  ],
+  "properties": {
+    "schema": { "const": "mapflow.wayfinding-event/v1" },
+    "specversion": { "const": "1.0" },
+    "id": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "minLength": 1 },
+    "stream": { "type": "string", "pattern": "^wayfinding/" },
+    "type": { "type": "string", "pattern": "^mapflow\\.(workspace|wayfinding)\\.[a-z0-9.]+\\.v1$" },
+    "time": { "type": "string", "format": "date-time" },
+    "actor": { "type": "string", "minLength": 1 },
+    "subject": { "type": "string", "minLength": 1 },
+    "seq": { "type": "integer", "minimum": 1 },
+    "base_revision": { "type": "string", "minLength": 1 },
+    "previous_digest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "coverage": { "enum": ["complete", "partial"] },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "genesis_digest", "summary", "reason", "target", "details", "snapshot",
+        "draft_digest", "semantic_digest", "coverage_reason"
+      ],
+      "properties": {
+        "genesis_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "summary": { "type": "string", "minLength": 1 },
+        "reason": { "type": ["string", "null"] },
+        "target": { "type": ["object", "null"] },
+        "details": { "type": "object" },
+        "snapshot": { "type": ["object", "null"] },
+        "draft_digest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "semantic_digest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "coverage_reason": { "type": ["string", "null"] }
+      }
+    },
+    "event_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}

@@ -138,6 +138,20 @@ const dom = typeof document === "undefined" ? {} : {
   destination: document.querySelector("#destination-title"),
   destinationContext: document.querySelector("#destination-context"),
   elementList: document.querySelector("#element-list"),
+  evolutionCounter: document.querySelector("#evolution-counter"),
+  evolutionCoverage: document.querySelector("#evolution-coverage"),
+  evolutionDiff: document.querySelector("#evolution-diff"),
+  evolutionFirst: document.querySelector("#evolution-first"),
+  evolutionLive: document.querySelector("#evolution-live"),
+  evolutionMeta: document.querySelector("#evolution-meta"),
+  evolutionMode: document.querySelector("#evolution-mode"),
+  evolutionNext: document.querySelector("#evolution-next"),
+  evolutionPlay: document.querySelector("#evolution-play"),
+  evolutionPlayer: document.querySelector("#evolution-player"),
+  evolutionPrevious: document.querySelector("#evolution-previous"),
+  evolutionSlider: document.querySelector("#evolution-slider"),
+  evolutionSpeed: document.querySelector("#evolution-speed"),
+  evolutionSummary: document.querySelector("#evolution-summary"),
   fit: document.querySelector("#fit-map"),
   freshness: document.querySelector("#freshness"),
   inspector: document.querySelector("#inspector"),
@@ -161,6 +175,7 @@ const dom = typeof document === "undefined" ? {} : {
 const runtime = {
   cy: null,
   etag: null,
+  liveModel: null,
   rootModel: null,
   childModels: new Map(),
   submapEtags: new Map(),
@@ -174,6 +189,16 @@ const runtime = {
   topology: null,
   trailFrame: null,
   trailOffset: 0,
+  positionLedger: new Map(),
+  evolution: {
+    catalog: null,
+    etag: null,
+    frame: null,
+    index: null,
+    pendingLive: false,
+    playing: false,
+    timer: null,
+  },
 };
 
 function asText(value) {
@@ -985,6 +1010,7 @@ function nodeClasses(node) {
     regression ? "goal-regression-node" : "",
     regression?.bridge_status ? `bridge-${classToken(regression.bridge_status)}` : "",
     regression?.human_confirmed ? "human-confirmed" : "",
+    node.evolution_status ? `evolution-${classToken(node.evolution_status)}` : "",
     runtime.model?.projection.mode === "wayfinding" && runtime.model.wayfinding?.current_target?.id === node.id ? "current-target" : "",
   ].filter(Boolean).join(" ");
 }
@@ -1004,6 +1030,7 @@ function edgeClasses(edge) {
     regression && reverseRegression ? "goal-regression-edge" : "",
     regression?.bridge_status ? `bridge-${classToken(regression.bridge_status)}` : "",
     regression?.human_confirmed ? "human-confirmed" : "",
+    edge.evolution_status ? `evolution-${classToken(edge.evolution_status)}` : "",
   ].filter(Boolean).join(" ");
 }
 
@@ -1089,6 +1116,10 @@ function cytoscapeStyles() {
     { selector: "node.current-target", style: { "border-color": "#bd731d", "border-width": 4, "overlay-color": "#bd731d", "overlay-opacity": 0.14, "overlay-padding": 9 } },
     { selector: "node.human-confirmed", style: { "border-color": "#16766f", "border-width": 3 } },
     { selector: "edge.human-confirmed", style: { "line-color": "#16766f", "source-arrow-color": "#16766f", width: 3 } },
+    { selector: "node.evolution-added", style: { "border-color": "#16766f", "border-width": 5, "overlay-color": "#16766f", "overlay-opacity": 0.12, "overlay-padding": 9 } },
+    { selector: "node.evolution-changed", style: { "border-color": "#bd731d", "border-width": 5, "overlay-color": "#bd731d", "overlay-opacity": 0.1, "overlay-padding": 8 } },
+    { selector: "edge.evolution-added", style: { "line-color": "#16766f", "target-arrow-color": "#16766f", width: 5 } },
+    { selector: "edge.evolution-changed", style: { "line-color": "#bd731d", "target-arrow-color": "#bd731d", width: 5 } },
     { selector: ".search-match", style: { "overlay-color": "#bd731d", "overlay-opacity": 0.16, "overlay-padding": 8 } },
     { selector: ":selected", style: { "border-color": "#bd731d", "border-width": 4, "line-color": "#bd731d", "target-arrow-color": "#bd731d", "source-arrow-color": "#bd731d", "z-index": 999 } },
     { selector: ".is-hidden", style: { display: "none" } },
@@ -1129,17 +1160,28 @@ function syncGraph(model, topologyChanged) {
   const cy = initGraph();
   cy.batch(() => {
     if (topologyChanged) {
-      cy.elements().remove();
-      cy.add(graphElements(model));
-      return;
+      cy.nodes().forEach((node) => runtime.positionLedger.set(node.id(), { ...node.position() }));
+      const desired = graphElements(model);
+      const desiredIds = new Set(desired.map((item) => item.data.id));
+      cy.elements().filter((item) => !desiredIds.has(item.id())).remove();
+      const existingIds = new Set(cy.elements().map((item) => item.id()));
+      const additions = desired.filter((item) => !existingIds.has(item.data.id));
+      if (additions.length) cy.add(additions);
     }
     for (const node of model.nodes) {
       const graphNode = cy.getElementById(node.id);
       graphNode.data({ label: node.label, kind: node.kind, status: node.status });
       graphNode.classes(nodeClasses(node));
+      const remembered = runtime.positionLedger.get(node.id);
+      if (remembered && topologyChanged) graphNode.position(remembered);
     }
     for (const edge of model.edges) {
-      const graphEdge = cy.getElementById(edge.id);
+      let graphEdge = cy.getElementById(edge.id);
+      if (graphEdge.length && (graphEdge.source().id() !== edge.from || graphEdge.target().id() !== edge.to)) {
+        graphEdge.remove();
+        cy.add(graphElements({ nodes: [], edges: [edge] }));
+        graphEdge = cy.getElementById(edge.id);
+      }
       graphEdge.data({ label: edge.title, status: edge.status });
       graphEdge.classes(edgeClasses(edge));
     }
@@ -1148,6 +1190,52 @@ function syncGraph(model, topologyChanged) {
 
 function visibleCollection() {
   return runtime.cy?.elements().filter((item) => !item.hasClass("is-hidden")) ?? null;
+}
+
+function rememberVisiblePositions(nodes = runtime.cy?.nodes()) {
+  nodes?.forEach((node) => runtime.positionLedger.set(node.id(), { ...node.position() }));
+}
+
+function layoutEvolutionGraph() {
+  const visible = visibleCollection();
+  const nodes = visible?.nodes();
+  if (!nodes?.length) return;
+  let orphanIndex = 0;
+  const positions = {};
+  nodes.forEach((node) => {
+    const remembered = runtime.positionLedger.get(node.id());
+    if (remembered) {
+      positions[node.id()] = remembered;
+      return;
+    }
+    const connected = node.connectedEdges().filter((edge) => !edge.hasClass("is-hidden"));
+    const anchoredEdge = connected.find((edge) => {
+      const other = edge.source().id() === node.id() ? edge.target() : edge.source();
+      return runtime.positionLedger.has(other.id());
+    });
+    if (anchoredEdge) {
+      const isSource = anchoredEdge.source().id() === node.id();
+      const other = isSource ? anchoredEdge.target() : anchoredEdge.source();
+      const anchor = runtime.positionLedger.get(other.id());
+      positions[node.id()] = { x: anchor.x + (isSource ? -220 : 220), y: anchor.y + (orphanIndex % 3 - 1) * 90 };
+    } else {
+      positions[node.id()] = { x: (orphanIndex % 4) * 210, y: Math.floor(orphanIndex / 4) * 120 };
+    }
+    orphanIndex += 1;
+  });
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  visible.layout({
+    name: "preset",
+    positions,
+    fit: true,
+    padding: 52,
+    animate: !reduceMotion,
+    animationDuration: reduceMotion ? 0 : 260,
+    animationEasing: "ease-out",
+  }).run();
+  Object.entries(positions).forEach(([id, position]) => runtime.positionLedger.set(id, position));
+  runtime.layoutCount += 1;
+  dom.cy.dataset.layoutCount = String(runtime.layoutCount);
 }
 
 function layoutGraph() {
@@ -1173,6 +1261,7 @@ function layoutGraph() {
       origin.position({ x: 0, y: 0 });
       destination.position({ x: 360, y: 0 });
       runtime.cy.fit(visible, 70);
+      rememberVisiblePositions(visibleNodes);
       runtime.layoutCount += 1;
       dom.cy.dataset.layoutCount = String(runtime.layoutCount);
       return;
@@ -1219,6 +1308,7 @@ function layoutGraph() {
     runtime.cy.fit(visible, 52);
   }
   runtime.layoutCount += 1;
+  rememberVisiblePositions(visibleNodes);
   dom.cy.dataset.layoutCount = String(runtime.layoutCount);
 }
 
@@ -2037,6 +2127,11 @@ function renderCompositeModel(model) {
   dom.revision.textContent = model.projection.revision.slice(0, 12);
   dom.revision.title = model.projection.revision;
   renderCurrentAction(model);
+  if (model.evolution?.historical) {
+    dom.actionGate.dataset.state = "historical";
+    dom.actionState.textContent = "历史态 · 只读";
+    dom.actionAfter.textContent = "使用时间轴前后步，或回到实时态继续工作";
+  }
   renderCounts(model);
   renderWayfindingChrome(model);
   renderTimeline(model);
@@ -2044,7 +2139,10 @@ function renderCompositeModel(model) {
 
   syncGraph(model, topologyChanged);
   updateView();
-  if (topologyChanged) layoutGraph();
+  if (topologyChanged) {
+    if (model.evolution?.historical && runtime.positionLedger.size) layoutEvolutionGraph();
+    else layoutGraph();
+  }
 
   if (previousSelection?.type === "element" && (
     model.nodes.some((item) => item.id === previousSelection.id) || model.edges.some((item) => item.id === previousSelection.id)
@@ -2080,6 +2178,165 @@ function showFetchError(message) {
   }
 }
 
+function evolutionDiffText(diff) {
+  if (!diff) return "当前真相持续刷新；选择历史帧查看变化。";
+  const parts = [
+    [diff.nodes?.added?.length, "新增节点"],
+    [diff.nodes?.changed?.length, "变化节点"],
+    [diff.nodes?.removed?.length, "退出节点"],
+    [diff.edges?.added?.length, "新增边"],
+    [diff.edges?.changed?.length, "变化边"],
+    [diff.edges?.removed?.length, "退出边"],
+    [diff.facts?.changed?.length, "Fact 变化"],
+    [diff.evidence?.added?.length, "新增 Evidence"],
+    [diff.acceptance?.changed?.length, "验收变化"],
+  ].filter(([count]) => count).map(([count, label]) => `${label} ${count}`);
+  return parts.length ? parts.join(" · ") : "本帧没有拓扑或状态语义变化。";
+}
+
+function stopEvolutionPlayback() {
+  if (runtime.evolution.timer !== null) window.clearTimeout(runtime.evolution.timer);
+  runtime.evolution.timer = null;
+  runtime.evolution.playing = false;
+  if (dom.evolutionPlay) {
+    dom.evolutionPlay.textContent = "播放";
+    dom.evolutionPlay.setAttribute("aria-pressed", "false");
+  }
+}
+
+function renderEvolutionPlayer() {
+  const state = runtime.evolution;
+  const catalog = state.catalog;
+  if (!dom.evolutionPlayer) return;
+  const historical = state.index !== null;
+  const total = catalog?.frames?.length ?? 0;
+  const frame = historical ? catalog?.frames?.[state.index] : null;
+  dom.evolutionPlayer.classList.toggle("is-historical", historical);
+  dom.evolutionPlayer.classList.toggle("has-live-update", state.pendingLive);
+  dom.evolutionMode.classList.toggle("is-live", !historical && !state.pendingLive);
+  dom.evolutionMode.classList.toggle("is-history", historical && !state.pendingLive);
+  dom.evolutionMode.classList.toggle("has-update", state.pendingLive);
+  dom.evolutionMode.textContent = state.pendingLive
+    ? `历史态 · 有 ${Math.max(1, total - (state.index ?? total - 1) - 1)} 个新帧`
+    : historical ? "历史态 · 只读" : "实时态";
+
+  const coverage = catalog?.coverage;
+  dom.evolutionCoverage.classList.toggle("is-partial", Boolean(coverage && !coverage.complete && catalog?.recording_status !== "stale"));
+  dom.evolutionCoverage.classList.toggle("is-stale", catalog?.recording_status === "stale");
+  dom.evolutionCoverage.textContent = catalog?.recording_status === "stale"
+    ? `演化记录损坏：${catalog.error}`
+    : coverage?.complete
+      ? "完整覆盖 · 从空白开始"
+      : `部分覆盖 · ${coverage?.reason ?? "此前过程未记录"}`;
+
+  dom.evolutionSlider.disabled = total === 0;
+  dom.evolutionSlider.max = String(Math.max(0, total - 1));
+  dom.evolutionSlider.value = String(historical ? state.index : Math.max(0, total - 1));
+  dom.evolutionSlider.setAttribute("aria-valuetext", frame
+    ? `第 ${state.index + 1} 帧，共 ${total} 帧：${frame.summary}`
+    : total ? `实时态；已记录 ${total} 帧` : "尚无可回放帧");
+  dom.evolutionFirst.disabled = total === 0 || state.index === 0;
+  dom.evolutionPrevious.disabled = total === 0 || state.index === 0;
+  dom.evolutionNext.disabled = total === 0 || state.index === null || state.index >= total - 1;
+  dom.evolutionLive.disabled = !historical && !state.pendingLive;
+  dom.evolutionPlay.disabled = total < 2;
+
+  if (historical && state.frame) {
+    const event = state.frame.event;
+    dom.evolutionCounter.textContent = `${state.index + 1} / ${total}`;
+    dom.evolutionSummary.textContent = event.summary;
+    dom.evolutionMeta.textContent = `${formatTimestamp(event.at)} · ${event.actor} · ${event.subject}`;
+    dom.evolutionDiff.textContent = evolutionDiffText(state.frame.diff);
+    dom.sourceBanner.classList.add("is-history");
+    dom.sourceBanner.hidden = false;
+    dom.sourceBanner.textContent = `${state.pendingLive ? "当前真相已有更新。" : ""}正在查看历史帧 ${state.index + 1}/${total}：${event.summary}。此画面只读，不会成为执行依据。`;
+  } else {
+    dom.evolutionCounter.textContent = "实时";
+    dom.evolutionSummary.textContent = state.pendingLive ? "当前真相已有更新" : "当前真相持续刷新";
+    dom.evolutionMeta.textContent = total ? `已记录 ${total} 个可信帧；历史回放不会写入 Sidecar` : "此地图尚无可回放演化记录";
+    dom.evolutionDiff.textContent = "选择任一历史帧查看节点、边、Fact、Evidence 与验收的变化。";
+    dom.sourceBanner.classList.remove("is-history");
+  }
+}
+
+async function pollEvolutionCatalog() {
+  const headers = runtime.evolution.etag ? { "If-None-Match": runtime.evolution.etag } : {};
+  const response = await fetch("/api/evolution", { headers, cache: "no-store" });
+  if (response.status === 304) {
+    renderEvolutionPlayer();
+    return;
+  }
+  const catalog = await response.json();
+  if (!response.ok) throw new Error(catalog.error ?? `HTTP ${response.status}`);
+  const previousTotal = runtime.evolution.catalog?.frames?.length ?? 0;
+  runtime.evolution.catalog = catalog;
+  runtime.evolution.etag = response.headers.get("ETag");
+  if (runtime.evolution.index !== null && catalog.frames.length > previousTotal) runtime.evolution.pendingLive = true;
+  renderEvolutionPlayer();
+}
+
+async function showEvolutionFrame(index) {
+  const frames = runtime.evolution.catalog?.frames ?? [];
+  if (!frames.length) return;
+  const bounded = Math.max(0, Math.min(index, frames.length - 1));
+  const response = await fetch(`/api/evolution/frames/${frames[bounded].id}`, { cache: "no-store" });
+  const frame = await response.json();
+  if (!response.ok) throw new Error(frame.error ?? `HTTP ${response.status}`);
+  runtime.evolution.index = bounded;
+  runtime.evolution.frame = frame;
+  runtime.evolution.pendingLive = bounded < frames.length - 1;
+  runtime.childModels.clear();
+  runtime.submapEtags.clear();
+  runtime.expandedSubmaps.clear();
+  renderModel(frame.board);
+  renderEvolutionPlayer();
+  dom.announcer.textContent = `历史帧 ${bounded + 1}/${frames.length}：${frame.event.summary}`;
+}
+
+function returnToLive() {
+  stopEvolutionPlayback();
+  runtime.evolution.index = null;
+  runtime.evolution.frame = null;
+  runtime.evolution.pendingLive = false;
+  runtime.childModels.clear();
+  runtime.submapEtags.clear();
+  restoreExpandedSubmaps();
+  if (runtime.liveModel) renderModel(runtime.liveModel);
+  renderEvolutionPlayer();
+  dom.announcer.textContent = "已回到实时地图";
+}
+
+function scheduleEvolutionPlayback() {
+  stopEvolutionPlayback();
+  const total = runtime.evolution.catalog?.frames?.length ?? 0;
+  if (total < 2) return;
+  runtime.evolution.playing = true;
+  dom.evolutionPlay.textContent = "暂停";
+  dom.evolutionPlay.setAttribute("aria-pressed", "true");
+  const tick = async () => {
+    if (!runtime.evolution.playing || document.hidden) {
+      stopEvolutionPlayback();
+      return;
+    }
+    const next = runtime.evolution.index === null ? 0 : runtime.evolution.index + 1;
+    if (next >= total) {
+      stopEvolutionPlayback();
+      return;
+    }
+    try {
+      await showEvolutionFrame(next);
+      runtime.evolution.playing = true;
+      dom.evolutionPlay.textContent = "暂停";
+      dom.evolutionPlay.setAttribute("aria-pressed", "true");
+      runtime.evolution.timer = window.setTimeout(tick, Number(dom.evolutionSpeed.value));
+    } catch (error) {
+      stopEvolutionPlayback();
+      showFetchError(error.message);
+    }
+  };
+  tick();
+}
+
 async function pollBoard() {
   if (runtime.pollTimer !== null) window.clearTimeout(runtime.pollTimer);
   if (document.hidden) {
@@ -2092,15 +2349,21 @@ async function pollBoard() {
     const headers = runtime.etag ? { "If-None-Match": runtime.etag } : {};
     const response = await fetch("/api/board", { headers, cache: "no-store", signal: controller.signal });
     if (response.status === 304) {
-      if (runtime.model) updateSourceState(runtime.model);
-      await refreshExpandedSubmaps();
+      if (runtime.evolution.index === null && runtime.model) updateSourceState(runtime.model);
+      if (runtime.evolution.index === null) await refreshExpandedSubmaps();
     } else {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
       runtime.etag = response.headers.get("ETag");
-      renderModel(body);
-      dom.announcer.textContent = `地图已刷新，版本 ${body.projection.revision.slice(0, 8)}`;
+      runtime.liveModel = body;
+      if (runtime.evolution.index === null) {
+        renderModel(body);
+        dom.announcer.textContent = `地图已刷新，版本 ${body.projection.revision.slice(0, 8)}`;
+      } else if (runtime.rootModel?.projection.revision !== body.projection.revision) {
+        runtime.evolution.pendingLive = true;
+      }
     }
+    await pollEvolutionCatalog();
   } catch (error) {
     showFetchError(error.name === "AbortError" ? "读取超时" : error.message);
   } finally {
@@ -2117,6 +2380,24 @@ function bindControls() {
   });
   dom.fit.addEventListener("click", fitGraph);
   dom.relayout.addEventListener("click", layoutGraph);
+  dom.evolutionFirst.addEventListener("click", () => showEvolutionFrame(0).catch((error) => showFetchError(error.message)));
+  dom.evolutionPrevious.addEventListener("click", () => {
+    const index = runtime.evolution.index ?? (runtime.evolution.catalog?.frames?.length ?? 1);
+    showEvolutionFrame(index - 1).catch((error) => showFetchError(error.message));
+  });
+  dom.evolutionNext.addEventListener("click", () => {
+    if (runtime.evolution.index === null) return;
+    showEvolutionFrame(runtime.evolution.index + 1).catch((error) => showFetchError(error.message));
+  });
+  dom.evolutionLive.addEventListener("click", returnToLive);
+  dom.evolutionPlay.addEventListener("click", () => {
+    if (runtime.evolution.playing) stopEvolutionPlayback();
+    else scheduleEvolutionPlayback();
+  });
+  dom.evolutionSlider.addEventListener("input", () => {
+    stopEvolutionPlayback();
+    showEvolutionFrame(Number(dom.evolutionSlider.value)).catch((error) => showFetchError(error.message));
+  });
   document.addEventListener("keydown", (event) => {
     if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey && !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) {
       event.preventDefault();
@@ -2129,6 +2410,7 @@ function bindControls() {
     }
   });
   document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopEvolutionPlayback();
     startTrailAnimation();
     if (!document.hidden) pollBoard();
   });

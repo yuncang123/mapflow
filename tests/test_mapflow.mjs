@@ -1957,12 +1957,15 @@ test("global installer provides auto-enable runtime and keeps workspace state ou
   assert.doesNotMatch(entry, /`\.\.\/<name>\/SKILL\.md`/);
   assert.match(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: true/);
   const globalManifest = JSON.parse(fs.readFileSync(path.join(globalRoot, "mapflow", "install-manifest.json"), "utf8"));
-  assert.equal(globalManifest.version, "0.5.5");
+  assert.equal(globalManifest.version, "0.6.0");
   assert.equal(globalManifest.runtime, "mapflow/runtime/mapflow.mjs");
   assert.equal(globalManifest.workspace_schema, "mapflow.workspace/v1");
   assert.ok(globalManifest.capabilities.includes("workspace-sidecar"));
   assert.ok(globalManifest.capabilities.includes("auto-enable"));
   assert.ok(globalManifest.capabilities.includes("arrival-audit-request"));
+  assert.ok(globalManifest.capabilities.includes("evolution-playback"));
+  assert.equal(globalManifest.wayfinding_event_schema, "mapflow.wayfinding-event/v1");
+  assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-evolution.mjs")));
 
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-consumer-"));
   assertExit(spawnSync("git", ["init", "--quiet", workspace], { encoding: "utf8", windowsHide: true }));
