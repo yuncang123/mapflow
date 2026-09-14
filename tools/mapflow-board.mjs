@@ -109,6 +109,31 @@ export function createBoardServer({ mapPath = null, statePath = null, assetsRoot
         sendJson(response, 200, body, { ETag: snapshot.etag });
         return;
       }
+      const submapEvolutionFrameMatch = url.pathname.match(/^\/api\/submaps\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*)*)\/evolution\/frames\/(wayfinding|runtime):(\d+)$/);
+      if (submapEvolutionFrameMatch) {
+        const snapshot = readSnapshot.readSubmapEvolutionFrame(
+          submapEvolutionFrameMatch[1],
+          `${submapEvolutionFrameMatch[2]}:${submapEvolutionFrameMatch[3]}`,
+        );
+        if (request.headers["if-none-match"] === snapshot.etag) {
+          response.writeHead(304, { ...securityHeaders("application/json; charset=utf-8"), ETag: snapshot.etag });
+          response.end();
+          return;
+        }
+        sendJson(response, 200, snapshot.model, { ETag: snapshot.etag });
+        return;
+      }
+      const submapEvolutionMatch = url.pathname.match(/^\/api\/submaps\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*)*)\/evolution$/);
+      if (submapEvolutionMatch) {
+        const snapshot = readSnapshot.readSubmapEvolutionCatalog(submapEvolutionMatch[1]);
+        if (request.headers["if-none-match"] === snapshot.etag) {
+          response.writeHead(304, { ...securityHeaders("application/json; charset=utf-8"), ETag: snapshot.etag });
+          response.end();
+          return;
+        }
+        sendJson(response, 200, snapshot.model, { ETag: snapshot.etag });
+        return;
+      }
       const submapMatch = url.pathname.match(/^\/api\/submaps\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*)*)$/);
       if (submapMatch) {
         const snapshot = readSnapshot.readSubmap(submapMatch[1]);

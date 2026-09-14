@@ -10,9 +10,24 @@ contract:
   authorization:
     required: []
     allowed_actions: [修改候选稿和本地检查记录]
+  handoff:
+    from_roles: [产品或任务所有者]
+    to_roles: [内容执行者, 审阅者]
+    inputs: [受众决策记录, 素材引用]
+    outputs: [候选稿引用, 敏感内容检查记录]
+    decision_rights: [审阅者决定检查是否充分]
+  context:
+    focus: 产出与目标受众一致且完成敏感检查的候选稿
+    load_first: [本 Task Brief, 当前边及相邻节点, 受众决策记录, 素材索引]
+    load_on_demand:
+      - { when: 出现敏感性或事实冲突时, refs: [原始来源, 检查规则] }
+    budget: { max_files: 8, max_chars: 50000 }
   evidence:
     proves: [article-drafted, sensitive-content-checked]
     exit_conditions: [候选稿与检查记录均可读取且版本对应]
+  verification:
+    commands:
+      - { id: candidate-review-check, program: node, args: [-e, "const fs=require('fs');if(!fs.existsSync('drafts/article.md')||!fs.existsSync('notes/sensitive-review.md'))process.exit(1)"], cwd: workspace, timeout_seconds: 30, success_exit_codes: [0], proves: [article-drafted, sensitive-content-checked] }
   failure:
     action: replan
     rollback: [保留原始素材并撤销未完成候选稿]

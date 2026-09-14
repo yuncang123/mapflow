@@ -3,8 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { load as loadYaml } from "./vendor/js-yaml/js-yaml.mjs";
+import { derivationTrace, normalizeCausalContract } from "./mapflow-proof.mjs";
 
-export const BLUEPRINT_SCHEMA_VERSION = 2;
+export const BLUEPRINT_SCHEMA_VERSION = 3;
+export const LEGACY_BLUEPRINT_SCHEMA_VERSION = 2;
 export const STATE_SCHEMA_VERSION = 2;
 export const TRUTH_VALUES = new Set(["true", "false", "unknown", "conflict"]);
 
@@ -114,12 +116,19 @@ export function validateBlueprint(value) {
   const blueprint = object(value, "blueprint");
   allowedKeys(blueprint, [
     "schema_version", "map_id", "intent", "destination", "predicates", "initial_state", "assumptions",
-    "invariants", "boundaries", "nodes", "edges", "loops", "submaps", "extensions",
+    "invariants", "boundaries", "nodes", "edges", "loops", "submaps", "workflow", "extensions",
   ], "blueprint");
-  if (blueprint.schema_version !== BLUEPRINT_SCHEMA_VERSION) {
+  if (![LEGACY_BLUEPRINT_SCHEMA_VERSION, BLUEPRINT_SCHEMA_VERSION].includes(blueprint.schema_version)) {
     fail(`unsupported blueprint schema: ${blueprint.schema_version}`);
   }
   id(blueprint.map_id, "map_id");
+
+  if (blueprint.schema_version >= 3 && blueprint.workflow !== undefined) {
+    fail("workflow profiles are not part of Mapflow schema 3; keep domain lifecycles under extensions.x-* or in the target project");
+  }
+  if (blueprint.schema_version === LEGACY_BLUEPRINT_SCHEMA_VERSION && blueprint.workflow !== undefined) {
+    object(blueprint.workflow, "legacy workflow");
+  }
 
   if (blueprint.intent === undefined) {
     blueprint.intent = {
@@ -244,8 +253,14 @@ export function validateBlueprint(value) {
   for (const edge of edgeMap.values()) {
     allowedKeys(edge, [
       "id", "from", "to", "brief_ref", "preconditions", "effects", "invariants",
-      "certainty", "evidence_contract", "on_failure",
+      "certainty", "evidence_contract", "causal_contract", "on_failure", "sdlc_stage",
     ], `edge ${edge.id}`);
+    if (blueprint.schema_version >= 3 && edge.sdlc_stage !== undefined) {
+      fail(`edge ${edge.id}.sdlc_stage is not part of Mapflow schema 3; express project-specific stages in extensions.x-*`);
+    }
+    if (edge.sdlc_stage !== undefined) {
+      string(edge.sdlc_stage, `legacy edge ${edge.id}.sdlc_stage`);
+    }
     id(edge.from, `edge ${edge.id}.from`);
     id(edge.to, `edge ${edge.id}.to`);
     requireReferences([edge.from, edge.to], nodeMap, `edge ${edge.id}`);
@@ -268,6 +283,14 @@ export function validateBlueprint(value) {
       const unrelated = contract.proves.filter((predicateId) => !edge.effects.includes(predicateId));
       if (unrelated.length > 0) fail(`edge ${edge.id} contract ${contract.id} proves predicates outside effects: ${unrelated.join(", ")}`);
       if (typeof contract.required !== "boolean") fail(`edge ${edge.id} contract ${contract.id}.required must be boolean`);
+    }
+    if (blueprint.schema_version >= 3 && edge.causal_contract === undefined) {
+      fail(`edge ${edge.id}.causal_contract is required by blueprint schema ${blueprint.schema_version}`);
+    }
+    try {
+      normalizeCausalContract(blueprint, edge);
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error));
     }
     const onFailure = object(edge.on_failure, `edge ${edge.id}.on_failure`);
     allowedKeys(onFailure, ["action", "to"], `edge ${edge.id}.on_failure`);
@@ -299,6 +322,7 @@ export function validateBlueprint(value) {
         ...nodeMap.get(edge.from).predicates,
         ...edge.preconditions,
         ...invariantPredicates(edge, blueprint, invariantMap),
+        ...causalPredicates(edge, blueprint),
       ],
       predicateMap,
       `edge ${edge.id} requirements`,
@@ -417,7 +441,7 @@ export function readBlueprint(filePath) {
     }
     if (metadata.contract === undefined) fail(`Task Brief ${edge.brief_ref} lacks required contract metadata`);
     const contract = object(metadata.contract, `Task Brief ${edge.brief_ref} frontmatter.contract`);
-    allowedKeys(contract, ["scope", "authorization", "evidence", "failure"], `Task Brief ${edge.brief_ref} contract`);
+    allowedKeys(contract, ["scope", "authorization", "evidence", "verification", "failure", "handoff", "context"], `Task Brief ${edge.brief_ref} contract`);
     const scope = object(contract.scope, `Task Brief ${edge.brief_ref} contract.scope`);
     allowedKeys(scope, ["in", "out"], `Task Brief ${edge.brief_ref} contract.scope`);
     meaningfulStrings(scope.in, `Task Brief ${edge.brief_ref} contract.scope.in`);
@@ -434,6 +458,75 @@ export function readBlueprint(filePath) {
       fail(`Task Brief ${edge.brief_ref} evidence.proves must exactly match edge effects`);
     }
     meaningfulStrings(evidence.exit_conditions, `Task Brief ${edge.brief_ref} contract.evidence.exit_conditions`);
+    if (contract.handoff !== undefined) {
+      const handoff = object(contract.handoff, `Task Brief ${edge.brief_ref} contract.handoff`);
+      allowedKeys(handoff, ["from_roles", "to_roles", "inputs", "outputs", "decision_rights"], `Task Brief ${edge.brief_ref} contract.handoff`);
+      for (const field of ["from_roles", "to_roles", "inputs", "outputs", "decision_rights"]) {
+        meaningfulStrings(handoff[field], `Task Brief ${edge.brief_ref} contract.handoff.${field}`);
+      }
+    }
+    if (contract.context !== undefined) {
+      const context = object(contract.context, `Task Brief ${edge.brief_ref} contract.context`);
+      allowedKeys(context, ["focus", "load_first", "load_on_demand", "budget"], `Task Brief ${edge.brief_ref} contract.context`);
+      string(context.focus, `Task Brief ${edge.brief_ref} contract.context.focus`);
+      const loadFirst = meaningfulStrings(context.load_first, `Task Brief ${edge.brief_ref} contract.context.load_first`);
+      if (loadFirst.length > 5) fail(`Task Brief ${edge.brief_ref} context.load_first must contain at most 5 focused references`);
+      const loadOnDemand = array(context.load_on_demand, `Task Brief ${edge.brief_ref} contract.context.load_on_demand`, { nonEmpty: false });
+      for (let index = 0; index < loadOnDemand.length; index += 1) {
+        const disclosure = object(loadOnDemand[index], `Task Brief ${edge.brief_ref} context.load_on_demand[${index}]`);
+        allowedKeys(disclosure, ["when", "refs"], `Task Brief ${edge.brief_ref} context.load_on_demand[${index}]`);
+        string(disclosure.when, `Task Brief ${edge.brief_ref} context.load_on_demand[${index}].when`);
+        meaningfulStrings(disclosure.refs, `Task Brief ${edge.brief_ref} context.load_on_demand[${index}].refs`);
+      }
+      const budget = object(context.budget, `Task Brief ${edge.brief_ref} contract.context.budget`);
+      allowedKeys(budget, ["max_files", "max_chars"], `Task Brief ${edge.brief_ref} contract.context.budget`);
+      if (!Number.isInteger(budget.max_files) || budget.max_files < 1 || budget.max_files > 20) {
+        fail(`Task Brief ${edge.brief_ref} context.budget.max_files must be an integer from 1 to 20`);
+      }
+      if (loadFirst.length > budget.max_files) {
+        fail(`Task Brief ${edge.brief_ref} context.load_first exceeds context.budget.max_files`);
+      }
+      if (!Number.isInteger(budget.max_chars) || budget.max_chars < 1000 || budget.max_chars > 200000) {
+        fail(`Task Brief ${edge.brief_ref} context.budget.max_chars must be an integer from 1000 to 200000`);
+      }
+    }
+    let commandMap = new Map();
+    if (contract.verification !== undefined) {
+      const verification = object(contract.verification, `Task Brief ${edge.brief_ref} contract.verification`);
+      allowedKeys(verification, ["commands"], `Task Brief ${edge.brief_ref} contract.verification`);
+      const commands = array(verification.commands, `Task Brief ${edge.brief_ref} contract.verification.commands`, { nonEmpty: true });
+      commandMap = collectionMap(commands, `Task Brief ${edge.brief_ref} verification.commands`);
+      for (const command of commandMap.values()) {
+        allowedKeys(command, ["id", "program", "args", "cwd", "timeout_seconds", "success_exit_codes", "proves"], `Task Brief ${edge.brief_ref} verifier ${command.id}`);
+        string(command.program, `Task Brief ${edge.brief_ref} verifier ${command.id}.program`);
+        meaningfulStrings(command.args, `Task Brief ${edge.brief_ref} verifier ${command.id}.args`, { nonEmpty: false });
+        if (!new Set(["workspace", "map"]).has(command.cwd)) fail(`Task Brief ${edge.brief_ref} verifier ${command.id}.cwd must be workspace or map`);
+        if (!Number.isInteger(command.timeout_seconds) || command.timeout_seconds < 1 || command.timeout_seconds > 600) {
+          fail(`Task Brief ${edge.brief_ref} verifier ${command.id}.timeout_seconds must be between 1 and 600`);
+        }
+        const successCodes = array(command.success_exit_codes, `Task Brief ${edge.brief_ref} verifier ${command.id}.success_exit_codes`, { nonEmpty: true });
+        if (successCodes.some((code) => !Number.isInteger(code) || code < 0 || code > 255) || new Set(successCodes).size !== successCodes.length) {
+          fail(`Task Brief ${edge.brief_ref} verifier ${command.id}.success_exit_codes must contain unique integers from 0 to 255`);
+        }
+        const verifierProves = ids(command.proves, `Task Brief ${edge.brief_ref} verifier ${command.id}.proves`, { nonEmpty: true });
+        requireReferences(verifierProves, new Map(edge.effects.map((predicateId) => [predicateId, true])), `Task Brief ${edge.brief_ref} verifier ${command.id}.proves`);
+      }
+    }
+    const causal = normalizeCausalContract(blueprint, edge);
+    if (causal.rule_basis?.kind === "verifier") {
+      const verifier = commandMap.get(causal.rule_basis.ref);
+      if (!verifier) {
+        fail(`edge ${edge.id}.causal_contract.rule_basis.ref does not name a Task Brief verifier: ${causal.rule_basis.ref}`);
+      }
+      const missingConclusions = causal.conclusions.filter((predicateId) => !verifier.proves.includes(predicateId));
+      if (missingConclusions.length > 0) {
+        fail(`Task Brief verifier ${causal.rule_basis.ref} does not cover causal conclusions: ${missingConclusions.join(", ")}`);
+      }
+    }
+    if (causal.rule_basis?.kind === "submap") {
+      const binding = blueprint.submaps.find((item) => item.parent_edge === edge.id && item.id === causal.rule_basis.ref);
+      if (!binding) fail(`edge ${edge.id}.causal_contract.rule_basis.ref does not name its submap binding: ${causal.rule_basis.ref}`);
+    }
     const failure = object(contract.failure, `Task Brief ${edge.brief_ref} contract.failure`);
     allowedKeys(failure, ["action", "rollback"], `Task Brief ${edge.brief_ref} contract.failure`);
     if (failure.action !== edge.on_failure.action) {
@@ -545,6 +638,10 @@ function invariantPredicates(edge, blueprint, invariantMap) {
   return [...idsForEdge].flatMap((invariantId) => invariantMap.get(invariantId).requires);
 }
 
+function causalPredicates(edge, blueprint) {
+  return normalizeCausalContract(blueprint, edge).premises;
+}
+
 export function edgeReadiness(blueprint, facts, edgeId) {
   const { edges, nodes, invariants } = maps(blueprint);
   const edge = edges.get(edgeId);
@@ -559,6 +656,10 @@ export function edgeReadiness(blueprint, facts, edgeId) {
   }
   for (const predicateId of invariantPredicates(edge, blueprint, invariants)) {
     if (!predicateSatisfied(predicateId, facts, blueprint)) missing.push({ kind: "invariant", predicate: predicateId });
+  }
+  const known = new Set(missing.map((entry) => entry.predicate));
+  for (const predicateId of causalPredicates(edge, blueprint)) {
+    if (!predicateSatisfied(predicateId, facts, blueprint) && !known.has(predicateId)) missing.push({ kind: "causal-premise", predicate: predicateId });
   }
   return { ready: missing.length === 0, edge, missing };
 }
@@ -602,6 +703,7 @@ function backwardClosure(blueprint, facts, predicateMap, nodeMap, edgeMap, invar
           ...nodeMap.get(loopEdge.from).predicates,
           ...loopEdge.preconditions,
           ...invariantPredicates(loopEdge, blueprint, invariantMap),
+          ...causalPredicates(loopEdge, blueprint),
         ]) {
           if (!neededPredicates.has(dependency)) queue.push(dependency);
         }
@@ -629,6 +731,7 @@ function backwardClosure(blueprint, facts, predicateMap, nodeMap, edgeMap, invar
         ...source.predicates,
         ...edge.preconditions,
         ...invariantPredicates(edge, blueprint, invariantMap),
+        ...causalPredicates(edge, blueprint),
       ]) {
         if (!neededPredicates.has(dependency)) queue.push(dependency);
       }
@@ -647,6 +750,20 @@ function pathExists(from, to, adjacency, seen = new Set()) {
 function structuralGaps(blueprint, closure, predicateMap, edgeMap, invariantMap) {
   const gaps = [...closure.gaps];
   const nodeMap = new Map(blueprint.nodes.map((node) => [node.id, node]));
+  const availableAfterEdge = (edge) => {
+    const available = new Set([
+      ...nodeMap.get(edge.from).predicates,
+      ...edge.preconditions,
+      ...invariantPredicates(edge, blueprint, invariantMap),
+      ...causalPredicates(edge, blueprint),
+    ]);
+    const overwrittenFacts = new Set(edge.effects.map((predicateId) => predicateMap.get(predicateId).fact));
+    for (const predicateId of [...available]) {
+      if (overwrittenFacts.has(predicateMap.get(predicateId).fact)) available.delete(predicateId);
+    }
+    for (const effectId of edge.effects) available.add(effectId);
+    return available;
+  };
   const add = (gap) => {
     const key = `${gap.type}|${gap.at_edge ?? ""}|${gap.missing ?? ""}|${gap.caused_by ?? ""}`;
     if (!gaps.some((entry) => `${entry.type}|${entry.at_edge ?? ""}|${entry.missing ?? ""}|${entry.caused_by ?? ""}` === key)) gaps.push(gap);
@@ -667,17 +784,13 @@ function structuralGaps(blueprint, closure, predicateMap, edgeMap, invariantMap)
       });
     }
 
-    const availableAfter = new Set([
-      ...nodeMap.get(edge.from).predicates,
-      ...edge.preconditions,
-      ...invariantPredicates(edge, blueprint, invariantMap),
-    ]);
-    const overwrittenFacts = new Set(edge.effects.map((predicateId) => predicateMap.get(predicateId).fact));
-    for (const predicateId of [...availableAfter]) {
-      if (overwrittenFacts.has(predicateMap.get(predicateId).fact)) availableAfter.delete(predicateId);
-    }
-    for (const effectId of edge.effects) availableAfter.add(effectId);
-    const missingTarget = nodeMap.get(edge.to).predicates
+    const target = nodeMap.get(edge.to);
+    // A Join is an AND state: independent incoming edges may each establish a
+    // different part of it. Requiring every incoming edge to establish the
+    // entire state would collapse genuine parallel work back into one edge.
+    if (target.kind === "join") continue;
+    const availableAfter = availableAfterEdge(edge);
+    const missingTarget = target.predicates
       .filter((predicateId) => !availableAfter.has(predicateId));
     if (missingTarget.length > 0) {
       add({
@@ -686,6 +799,23 @@ function structuralGaps(blueprint, closure, predicateMap, edgeMap, invariantMap)
         missing: missingTarget.join(","),
         caused_by: "edge contract does not establish every predicate of its target state",
         repair_scope: `edge:${edge.id}`,
+        category: "structural",
+      });
+    }
+  }
+
+  for (const node of nodeMap.values()) {
+    if (node.kind !== "join") continue;
+    const incoming = [...edgeMap.values()].filter((edge) => edge.to === node.id);
+    const collectiveCoverage = new Set(incoming.flatMap((edge) => [...availableAfterEdge(edge)]));
+    const missing = node.predicates.filter((predicateId) => !collectiveCoverage.has(predicateId));
+    if (missing.length > 0) {
+      add({
+        type: "insufficient-join-coverage",
+        at_edge: null,
+        missing: missing.join(","),
+        caused_by: "incoming edge contracts do not collectively establish every predicate of the join state",
+        repair_scope: `node:${node.id}`,
         category: "structural",
       });
     }
@@ -898,6 +1028,7 @@ function addMinimalLogicalGaps(gaps, blueprint, worlds, predicateMap, nodeMap, e
         ...nodeMap.get(edge.from).predicates.map((predicate) => ({ kind: "source", predicate })),
         ...edge.preconditions.map((predicate) => ({ kind: "precondition", predicate })),
         ...invariantPredicates(edge, blueprint, invariantMap).map((predicate) => ({ kind: "invariant", predicate })),
+        ...causalPredicates(edge, blueprint).map((predicate) => ({ kind: "causal-premise", predicate })),
       ].filter((candidate, index, values) => values.findIndex((item) => item.predicate === candidate.predicate) === index);
       const best = worlds.reduce((current, world) => {
         const missing = requirements.filter((candidate) => !predicateSatisfied(candidate.predicate, world.facts, blueprint));
@@ -966,6 +1097,206 @@ function addMinimalLogicalGaps(gaps, blueprint, worlds, predicateMap, nodeMap, e
   }
 }
 
+function proofId(prefix, value) {
+  return `${prefix}-${crypto.createHash("sha256").update(value).digest("hex").slice(0, 16)}`;
+}
+
+function causalFrontierGaps(blueprint, closure, worlds, appliedEdges, nodeMap) {
+  const gaps = [];
+  for (const edgeId of closure.candidateEdges) {
+    if (appliedEdges.has(edgeId)) continue;
+    const edge = blueprint.edges.find((item) => item.id === edgeId);
+    const frontier = worlds
+      .filter((world) => nodeMap.get(edge.from).predicates.every((predicateId) => predicateSatisfied(predicateId, world.facts, blueprint)))
+      .map((world) => derivationTrace(blueprint, edge, world.facts))
+      .filter((trace) => !trace.valid)
+      .map((trace) => ({
+        trace,
+        missing: trace.premises.filter((item) => !item.satisfied).map((item) => item.predicate),
+        stale: trace.premises.filter((item) => item.stale).map((item) => item.predicate),
+      }))
+      .sort((left, right) => (
+        left.missing.length + left.stale.length - right.missing.length - right.stale.length
+      ));
+    if (frontier.length === 0) continue;
+    const best = frontier[0];
+    if (best.missing.length > 0) {
+      gaps.push({
+        type: "causal-premise-not-established",
+        at_edge: edge.id,
+        missing: best.missing.join(","),
+        caused_by: `causal rule ${best.trace.rule} has no reachable world containing every premise`,
+        repair_scope: `edge:${edge.id}`,
+        category: "causal",
+      });
+    }
+    if (best.stale.length > 0) {
+      gaps.push({
+        type: "causal-premise-stale",
+        at_edge: edge.id,
+        missing: best.stale.join(","),
+        caused_by: `causal rule ${best.trace.rule} has stale premise evidence at the reachable frontier`,
+        repair_scope: `edge:${edge.id}`,
+        category: "causal",
+      });
+    }
+  }
+  return gaps;
+}
+
+function buildDerivationGraph({ blueprint, worlds, worldKey, initialWorldKey, applications, parents, destinationWorlds, destinationPredicates, provenApplicationIds }) {
+  const worldIds = new Map(worlds.map((world) => {
+    const key = worldKey(world);
+    return [key, proofId("world", key)];
+  }));
+  const predicateSets = new Map(worlds.map((world) => {
+    const key = worldKey(world);
+    return [key, new Set(blueprint.predicates
+      .filter((predicate) => predicateSatisfied(predicate.id, world.facts, blueprint))
+      .map((predicate) => predicate.id))];
+  }));
+  const initialWorld = worlds.find((world) => worldKey(world) === initialWorldKey);
+  const assumptionIds = new Map();
+  for (const assumption of blueprint.assumptions.filter((item) => item.status === "accepted")) {
+    if (!assumptionIds.has(assumption.predicate)) assumptionIds.set(assumption.predicate, []);
+    assumptionIds.get(assumption.predicate).push(assumption.id);
+  }
+  const axioms = [...predicateSets.get(initialWorldKey)].map((predicateId) => {
+    const predicate = blueprint.predicates.find((item) => item.id === predicateId);
+    const conditional = initialWorld.conditionalFacts.has(predicate.fact);
+    return {
+      id: `axiom-${predicateId}`,
+      predicate: predicateId,
+      fact: predicate.fact,
+      value: predicate.equals,
+      source: conditional ? "accepted-assumption" : "initial-fact",
+      assumptions: conditional ? [...(assumptionIds.get(predicateId) ?? [])] : [],
+      evidence: structuredClone(initialWorld.facts[predicate.fact]?.evidence ?? []),
+    };
+  });
+  const applicationById = new Map(applications.map((application) => [application.id, application]));
+  const incoming = new Map();
+  for (const application of applications) {
+    if (!incoming.has(application.to_key)) incoming.set(application.to_key, []);
+    incoming.get(application.to_key).push(application);
+  }
+  const supports = [];
+  for (const world of worlds) {
+    const key = worldKey(world);
+    const worldId = worldIds.get(key);
+    for (const predicateId of predicateSets.get(key)) {
+      const alternatives = [];
+      if (key === initialWorldKey) {
+        alternatives.push({ kind: "axiom", ref: `axiom-${predicateId}` });
+      }
+      for (const application of incoming.get(key) ?? []) {
+        if (application.trace.conclusions.some((item) => item.predicate === predicateId)) {
+          alternatives.push({ kind: "rule", ref: application.id });
+        } else if (predicateSets.get(application.from_key)?.has(predicateId)) {
+          alternatives.push({
+            kind: "carry",
+            ref: `support-${worldIds.get(application.from_key)}-${predicateId}`,
+            through: application.id,
+          });
+        }
+      }
+      const uniqueAlternatives = alternatives.filter((item, index, values) => (
+        values.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(item)) === index
+      ));
+      supports.push({
+        id: `support-${worldId}-${predicateId}`,
+        world: worldId,
+        predicate: predicateId,
+        alternatives: uniqueAlternatives,
+      });
+    }
+  }
+  const routeCountMemo = new Map([[initialWorldKey, 1n]]);
+  const routeCount = (key) => {
+    if (routeCountMemo.has(key)) return routeCountMemo.get(key);
+    const count = (parents.get(key) ?? []).reduce((sum, link) => sum + routeCount(link.parent), 0n);
+    routeCountMemo.set(key, count);
+    return count;
+  };
+  const primaryRoute = (key) => {
+    if (key === initialWorldKey) return [];
+    const candidates = [...(parents.get(key) ?? [])].sort((left, right) => (
+      left.edge.localeCompare(right.edge) || left.parent.localeCompare(right.parent)
+    ));
+    if (candidates.length === 0) return [];
+    return [...primaryRoute(candidates[0].parent), candidates[0].application];
+  };
+  const destinations = destinationWorlds.map((world) => {
+    const key = worldKey(world);
+    const worldId = worldIds.get(key);
+    const route = primaryRoute(key);
+    return {
+      world: worldId,
+      route_count: routeCount(key).toString(),
+      primary_route: route,
+      predicates: destinationPredicates.map((predicateId) => ({
+        predicate: predicateId,
+        support: `support-${worldId}-${predicateId}`,
+      })),
+    };
+  }).sort((left, right) => {
+    const leftConditional = worlds.find((world) => worldIds.get(worldKey(world)) === left.world).conditionalFacts.size;
+    const rightConditional = worlds.find((world) => worldIds.get(worldKey(world)) === right.world).conditionalFacts.size;
+    return leftConditional - rightConditional || left.primary_route.length - right.primary_route.length || left.world.localeCompare(right.world);
+  });
+  const serializedApplications = applications.map((application) => ({
+    id: application.id,
+    edge: application.edge,
+    rule: application.trace.rule,
+    proof_mode: application.trace.proof_mode,
+    rule_basis: application.trace.rule_basis,
+    from_world: worldIds.get(application.from_key),
+    to_world: worldIds.get(application.to_key),
+    premises: application.trace.premises.map((premise) => ({
+      ...premise,
+      support: `support-${worldIds.get(application.from_key)}-${premise.predicate}`,
+    })),
+    conclusions: application.trace.conclusions.map((conclusion) => ({
+      ...conclusion,
+      support: `support-${worldIds.get(application.to_key)}-${conclusion.predicate}`,
+    })),
+    conditional: application.conditional,
+    on_destination_route: provenApplicationIds.has(application.id),
+  }));
+  const primary = destinations[0] ?? null;
+  const totalRoutes = destinations.reduce((sum, destination) => sum + BigInt(destination.route_count), 0n);
+  const graph = {
+    schema: "mapflow.derivation-graph/v1",
+    complete: true,
+    initial_world: worldIds.get(initialWorldKey),
+    axioms,
+    worlds: worlds.map((world) => {
+      const key = worldKey(world);
+      return {
+        id: worldIds.get(key),
+        facts: Object.fromEntries(Object.entries(world.facts).map(([factId, fact]) => [factId, factValue(world.facts, factId)])),
+        conditional_facts: [...world.conditionalFacts].sort(),
+        applied_edges: [...world.appliedEdges].sort(),
+        loop_iterations: { ...world.loopIterations },
+      };
+    }),
+    applications: serializedApplications,
+    predicate_supports: supports,
+    destinations,
+    route_count: totalRoutes.toString(),
+    primary_proof: primary === null ? null : {
+      destination_world: primary.world,
+      applications: [...primary.primary_route],
+      edges: primary.primary_route.map((id) => applicationById.get(id).edge),
+      predicate_supports: structuredClone(primary.predicates),
+    },
+  };
+  return {
+    ...graph,
+    digest: crypto.createHash("sha256").update(JSON.stringify(graph)).digest("hex"),
+  };
+}
+
 export function proveBlueprint(blueprint, observedFacts = initialFacts(blueprint), { loopIterations = {} } = {}) {
   validateBlueprint(blueprint);
   const { predicates: predicateMap, nodes: nodeMap, edges: edgeMap, invariants: invariantMap } = maps(blueprint);
@@ -988,6 +1319,7 @@ export function proveBlueprint(blueprint, observedFacts = initialFacts(blueprint
     factIds.map((factId) => factValue(world.facts, factId) ?? null),
     [...world.conditionalFacts].sort(),
     blueprint.loops.map((loop) => world.loopIterations[loop.id] ?? 0),
+    [...world.appliedEdges].sort(),
   ]);
   const predicatesFor = (world) => new Set(blueprint.predicates
     .filter((predicate) => predicateSatisfied(predicate.id, world.facts, blueprint))
@@ -1000,12 +1332,15 @@ export function proveBlueprint(blueprint, observedFacts = initialFacts(blueprint
     facts: structuredClone(seeded.facts),
     conditionalFacts: new Set(seeded.conditionalFacts),
     loopIterations: Object.fromEntries(blueprint.loops.map((loop) => [loop.id, loopIterations[loop.id] ?? 0])),
+    appliedEdges: new Set(),
   };
   const queue = [initialWorld];
   const worlds = [];
   const initialWorldKey = worldKey(initialWorld);
   const visited = new Set([initialWorldKey]);
   const parents = new Map();
+  const applications = [];
+  const applicationKeys = new Set();
   const appliedEdges = new Set();
   const reachedNodes = new Set();
   while (queue.length > 0) {
@@ -1018,11 +1353,13 @@ export function proveBlueprint(blueprint, observedFacts = initialFacts(blueprint
     for (const edgeId of closure.candidateEdges) {
       const edge = edgeMap.get(edgeId);
       if (!satisfiedNodes.has(edge.from)) continue;
-      const requirements = [...edge.preconditions, ...invariantPredicates(edge, blueprint, invariantMap)];
-      if (!requirements.every((predicateId) => reachablePredicates.has(predicateId))) continue;
       const edgeLoops = loopsByEdge.get(edgeId) ?? [];
+      if (edgeLoops.length === 0 && world.appliedEdges.has(edgeId)) continue;
       if (edgeLoops.some((loop) => predicateSatisfied(loop.exit_predicate, world.facts, blueprint))) continue;
       if (edgeLoops.some((loop) => world.loopIterations[loop.id] >= loop.max_iterations)) continue;
+      const trace = derivationTrace(blueprint, edge, world.facts);
+      if (!trace.valid) continue;
+      const requirements = trace.premises.map((item) => item.predicate);
       const conditional = edge.certainty === "conditional" || [
         ...nodeMap.get(edge.from).predicates,
         ...requirements,
@@ -1031,6 +1368,7 @@ export function proveBlueprint(blueprint, observedFacts = initialFacts(blueprint
         facts: structuredClone(world.facts),
         conditionalFacts: new Set(world.conditionalFacts),
         loopIterations: { ...world.loopIterations },
+        appliedEdges: new Set(world.appliedEdges),
       };
       for (const effectId of edge.effects) {
         const effect = predicateMap.get(effectId);
@@ -1038,14 +1376,28 @@ export function proveBlueprint(blueprint, observedFacts = initialFacts(blueprint
         if (conditional) next.conditionalFacts.add(effect.fact);
         else next.conditionalFacts.delete(effect.fact);
       }
+      next.appliedEdges.add(edgeId);
       for (const loop of edgeLoops) next.loopIterations[loop.id] += 1;
       appliedEdges.add(edgeId);
       const key = worldKey(next);
       if (key !== currentKey) {
+        const applicationKey = `${currentKey}\0${edgeId}\0${key}`;
+        const applicationId = proofId("apply", applicationKey);
+        if (!applicationKeys.has(applicationKey)) {
+          applicationKeys.add(applicationKey);
+          applications.push({
+            id: applicationId,
+            edge: edgeId,
+            from_key: currentKey,
+            to_key: key,
+            trace,
+            conditional,
+          });
+        }
         if (!parents.has(key)) parents.set(key, []);
         const links = parents.get(key);
         if (!links.some((link) => link.parent === currentKey && link.edge === edgeId)) {
-          links.push({ parent: currentKey, edge: edgeId });
+          links.push({ parent: currentKey, edge: edgeId, application: applicationId });
         }
       }
       if (!visited.has(key)) {
@@ -1060,12 +1412,14 @@ export function proveBlueprint(blueprint, observedFacts = initialFacts(blueprint
   )));
   const destinationReached = destinationWorlds.length > 0;
   const provenEdges = new Set();
+  const provenApplicationIds = new Set();
   const provenWorlds = new Set(destinationWorlds.map((world) => worldKey(world)));
   const reverseQueue = [...provenWorlds];
   while (reverseQueue.length > 0) {
     const child = reverseQueue.shift();
     for (const link of parents.get(child) ?? []) {
       provenEdges.add(link.edge);
+      provenApplicationIds.add(link.application);
       if (!provenWorlds.has(link.parent)) {
         provenWorlds.add(link.parent);
         reverseQueue.push(link.parent);
@@ -1075,13 +1429,68 @@ export function proveBlueprint(blueprint, observedFacts = initialFacts(blueprint
   if (!destinationReached) {
     addMinimalLogicalGaps(gaps, blueprint, worlds, predicateMap, nodeMap, edgeMap, invariantMap);
   }
+  const frontierCausalGaps = causalFrontierGaps(blueprint, closure, worlds, appliedEdges, nodeMap);
+  if (!destinationReached) gaps.push(...frontierCausalGaps.filter((gap) => !gaps.some((item) => item.type === gap.type && item.at_edge === gap.at_edge && item.missing === gap.missing)));
   const structuralComplete = !gaps.some((gap) => gap.category === "structural");
   const unconditionalDestination = destinationWorlds.some((world) => destinationPredicates.every((predicateId) => (
     !world.conditionalFacts.has(predicateMap.get(predicateId).fact)
   )));
+  const proofGraph = buildDerivationGraph({
+    blueprint,
+    worlds,
+    worldKey,
+    initialWorldKey,
+    applications,
+    parents,
+    destinationWorlds,
+    destinationPredicates,
+    provenApplicationIds,
+  });
+  const derivations = Object.fromEntries(blueprint.edges.map((edge) => {
+    const edgeApplications = applications.filter((application) => application.edge === edge.id);
+    return [edge.id, {
+      rule: normalizeCausalContract(blueprint, edge).rule_id,
+      status: edgeApplications.some((application) => provenApplicationIds.has(application.id))
+        ? "destination-proof"
+        : edgeApplications.length > 0 ? "reachable" : "not-applied",
+      applications: edgeApplications.map((application) => application.id),
+    }];
+  }));
+  const causalSoundness = (closure.candidateEdges.size > 0 || blueprint.schema_version >= 3)
+    && [...closure.candidateEdges].every((edgeId) => edgeMap.get(edgeId).causal_contract !== undefined)
+    ? "explicit"
+    : "legacy-inferred";
+  const reachability = destinationReached ? (unconditionalDestination ? "logical" : "conditional") : "unreachable";
+  const readyProvenEdges = [...provenEdges].filter((edgeId) => edgeReadiness(blueprint, seeded.facts, edgeId).ready);
   return {
     structural: structuralComplete ? "complete" : "incomplete",
-    reachability: destinationReached ? (unconditionalDestination ? "logical" : "conditional") : "unreachable",
+    reachability,
+    proof_level: "model",
+    causal_soundness: causalSoundness,
+    evidence_levels: {
+      structural_soundness: {
+        status: structuralComplete ? "established" : "failed",
+        basis: "schema, reference, topology, evidence-contract, and causal-contract validation",
+      },
+      declared_model_derivability: {
+        status: reachability,
+        basis: "forward search over isolated fact worlds using declared causal rules",
+        derivation_graph_digest: proofGraph.digest,
+      },
+      runtime_readiness: {
+        status: readyProvenEdges.length > 0 ? "ready" : destinationReached ? "not-ready" : "blocked",
+        ready_edges: readyProvenEdges,
+        basis: "current observed facts satisfy a destination-reaching edge frontier",
+      },
+      executed_derivation: {
+        status: "not-observed",
+        basis: "requires executed verifier, external readback, or submap receipt evidence",
+      },
+      audited_arrival: {
+        status: "not-observed",
+        basis: "requires observed destination acceptance and a separately consumed audit request",
+      },
+    },
     destination_reachable: destinationReached,
     required_predicates: [...closure.neededPredicates],
     candidate_edges: [...closure.candidateEdges],
@@ -1090,6 +1499,10 @@ export function proveBlueprint(blueprint, observedFacts = initialFacts(blueprint
     applied_edges: [...appliedEdges],
     assumptions_used: seeded.usedAssumptions,
     proof_gaps: gaps,
+    causal_gaps: destinationReached ? [] : frontierCausalGaps,
+    rejected_alternatives: destinationReached ? frontierCausalGaps : [],
+    derivations,
+    derivation_graph: proofGraph,
   };
 }
 
@@ -1117,7 +1530,7 @@ export function buildGoalRegression(blueprint, observedFacts = initialFacts(blue
     ...blueprint.destination.requires,
     ...blueprint.destination.invariants.flatMap((invariantId) => invariantMap.get(invariantId).requires),
   ])];
-  const invariantRequirements = (edge) => invariantPredicates(edge, blueprint, invariantMap);
+  const invariantRequirements = (edge) => causalPredicates(edge, blueprint);
 
   const targetPredicatesFor = (nodeId, root = false) => {
     const node = nodeMap.get(nodeId);

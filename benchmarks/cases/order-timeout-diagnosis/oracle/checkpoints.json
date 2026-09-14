@@ -14,20 +14,20 @@
     { "id": "destination-shaped", "description": "恢复合同经人确认，根因仍未被无证据补全", "assertions": [
       { "path": "wayfinding.destination_confirmed", "equals": true }, { "path": "wayfinding.open_questions", "max": 1 }, { "path": "summary.edges", "equals": 0 }
     ] },
-    { "id": "route-approved", "description": "诊断先于修复的正式路线已证明", "assertions": [
+    { "id": "map-proven", "description": "诊断先于修复的正式地图已登记并证明", "assertions": [
       { "path": "workspace.map_exists", "equals": true }, { "path": "workspace.briefs_count", "min": 2 },
       { "path": "contract.destination_acceptance", "min": 4 }, { "path": "contract.destination_invariants", "min": 1 },
       { "path": "contract.out_of_scope", "min": 2 }, { "path": "contract.edge_contracts_complete", "equals": true },
       { "path": "proof.structural", "equals": "complete" }, { "path": "proof.reachability", "one_of": ["logical", "conditional"] },
       { "path": "diagnosis.probe_edges", "min": 1 }, { "path": "diagnosis.repair_edges_after_probe", "min": 1 },
-      { "path": "runtime.destination_status", "equals": "approved" }, { "path": "runtime.current_route_approval", "nonempty": true },
-      { "path": "runtime.route_approvals_count", "min": 1 }, { "path": "runtime.active_edge", "equals": null },
+      { "path": "runtime.destination_status", "one_of": ["draft", "confirmed"] }, { "path": "runtime.active_edge", "equals": null },
       { "path": "runtime.active_run", "equals": null }, { "path": "runtime.edge_runs_count", "equals": 0 },
       { "path": "runtime.decisions_count", "equals": 0 }, { "path": "repo.dirty_paths", "empty": true }
     ] },
     { "id": "cause-proven", "description": "探针事实已登记并触发保留证据的最小修图", "assertions": [
       { "path": "runtime.evidence_count", "min": 1 }, { "path": "runtime.edge_runs_count", "min": 1 }, { "path": "runtime.replan_count", "min": 1 },
-      { "path": "runtime.human_decisions", "equals": true }, { "path": "runtime.evidence_traceable", "equals": true },
+      { "path": "runtime.decisions_attributed", "equals": true }, { "path": "runtime.runs_follow_authorization_contract", "equals": true },
+      { "path": "runtime.evidence_traceable", "equals": true },
       { "path": "proof.structural", "equals": "complete" }
     ] },
     { "id": "repaired", "description": "恢复合同通过隐藏反例检查", "assertions": [

@@ -18,19 +18,19 @@
       { "path": "wayfinding.phase", "equals": "regression" }, { "path": "wayfinding.draft_edges", "min": 2 },
       { "path": "wayfinding.candidate_edges_complete", "equals": true }, { "path": "regression.complete_chain", "equals": true }, { "path": "workspace.map_exists", "equals": false }
     ] },
-    { "id": "route-approved", "description": "正式路线和 Brief 已建立并可达", "assertions": [
+    { "id": "map-proven", "description": "完整候选链整体审阅后，正式地图和 Brief 已建立并可达", "assertions": [
       { "path": "workspace.map_exists", "equals": true }, { "path": "workspace.briefs_count", "min": 2 },
       { "path": "contract.destination_acceptance", "min": 3 }, { "path": "contract.destination_invariants", "min": 1 },
       { "path": "contract.out_of_scope", "min": 2 }, { "path": "contract.edge_contracts_complete", "equals": true },
       { "path": "proof.structural", "equals": "complete" }, { "path": "proof.reachability", "one_of": ["logical", "conditional"] },
-      { "path": "runtime.destination_status", "equals": "approved" }, { "path": "runtime.current_route_approval", "nonempty": true },
-      { "path": "runtime.route_approvals_count", "min": 1 }, { "path": "runtime.active_edge", "equals": null },
+      { "path": "runtime.destination_status", "one_of": ["draft", "confirmed"] }, { "path": "runtime.active_edge", "equals": null },
       { "path": "runtime.active_run", "equals": null }, { "path": "runtime.edge_runs_count", "equals": 0 },
       { "path": "runtime.decisions_count", "equals": 0 }, { "path": "repo.dirty_paths", "empty": true }
     ] },
     { "id": "compatibility-preserved", "description": "新旧行为均通过隐藏验收并登记实际证据", "assertions": [
       { "path": "repo.changed_paths", "nonempty": true }, { "path": "runtime.evidence_count", "min": 1 }, { "path": "runtime.edge_runs_count", "min": 1 },
-      { "path": "runtime.human_decisions", "equals": true }, { "path": "runtime.evidence_traceable", "equals": true }
+      { "path": "runtime.decisions_attributed", "equals": true }, { "path": "runtime.runs_follow_authorization_contract", "equals": true },
+      { "path": "runtime.evidence_traceable", "equals": true }
     ], "verifier": "oracle/verify.mjs" },
     { "id": "arrived", "description": "兼容演进通过实际到达审计", "assertions": [
       { "path": "runtime.phase", "equals": "arrived" }, { "path": "runtime.actual_arrival", "equals": "audited" },

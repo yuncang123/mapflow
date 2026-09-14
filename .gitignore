@@ -1,2 +1,3 @@
 __pycache__/
 .mapflow/state.json
+benchmarks/cases/library-system-greenfield/checkpoints/implementation-verified/target/.mapflow-demo/

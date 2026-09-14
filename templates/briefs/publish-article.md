@@ -10,9 +10,24 @@ contract:
   authorization:
     required: [Owner 批准回执与候选版本一致]
     allowed_actions: [公开发布并读取发布结果]
+  handoff:
+    from_roles: [任务所有者]
+    to_roles: [发布执行者, 技术支持]
+    inputs: [候选稿版本, Owner 批准回执]
+    outputs: [公开 URL, 发布 readback, 失败回执]
+    decision_rights: [任务所有者决定发布授权, 发布执行者决定技术回滚]
+  context:
+    focus: 发布已批准版本并取得可审计 readback
+    load_first: [本 Task Brief, 当前边及相邻节点, 候选稿版本, Owner 批准回执]
+    load_on_demand:
+      - { when: 发布或回读失败时, refs: [发布日志, 回滚说明, 运行状态] }
+    budget: { max_files: 8, max_chars: 50000 }
   evidence:
     proves: [article-published, public-url-exists]
     exit_conditions: [公开 URL 可访问且正文与批准版本一致]
+  verification:
+    commands:
+      - { id: publication-readback, program: node, args: [-e, "const fs=require('fs');const p='receipts/publication.json';if(!fs.existsSync(p)||!JSON.parse(fs.readFileSync(p,'utf8')).url)process.exit(1)"], cwd: workspace, timeout_seconds: 30, success_exit_codes: [0], proves: [article-published, public-url-exists] }
   failure:
     action: replan
     rollback: [保留失败回执并撤下不一致页面]

@@ -33,8 +33,8 @@ node tools/mapflow.mjs board --root $demoRoot --port 4185
 2. **目的地定形**：通过 grilling 确认“修复订单查询偶发超时”究竟要达到什么可观察结果，补齐非目标、授权、不变量和验收证据。
 3. **确认目的地**：人确认完整 Destination Contract 后，仍留在 Wayfinding 候选层，不立即创建 Blueprint。
 4. **反向目标回归**：从目的地逐层提出“哪条独立工作边能产生这个里程碑”，每次只提出候选节点和边。
-5. **确认节点和边**：人逐项确认节点语义、边顺序、Brief、验收、非目标和授权；候选链闭合前正式拓扑始终为零。
-6. **正式登记与证明**：候选链逐项确认并闭合后，才一次生成独立 Task Brief 和 Blueprint；先 `validate/prove`，空白 Sidecar 用 `init` 首次登记。若证明失败，只修复对应 proof gap 子图；已有正式地图的局部修订才用 `replan`。
+5. **整体审阅候选链**：一次展示节点语义、边顺序、因果规则、Brief、验收、非目标和授权；吸收人的整体反馈，但不建立逐对象审批门。候选链闭合前正式拓扑始终为零。
+6. **正式登记与证明**：完整候选链审阅并闭合后，才一次生成独立 Task Brief 和 Blueprint；先 `validate/prove`，空白 Sidecar 用 `init` 首次登记。若证明失败，只修复对应 proof gap 子图；已有正式地图的局部修订才用 `replan`。
 7. **实施与验收**：批准一条 ready/proven Work Edge，执行真实检查并登记 Evidence；Git tag 只作为阶段实现凭据，不把 commit 画成节点。
 8. **继续刷新**：每次事实、证据、Edge Run 或 Blueprint 变化，看板通过轮询自动刷新；只有正式拓扑变化才重新布图。
 

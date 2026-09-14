@@ -14,5 +14,5 @@
   "primary_risks": ["静默接受范围变化", "全图重画", "丢弃已验证证据", "旧分享能力残留"],
   "fixture": "subject/fixture",
   "operator_mainline": "operator/mainline.md",
-  "required_checkpoints": ["prepared", "original-route-approved", "shared-edge-verified", "change-proposed", "replanned", "changed-goal-verified", "arrived"]
+  "required_checkpoints": ["prepared", "original-map-proven", "shared-edge-verified", "change-proposed", "replanned", "changed-goal-verified", "arrived"]
 }

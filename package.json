@@ -1,13 +1,13 @@
 {
   "name": "mapflow",
-  "version": "0.6.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
-  "description": "Evidence-driven multiresolution work mapping workflow",
+  "description": "Destination-regressed causal maps with executable evidence and audited arrival",
   "scripts": {
     "test": "node --test tests/*.mjs",
     "test:oracle": "node tools/benchmark.mjs deterministic-test --level oracle",
-    "test:runtime": "node --test tests/test_mapflow.mjs tests/test_workspace.mjs tests/test_board.mjs",
+    "test:runtime": "node --test tests/test_mapflow.mjs tests/test_workspace.mjs tests/test_board.mjs tests/test_proof.mjs tests/test_core_contract.mjs",
     "test:regression": "node tools/benchmark.mjs deterministic-test --level runtime",
     "benchmark:doctor": "node tools/benchmark.mjs doctor",
     "benchmark:list": "node tools/benchmark.mjs list",

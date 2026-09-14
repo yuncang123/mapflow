@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -21,6 +22,12 @@ import {
 import { WorkspaceError, resolveWorkspace } from "./mapflow-workspace.mjs";
 import { WayfindingError, answerWayfindingQuestion, initialWayfindingDraft, readWayfinding, writeWayfinding } from "./mapflow-wayfinding.mjs";
 import {
+  certificateDigest,
+  createProofCertificate,
+  normalizeCausalContract,
+  verifyProofCertificate,
+} from "./mapflow-proof.mjs";
+import {
   EvolutionError,
   appendWayfindingEvent,
   ensureWayfindingMigrationAnchor,
@@ -32,7 +39,7 @@ import {
 } from "./mapflow-evolution.mjs";
 
 const PHASES = new Set(["wayfinding", "implementation", "arrived"]);
-const DESTINATION_STATES = new Set(["draft", "approved", "changed"]);
+const DESTINATION_STATES = new Set(["draft", "confirmed", "approved", "changed"]);
 const EVIDENCE_KINDS = new Set(["git", "document", "command", "receipt", "meeting", "note", "observation", "external"]);
 const EVIDENCE_STRENGTHS = new Set(["asserted", "observed", "corroborated"]);
 const RUN_STATES = new Set(["active", "waiting", "blocked", "passed", "failed", "cancelled"]);
@@ -40,6 +47,7 @@ const PROPOSAL_STATES = new Set(["pending", "confirmed", "rejected", "stale"]);
 const AUTHORIZATION_REQUEST_STATES = new Set(["pending", "granted", "declined", "stale"]);
 const ARRIVAL_AUDIT_REQUEST_STATES = new Set(["pending", "granted", "declined", "stale"]);
 const PENDING_EVENTS = new WeakMap();
+const CAPABILITY_ACTIONS = new Set(["read_workspace", "write_artifact", "run_verifier"]);
 
 class CliError extends Error {}
 
@@ -103,19 +111,15 @@ function normalizeRuntimeState(state) {
   state.proposals ??= [];
   state.decisions ??= [];
   state.edge_runs ??= [];
-  state.route_approval_requests ??= [];
-  state.route_approvals ??= [];
   state.authorization_requests ??= [];
   state.arrival_audit_requests ??= [];
-  state.current_route_approval ??= state.destination_status === "approved"
-    ? state.route_approvals.at(-1)?.id ?? null
-    : null;
   state.map_receipts ??= [];
   state.receipt_invalidations ??= [];
   state.brief_snapshots ??= {};
   state.active_run ??= null;
   state.runtime_status ??= state.phase === "arrived" ? "arrived" : state.active_edge ? "running" : state.phase === "wayfinding" ? "wayfinding" : "idle";
   state.event_stream ??= null;
+  state.capabilities ??= [];
   if (state.active_edge && !state.active_run) {
     const runId = `${state.active_edge}-legacy-run`;
     if (!state.edge_runs.some((run) => run.id === runId)) {
@@ -158,8 +162,11 @@ function validateState(state) {
   if (typeof state.map_digest !== "string" || state.map_digest.trim() === "") fail("map_digest must be a non-empty string");
   if (typeof state.map_id !== "string" || state.map_id.trim() === "") fail("map_id must be a non-empty string");
   if (state.active_edge !== null && typeof state.active_edge !== "string") fail("active_edge must be a string or null");
-  for (const field of ["verified_edges", "satisfied_nodes", "evidence", "history", "work_events", "proposals", "decisions", "edge_runs", "route_approval_requests", "route_approvals", "authorization_requests", "arrival_audit_requests", "map_receipts", "receipt_invalidations"]) {
+  for (const field of ["verified_edges", "satisfied_nodes", "evidence", "history", "work_events", "proposals", "decisions", "edge_runs", "authorization_requests", "arrival_audit_requests", "map_receipts", "receipt_invalidations"]) {
     if (!Array.isArray(state[field])) fail(`${field} must be a list`);
+  }
+  for (const legacyField of ["route_approval_requests", "route_approvals"]) {
+    if (state[legacyField] !== undefined && !Array.isArray(state[legacyField])) fail(`${legacyField} must be a list when present`);
   }
   if (!state.verified_edge_contracts || typeof state.verified_edge_contracts !== "object" || Array.isArray(state.verified_edge_contracts)) {
     fail("verified_edge_contracts must be an object");
@@ -186,6 +193,22 @@ function validateState(state) {
     }
     fact.evidence.forEach((entry, index) => validateEvidenceRef(entry, `fact ${factId}.evidence[${index}]`));
   }
+  for (const evidence of state.evidence) {
+    if (evidence?.proof_certificate !== undefined) {
+      if (!evidence.proof_certificate || evidence.proof_certificate.schema !== "mapflow.proof-certificate/v1") {
+        fail(`evidence ${evidence.id ?? "unknown"} has an invalid proof certificate`);
+      }
+      if (evidence.proof_certificate.certificate_digest !== certificateDigest(evidence.proof_certificate)) {
+        fail(`evidence ${evidence.id ?? "unknown"} proof certificate digest mismatch`);
+      }
+      if (evidence.proof_certificate.edge !== evidence.edge
+        || evidence.proof_certificate.evidence !== evidence.id
+        || evidence.proof_certificate.run !== evidence.run
+        || evidence.proof_certificate.brief_digest !== state.brief_digests[evidence.edge]) {
+        fail(`evidence ${evidence.id ?? "unknown"} proof certificate binding mismatch`);
+      }
+    }
+  }
   if (state.active_run !== null && typeof state.active_run !== "string") fail("active_run must be a string or null");
   if (state.active_run !== null && !state.edge_runs.some((run) => run.id === state.active_run && run.status === "active")) {
     fail(`active_run does not name an active Edge Run: ${state.active_run}`);
@@ -196,37 +219,57 @@ function validateState(state) {
     if (!run || typeof run.id !== "string" || typeof run.edge !== "string" || !RUN_STATES.has(run.status)) fail("edge_runs contains an invalid Edge Run");
     if (run.authorization_request !== null && typeof run.authorization_request !== "string") fail(`Edge Run ${run.id} has an invalid authorization_request`);
   }
-  if (state.current_route_approval !== null && typeof state.current_route_approval !== "string") fail("current_route_approval must be a string or null");
-  if (state.current_route_approval !== null && !state.route_approvals.some((approval) => approval.id === state.current_route_approval)) {
+  if (!Array.isArray(state.capabilities)) fail("capabilities must be a list");
+  for (const capability of state.capabilities) {
+    if (!capability || typeof capability !== "object" || typeof capability.id !== "string" || typeof capability.token_hash !== "string") {
+      fail("capabilities contains an invalid Action Contract");
+    }
+    if (typeof capability.edge !== "string" || typeof capability.run !== "string" || typeof capability.map_digest !== "string" || typeof capability.brief_digest !== "string") {
+      fail(`capability ${capability.id} is incomplete`);
+    }
+    if (capability.allowed_actions.includes("run_verifier") && (typeof capability.verifier !== "string" || typeof capability.verifier_digest !== "string")) {
+      fail(`capability ${capability.id} lacks a frozen verifier binding`);
+    }
+    if (!Array.isArray(capability.allowed_actions) || capability.allowed_actions.some((action) => !CAPABILITY_ACTIONS.has(action))) {
+      fail(`capability ${capability.id} has invalid allowed_actions`);
+    }
+    if (!Array.isArray(capability.brief_allowed_actions) || capability.brief_allowed_actions.some((action) => typeof action !== "string" || action.trim() === "")) {
+      fail(`capability ${capability.id} lacks Task Brief action boundaries`);
+    }
+    if (!new Set(["active", "consumed", "expired", "revoked"]).has(capability.status)) fail(`capability ${capability.id} has invalid status`);
+    if (Number.isNaN(Date.parse(capability.expires_at))) fail(`capability ${capability.id} has invalid expires_at`);
+  }
+  if (state.current_route_approval !== undefined && state.current_route_approval !== null && typeof state.current_route_approval !== "string") fail("current_route_approval must be a string or null when present");
+  if (state.current_route_approval && !(state.route_approvals ?? []).some((approval) => approval.id === state.current_route_approval)) {
     fail(`current_route_approval does not name a Route Approval: ${state.current_route_approval}`);
   }
-  for (const approval of state.route_approvals) {
+  for (const approval of state.route_approvals ?? []) {
     if (!approval || typeof approval.id !== "string" || typeof approval.map_digest !== "string" || typeof approval.actor !== "string") {
       fail("route_approvals contains an invalid Route Approval");
     }
   }
-  for (const request of state.route_approval_requests) {
+  for (const request of state.route_approval_requests ?? []) {
     if (!request || typeof request.id !== "string" || typeof request.map_digest !== "string" || !AUTHORIZATION_REQUEST_STATES.has(request.status)) {
       fail("route_approval_requests contains an invalid request");
     }
     if (typeof request.proof_digest !== "string" || typeof request.question !== "string" || typeof request.requested_by !== "string") {
       fail(`route approval request ${request.id} is incomplete`);
     }
-    if (request.decision_owner !== undefined && (typeof request.decision_owner !== "string" || !request.decision_owner.startsWith("human:"))) {
+    if (request.decision_owner !== undefined && (typeof request.decision_owner !== "string" || !/^(?:human|agent):/.test(request.decision_owner))) {
       fail(`route approval request ${request.id} has an invalid decision_owner`);
     }
   }
-  if (state.route_approval_requests.filter((request) => request.status === "pending").length > 1) {
+  if ((state.route_approval_requests ?? []).filter((request) => request.status === "pending").length > 1) {
     fail("runtime allows at most one pending route approval request");
   }
   for (const request of state.authorization_requests) {
     if (!request || typeof request.id !== "string" || typeof request.edge !== "string" || !AUTHORIZATION_REQUEST_STATES.has(request.status)) {
       fail("authorization_requests contains an invalid request");
     }
-    if (typeof request.route_approval !== "string" || typeof request.question !== "string" || typeof request.requested_by !== "string") {
+    if ((request.route_approval !== undefined && request.route_approval !== null && typeof request.route_approval !== "string") || typeof request.question !== "string" || typeof request.requested_by !== "string") {
       fail(`authorization request ${request.id} is incomplete`);
     }
-    if (request.decision_owner !== undefined && (typeof request.decision_owner !== "string" || !request.decision_owner.startsWith("human:"))) {
+    if (request.decision_owner !== undefined && (typeof request.decision_owner !== "string" || !/^(?:human|agent):/.test(request.decision_owner))) {
       fail(`authorization request ${request.id} has an invalid decision_owner`);
     }
   }
@@ -237,13 +280,13 @@ function validateState(state) {
     if (!request || typeof request.id !== "string" || typeof request.map_digest !== "string" || !ARRIVAL_AUDIT_REQUEST_STATES.has(request.status)) {
       fail("arrival_audit_requests contains an invalid request");
     }
-    if (typeof request.route_approval !== "string" || !Number.isInteger(request.state_revision) || request.state_revision < 1) {
-      fail(`arrival audit request ${request.id} has an invalid route or state revision`);
+    if ((request.route_approval !== undefined && request.route_approval !== null && typeof request.route_approval !== "string") || !Number.isInteger(request.state_revision) || request.state_revision < 1) {
+      fail(`arrival audit request ${request.id} has an invalid legacy route reference or state revision`);
     }
     if (typeof request.evidence_digest !== "string" || !Array.isArray(request.acceptance) || typeof request.question !== "string" || typeof request.requested_by !== "string") {
       fail(`arrival audit request ${request.id} is incomplete`);
     }
-    if (request.decision_owner !== undefined && (typeof request.decision_owner !== "string" || !request.decision_owner.startsWith("human:"))) {
+    if (request.decision_owner !== undefined && (typeof request.decision_owner !== "string" || !/^(?:human|agent):/.test(request.decision_owner))) {
       fail(`arrival audit request ${request.id} has an invalid decision_owner`);
     }
   }
@@ -715,10 +758,282 @@ function dormantRuntimeStatus(state) {
   if (activeRun(state)) return "running";
   if (state.arrival_audit_requests.some((request) => request.status === "pending")) return "arrival-audit-required";
   if (state.authorization_requests.some((request) => request.status === "pending")) return "authorization-required";
-  if (state.route_approval_requests.some((request) => request.status === "pending")) return "route-approval-required";
   if (state.edge_runs.some((run) => run.status === "blocked")) return "blocked";
   if (state.edge_runs.some((run) => run.status === "waiting")) return "waiting";
   return "idle";
+}
+
+function destinationConfirmed(state) {
+  return new Set(["confirmed", "approved"]).has(state.destination_status);
+}
+
+function capabilityDigest(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function capabilityFor(state, token, edgeId, action, verifier) {
+  if (typeof token !== "string" || token.trim() === "") fail("capability token is required");
+  const capability = state.capabilities.find((entry) => entry.token_hash === capabilityDigest(token));
+  if (!capability) fail("capability token is invalid");
+  if (capability.status !== "active") fail(`capability is ${capability.status}`);
+  if (Date.parse(capability.expires_at) <= Date.now()) {
+    capability.status = "expired";
+    fail(`capability expired: ${capability.id}`);
+  }
+  if (capability.edge !== edgeId || capability.run !== state.active_run) fail("capability is not bound to the active Edge Run");
+  if (capability.map_digest !== state.map_digest || capability.brief_digest !== state.brief_digests[edgeId]) {
+    fail("capability is stale because the map or Task Brief changed");
+  }
+  if (!capability.allowed_actions.includes(action)) fail(`capability does not allow action: ${action}`);
+  if (action === "run_verifier" && (capability.verifier !== verifier.id || capability.verifier_digest !== verifierDigest(verifier))) {
+    fail("capability is not bound to this frozen verifier");
+  }
+  capability.status = "consumed";
+  capability.consumed_at = now();
+  return capability;
+}
+
+function verifierDigest(verifier) {
+  return crypto.createHash("sha256").update(stableJson(verifier)).digest("hex");
+}
+
+function verifierDisplay(verifier) {
+  return [verifier.program, ...verifier.args].map((part) => JSON.stringify(part)).join(" ");
+}
+
+function runVerifier(verifier, workspaceRoot, mapDirectory) {
+  const cwd = verifier.cwd === "workspace" ? workspaceRoot : mapDirectory;
+  const startedAt = now();
+  const result = spawnSync(verifier.program, verifier.args, {
+    cwd,
+    encoding: "utf8",
+    shell: false,
+    timeout: verifier.timeout_seconds * 1000,
+    windowsHide: true,
+    maxBuffer: 1024 * 1024,
+  });
+  const exitCode = typeof result.status === "number" ? result.status : 1;
+  const signal = result.signal ?? null;
+  const stdout = String(result.stdout ?? "");
+  const stderr = String(result.stderr ?? result.error?.message ?? "");
+  return {
+    command: verifierDisplay(verifier),
+    program: verifier.program,
+    args: verifier.args,
+    cwd,
+    result: verifier.success_exit_codes.includes(exitCode) && !result.error ? "pass" : "fail",
+    exit_code: exitCode,
+    signal,
+    stdout,
+    stderr,
+    stdout_digest: crypto.createHash("sha256").update(stdout).digest("hex"),
+    stderr_digest: crypto.createHash("sha256").update(stderr).digest("hex"),
+    started_at: startedAt,
+    finished_at: now(),
+  };
+}
+
+function destinationAcceptanceReady(blueprint, state) {
+  return blueprint.destination.acceptance.every((acceptance) => {
+    const records = state.evidence.filter((entry) => (
+      entry.acceptance_ids?.includes(acceptance.id)
+      && entry.checks?.some((check) => check.result === "pass" && check.mode !== "reported")
+      && (entry.limits?.unverified?.length ?? 0) === 0
+    ));
+    const proven = new Set(records.flatMap((entry) => entry.proves ?? []));
+    return acceptance.proves.every((predicateId) => proven.has(predicateId));
+  });
+}
+
+function edgeNeedsAuthorization(briefs, edgeId) {
+  return (briefs[edgeId]?.metadata?.contract?.authorization?.required ?? []).length > 0;
+}
+
+function enterImplementation(state, blueprint) {
+  if (state.phase === "implementation") return false;
+  if (state.phase !== "wayfinding") fail(`cannot enter implementation from phase: ${state.phase}`);
+  if (blueprint.intent.status !== "shaped" || blueprint.intent.open_questions.length > 0) {
+    fail("implementation requires a shaped Intent with no open questions");
+  }
+  refreshDerivedState(state, blueprint);
+  ensureApprovableProof(state);
+  if (blueprint.schema_version >= 3 && state.last_proof.causal_soundness !== "explicit") {
+    fail("implementation requires explicit causal contracts on every destination-relevant edge");
+  }
+  state.phase = "implementation";
+  state.destination_status = "confirmed";
+  state.runtime_status = "idle";
+  return true;
+}
+
+function readyEdgesFor(blueprint, state) {
+  return blueprint.edges
+    .filter((edge) => !state.verified_edges.includes(edge.id) || loopsForEdge(blueprint, edge.id).length > 0)
+    .filter((edge) => state.last_proof.proven_edges.includes(edge.id))
+    .map((edge) => ({ edge: edge.id, readiness: edgeReadiness(blueprint, state.facts, edge.id) }))
+    .filter((entry) => entry.readiness.ready)
+    .map((entry) => ({ edge: entry.edge, missing: [] }));
+}
+
+function commandNextActions(statePath, options) {
+  if (!fs.existsSync(statePath)) {
+    const wayfindingPath = wayfindingPathsForState(statePath).draftPath;
+    if (fs.existsSync(wayfindingPath)) {
+      const draft = readWayfinding(wayfindingPath).draft;
+      const pendingQuestion = draft.questions.find((question) => (question.status ?? "pending") === "pending") ?? null;
+      const actions = pendingQuestion
+        ? [{ id: "answer-wayfinding-question", question_id: pendingQuestion.id, target: pendingQuestion.target, reason: pendingQuestion.prompt }]
+        : [{ id: "continue-wayfinding", command: "wayfinding-write", reason: "shape the destination and regress the route before initializing runtime" }];
+      const output = { deterministic: true, phase: "wayfinding", runtime_status: "wayfinding", actions, ready_edges: [] };
+      process.stdout.write(options.has("json") ? `${JSON.stringify(output, null, 2)}\n` : `next action: ${actions[0].id}\n`);
+      return;
+    }
+    const output = {
+      deterministic: true,
+      phase: "uninitialized",
+      actions: [{ id: "enable", command: "enable", reason: "workspace sidecar and the blank wayfinding state do not exist" }],
+      ready_edges: [],
+    };
+    process.stdout.write(options.has("json") ? `${JSON.stringify(output, null, 2)}\n` : "next action: enable (workspace sidecar is absent)\n");
+    return;
+  }
+  const state = loadState(statePath);
+  if (state.phase === "arrived") {
+    const { blueprint } = readStateBlueprint(statePath, state);
+    const output = {
+      deterministic: true,
+      phase: "arrived",
+      runtime_status: "arrived",
+      actions: [],
+      ready_edges: [],
+      evidence_levels: runtimeEvidenceLevels(state, blueprint),
+      arrival_audit: state.arrival_audit ?? null,
+    };
+    process.stdout.write(options.has("json") ? `${JSON.stringify(output, null, 2)}\n` : "no next action: destination arrival is audited\n");
+    return;
+  }
+  if (state.phase === "wayfinding") {
+    const { blueprint, briefs } = readStateBlueprint(statePath, state);
+    const wayfindingPath = wayfindingPathsForState(statePath).draftPath;
+    const wayfinding = fs.existsSync(wayfindingPath) ? readWayfinding(wayfindingPath).draft : null;
+    const pendingQuestion = wayfinding?.questions?.find((question) => (question.status ?? "pending") === "pending") ?? null;
+    const actions = [];
+    if (pendingQuestion) actions.push({ id: "answer-wayfinding-question", question_id: pendingQuestion.id, target: pendingQuestion.target, reason: pendingQuestion.prompt });
+    else if (state.last_proof?.structural === "complete" && new Set(["logical", "conditional"]).has(state.last_proof.reachability)) {
+      const readyEdges = readyEdgesFor(blueprint, state);
+      readyEdges.forEach((entry) => actions.push(edgeNeedsAuthorization(briefs, entry.edge)
+        ? { id: "request-authorization", command: "request-authorization", edge: entry.edge, reason: "edge is proven and ready, and its Task Brief declares an authorization requirement" }
+        : { id: "start", command: "start", edge: entry.edge, reason: "edge is proven, ready, and carries no external authorization requirement" }));
+      if (readyEdges.length === 0) actions.push({ id: "prove-or-replan", command: "prove or replan", reason: "the map is proven but no first edge is runtime-ready" });
+    } else {
+      actions.push({ id: "shape-or-replan", command: "wayfinding-write or replan", reason: "the map is not yet structurally and causally ready" });
+    }
+    const output = {
+      deterministic: true,
+      phase: state.phase,
+      runtime_status: state.runtime_status,
+      actions,
+      ready_edges: readyEdgesFor(blueprint, state),
+      proof: state.last_proof,
+      evidence_levels: runtimeEvidenceLevels(state, blueprint),
+    };
+    process.stdout.write(options.has("json") ? `${JSON.stringify(output, null, 2)}\n` : `next action: ${actions[0]?.id ?? "none"}\n`);
+    return;
+  }
+
+  const { blueprint, digest, briefs } = readStateBlueprint(statePath, state);
+  assertMapUnchanged(statePath, state, digest);
+  refreshDerivedState(state, blueprint);
+  const readyEdges = readyEdgesFor(blueprint, state);
+  const actions = [];
+  const pendingAuth = state.authorization_requests.find((request) => request.status === "pending");
+  const pendingArrival = state.arrival_audit_requests.find((request) => request.status === "pending");
+  if (pendingArrival) {
+    actions.push({ id: "await-arrival-audit", request_id: pendingArrival.id, reason: "a human arrival audit is pending" });
+  } else if (state.active_run) {
+    const activeCapability = state.capabilities.find((entry) => entry.run === state.active_run && entry.status === "active" && Date.parse(entry.expires_at) > Date.now()) ?? null;
+    actions.push({ id: "gate", command: "gate", edge: state.active_edge, reason: "recheck the active capability boundary" });
+    if (activeCapability) actions.push({ id: "verify-executed", command: "verify-executed", edge: state.active_edge, capability_id: activeCapability.id, verifier: activeCapability.verifier, reason: "consume the issued capability and capture the verifier's actual result" });
+    else actions.push({ id: "issue-action", command: "issue-action --actions run_verifier --verifier <brief-verifier-id>", edge: state.active_edge, reason: "issue a one-use capability for a verifier frozen in the Task Brief" });
+    actions.push({ id: "wait-or-block", reason: "pause the active run when an external dependency is not ready" });
+  } else if (pendingAuth) {
+    actions.push({ id: "await-authorization", request_id: pendingAuth.id, edge: pendingAuth.edge, reason: "a human edge authorization is pending" });
+  } else if (readyEdges.length > 0) {
+    readyEdges.forEach((entry) => actions.push(edgeNeedsAuthorization(briefs, entry.edge)
+      ? { id: "request-authorization", command: "request-authorization", edge: entry.edge, reason: "edge is proven and ready, and its Task Brief declares an authorization requirement" }
+      : { id: "start", command: "start", edge: entry.edge, reason: "edge is proven, ready, and carries no external authorization requirement" }));
+  } else if (blueprint.destination.requires.every((predicateId) => predicateSatisfied(predicateId, state.facts, blueprint)) && destinationAcceptanceReady(blueprint, state)) {
+    actions.push({ id: "request-arrival-audit", command: "request-arrival-audit", reason: "destination predicates and acceptance evidence are observed" });
+  } else {
+    actions.push({ id: "prove-or-replan", command: "prove or replan", reason: "no executable edge is currently ready" });
+  }
+  const output = {
+    deterministic: true,
+    phase: state.phase,
+    destination_status: state.destination_status,
+    runtime_status: state.runtime_status,
+    active_edge: state.active_edge,
+    active_run: state.active_run,
+    actions,
+    ready_edges: readyEdges,
+    proof: state.last_proof,
+    evidence_levels: runtimeEvidenceLevels(state, blueprint),
+    pending_human_requests: [
+      ...state.authorization_requests,
+      ...state.arrival_audit_requests,
+    ].filter((request) => request.status === "pending").map((request) => ({ id: request.id, kind: request.id.includes("arrival-audit") ? "arrival-audit" : "authorization", edge: request.edge ?? null, decision_owner: request.decision_owner ?? null })),
+  };
+  process.stdout.write(options.has("json") ? `${JSON.stringify(output, null, 2)}\n` : `next action(s): ${actions.map((action) => action.id).join(", ") || "none"}\n`);
+}
+
+function commandIssueAction(statePath, options) {
+  const state = loadState(statePath);
+  if (state.phase !== "implementation" || !destinationConfirmed(state) || !state.active_run || !activeRun(state)) {
+    fail("issue-action requires one active Edge Run on a confirmed destination map");
+  }
+  const edgeId = options.get("edge") ?? state.active_edge;
+  if (edgeId !== state.active_edge) fail(`issue-action must name active edge ${JSON.stringify(state.active_edge)}`);
+  const { blueprint, digest, brief_digests: briefDigests, briefs } = readStateBlueprint(statePath, state);
+  assertMapUnchanged(statePath, state, digest);
+  ensureReadyEdge(blueprint, state, edgeId);
+  const actions = csv(options, "actions");
+  const allowedActions = actions.length > 0 ? actions : ["run_verifier"];
+  if (allowedActions.some((action) => !CAPABILITY_ACTIONS.has(action))) fail(`invalid capability action; allowed: ${[...CAPABILITY_ACTIONS].join(", ")}`);
+  const verifierId = allowedActions.includes("run_verifier") ? required(options, "verifier") : null;
+  const verifier = verifierId === null
+    ? null
+    : briefs[edgeId]?.metadata?.contract?.verification?.commands?.find((entry) => entry.id === verifierId) ?? null;
+  if (verifierId !== null && !verifier) fail(`Task Brief for ${edgeId} does not declare verifier: ${verifierId}`);
+  for (const entry of state.capabilities.filter((item) => item.run === state.active_run && item.status === "active" && Date.parse(item.expires_at) <= Date.now())) {
+    entry.status = "expired";
+    entry.expired_at = now();
+  }
+  const existing = state.capabilities.find((entry) => entry.run === state.active_run && entry.status === "active");
+  if (existing) fail(`an active capability already exists for this run: ${existing.id}`);
+  const ttlSeconds = Number(options.get("ttl") ?? 900);
+  if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > 3600) fail("ttl must be an integer between 1 and 3600 seconds");
+  const rawToken = `mfcap_${crypto.randomBytes(24).toString("hex")}`;
+  const issuedAt = now();
+  const expiresAt = new Date(Date.parse(issuedAt) + ttlSeconds * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const capability = {
+    id: nextSemanticId(state.capabilities, edgeId, "capability"),
+    edge: edgeId,
+    run: state.active_run,
+    map_digest: state.map_digest,
+    brief_digest: briefDigests[edgeId],
+    allowed_actions: allowedActions,
+    brief_allowed_actions: [...briefs[edgeId].metadata.contract.authorization.allowed_actions],
+    ...(verifier === null ? {} : { verifier: verifier.id, verifier_digest: verifierDigest(verifier) }),
+    token_hash: capabilityDigest(rawToken),
+    issued_at: issuedAt,
+    expires_at: expiresAt,
+    status: "active",
+  };
+  state.capabilities.push(capability);
+  record(state, "action_capability_issued", { capability: capability.id, edge: edgeId, run: state.active_run, allowed_actions: allowedActions, brief_allowed_actions: capability.brief_allowed_actions, verifier: verifier?.id ?? null, expires_at: expiresAt, actor: options.get("actor") ?? "agent:mapflow" });
+  saveState(statePath, state);
+  const output = { capability_id: capability.id, token: rawToken, edge: edgeId, run: state.active_run, allowed_actions: allowedActions, brief_allowed_actions: capability.brief_allowed_actions, verifier: verifier?.id ?? null, expires_at: expiresAt };
+  process.stdout.write(options.has("json") ? `${JSON.stringify(output, null, 2)}\n` : `issued capability ${capability.id}; token: ${rawToken}\n`);
 }
 
 function nextSemanticId(items, prefix, suffix) {
@@ -769,6 +1084,11 @@ function transitionRun(state, status, details = {}) {
   run.status = status;
   run.updated_at = now();
   Object.assign(run, details);
+  for (const capability of state.capabilities.filter((entry) => entry.run === run.id && entry.status === "active")) {
+    capability.status = "revoked";
+    capability.revoked_at = now();
+    capability.revoked_reason = `Edge Run transitioned to ${status}`;
+  }
   state.active_run = null;
   state.active_edge = null;
   state.runtime_status = dormantRuntimeStatus(state);
@@ -813,16 +1133,15 @@ function printHelp() {
   process.stdout.write("  validate   validate a Blueprint definition\n");
   process.stdout.write("  init       initialize runtime state from a Blueprint\n");
   process.stdout.write("  status     show the current runtime projection\n");
-  process.stdout.write("  prove      run backward closure and forward reachability proof\n");
-  process.stdout.write("  request-route-approval  ask for human approval of the proven complete route\n");
-  process.stdout.write("  assign-decision-owner  assign a human owner to one pending approval, authorization, or audit request\n");
-  process.stdout.write("  approve    apply one pending human route approval without activating work\n");
-  process.stdout.write("  decline-route-approval  decline one pending route approval request\n");
-  process.stdout.write("  request-authorization  ask for fresh human permission for one ready edge\n");
-  process.stdout.write("  authorize  apply one pending human authorization and activate its edge\n");
+  process.stdout.write("  context    disclose bounded context for the current map or edge (--layer focus|work|evidence|history)\n");
+  process.stdout.write("  prove      regress from Destination and build the forward derivation graph\n");
+  process.stdout.write("  next-actions  derive the complete set of currently allowed moves\n");
+  process.stdout.write("  start      activate one proven ready edge with no declared authorization requirement\n");
+  process.stdout.write("  request-authorization  ask the declared decision owner for a protected ready edge\n");
+  process.stdout.write("  authorize  apply one pending authorization and activate its edge\n");
   process.stdout.write("  decline-authorization  decline one pending edge authorization request\n");
-  process.stdout.write("  select     rejected legacy shortcut; prints the authorization migration path\n");
   process.stdout.write("  gate       check whether the active edge may execute\n");
+  process.stdout.write("  issue-action  issue a one-use capability for the active Edge Run\n");
   process.stdout.write("  wait       move the active Edge Run to waiting\n");
   process.stdout.write("  block      move the active Edge Run to blocked\n");
   process.stdout.write("  resume     resume a waiting or blocked Edge Run\n");
@@ -831,10 +1150,11 @@ function printHelp() {
   process.stdout.write("  confirm    confirm a Proposal and apply its Fact\n");
   process.stdout.write("  reject     reject a Proposal without changing Facts\n");
   process.stdout.write("  verify     record an explicit pass/fail check and apply proven effects\n");
+  process.stdout.write("  verify-executed  run one verifier under a one-use capability and record trusted Evidence\n");
   process.stdout.write("  verify-submap  verify child arrival and accept a Map Receipt\n");
   process.stdout.write("  replan     preserve evidence and return to wayfinding\n");
-  process.stdout.write("  request-arrival-audit  ask for an independent human audit of completed destination evidence\n");
-  process.stdout.write("  arrive     consume one pending human arrival audit answer\n");
+  process.stdout.write("  request-arrival-audit  freeze completed destination evidence for a human or Agent audit\n");
+  process.stdout.write("  arrive     consume one pending audit answer and record Arrival\n");
   process.stdout.write("  rebuild    rebuild state projection from verified events\n");
   process.stdout.write("  board      serve a read-only dynamic map (--map MAP, --port PORT)\n");
 }
@@ -1056,7 +1376,7 @@ function commandWayfindingAnswer(statePath, options) {
 function isExplicitConfirmation(answer) {
   const value = String(answer ?? "").trim();
   if (!value || /(?:暂不|不|拒绝|取消)(?:确认|批准|同意|接受)|\b(?:do not|don't|reject|decline)\b/i.test(value)) return false;
-  return /(?:确认|批准|同意|接受)|\b(?:confirm|approve|agree|accept)(?:ed)?\b/i.test(value);
+  return /(?:确认|批准|同意|接受|是这样的|就是这样|就按这个)|\b(?:confirm|approve|agree|accept)(?:ed)?\b/i.test(value);
 }
 
 function assertAnsweredHumanConfirmation(current, candidate, { kind, id: targetId, label }) {
@@ -1080,7 +1400,7 @@ function assertAnsweredHumanConfirmation(current, candidate, { kind, id: targetI
   }
 }
 
-function assertHumanConfirmationTransitions(current, candidate) {
+function assertDestinationConfirmationTransition(current, candidate) {
   const candidateDestinationConfirmed = new Set(["confirmed", "destination"]).has(candidate.destination?.status);
   const currentDestinationConfirmed = new Set(["confirmed", "destination"]).has(current?.destination?.status);
   if (candidateDestinationConfirmed && !currentDestinationConfirmed) {
@@ -1091,14 +1411,6 @@ function assertHumanConfirmationTransitions(current, candidate) {
     });
   }
 
-  for (const collection of ["nodes", "edges"]) {
-    const kind = collection === "nodes" ? "node" : "edge";
-    const currentById = new Map((current?.[collection] ?? []).map((item) => [item.id, item]));
-    for (const item of candidate[collection] ?? []) {
-      if (item.status !== "confirmed" || currentById.get(item.id)?.status === "confirmed") continue;
-      assertAnsweredHumanConfirmation(current, candidate, { kind, id: item.id, label: kind });
-    }
-  }
 }
 
 function commandWayfindingWrite(statePath, options) {
@@ -1110,7 +1422,7 @@ function commandWayfindingWrite(statePath, options) {
   if (path.resolve(sourcePath) === path.resolve(draftPath)) fail("draft-file must be a separate candidate file");
   const { draft } = readWayfinding(sourcePath);
   const current = fs.existsSync(draftPath) ? readWayfinding(draftPath).draft : null;
-  assertHumanConfirmationTransitions(current, draft);
+  assertDestinationConfirmationTransition(current, draft);
   if (current && semanticWayfindingDigest(current) === semanticWayfindingDigest(draft)) {
     assertWayfindingJournalMatchesCurrent(eventsPath, draftPath);
     const digest = sha256File(draftPath);
@@ -1190,9 +1502,6 @@ function commandInit(statePath, options) {
     runtime_status: "wayfinding",
     edge_runs: [],
     decisions: [],
-    route_approval_requests: [],
-    route_approvals: [],
-    current_route_approval: null,
     authorization_requests: [],
     arrival_audit_requests: [],
     work_events: [],
@@ -1230,13 +1539,14 @@ function commandInit(statePath, options) {
 
 function commandStatus(statePath, options) {
   const state = loadState(statePath);
-  const { blueprint, digest } = readStateBlueprint(statePath, state);
+  const { blueprint, digest, briefs } = readStateBlueprint(statePath, state);
   const projectionBlueprint = digest === state.map_digest ? blueprint : state.blueprint_snapshot;
   const projection = {
     ...state,
     map_changed: digest !== state.map_digest,
     actual_arrival: state.phase === "arrived" ? "audited" : "not-audited",
     satisfied_nodes: deriveSatisfiedNodes(projectionBlueprint, state.facts),
+    evidence_levels: runtimeEvidenceLevels(state, projectionBlueprint),
   };
   if (options.has("json")) {
     process.stdout.write(`${JSON.stringify(projection, null, 2)}\n`);
@@ -1246,6 +1556,7 @@ function commandStatus(statePath, options) {
   process.stdout.write(`destination: ${projection.destination_status}\n`);
   process.stdout.write(`map: ${projection.map_id}${projection.map_changed ? " (changed)" : ""}\n`);
   process.stdout.write(`proof: ${projection.last_proof.structural}/${projection.last_proof.reachability}\n`);
+  process.stdout.write(`evidence_levels: ${Object.entries(projection.evidence_levels).map(([id, level]) => `${id}=${level.status}`).join(", ")}\n`);
   process.stdout.write(`actual_arrival: ${projection.actual_arrival}\n`);
   process.stdout.write(`active_edge: ${projection.active_edge ?? "-"}\n`);
   process.stdout.write(`active_run: ${projection.active_run ?? "-"}; runtime: ${projection.runtime_status}\n`);
@@ -1253,6 +1564,126 @@ function commandStatus(statePath, options) {
   process.stdout.write(`verified_edges: ${projection.verified_edges.join(", ") || "-"}\n`);
   process.stdout.write(`satisfied_nodes: ${projection.satisfied_nodes.join(", ") || "-"}\n`);
   process.stdout.write(`evidence_records: ${projection.evidence.length}\n`);
+}
+
+function runtimeEvidenceLevels(state, blueprint) {
+  const destinationObserved = blueprint.destination.requires.every((predicateId) => predicateSatisfied(predicateId, state.facts, blueprint));
+  const acceptanceObserved = destinationAcceptanceReady(blueprint, state);
+  const executedComplete = destinationObserved && acceptanceObserved;
+  const readyEdges = readyEdgesFor(blueprint, state);
+  return {
+    ...structuredClone(state.last_proof.evidence_levels ?? {}),
+    runtime_readiness: {
+      status: state.active_run ? "active" : readyEdges.length > 0 ? "ready" : executedComplete ? "complete" : "blocked",
+      ready_edges: readyEdges.map((entry) => entry.edge),
+      active_edge: state.active_edge,
+      basis: "observed facts, current proof, loop budget, and active run state",
+    },
+    executed_derivation: {
+      status: executedComplete ? "complete" : state.verified_edges.length > 0 ? "partial" : "not-observed",
+      verified_edges: [...state.verified_edges],
+      basis: "trusted edge evidence has applied observed effects",
+    },
+    audited_arrival: {
+      status: state.phase === "arrived" ? "established" : "not-observed",
+      request: state.arrival_audit?.request ?? null,
+      basis: "a designated human or Agent consumed the frozen arrival audit request",
+    },
+  };
+}
+
+function commandContext(statePath, options) {
+  const state = loadState(statePath);
+  const { blueprint, digest, briefs } = readStateBlueprint(statePath, state);
+  assertMapUnchanged(statePath, state, digest);
+  refreshDerivedState(state, blueprint);
+  const layer = options.get("layer") ?? "focus";
+  if (!new Set(["focus", "work", "evidence", "history"]).has(layer)) fail("context layer must be focus, work, evidence, or history");
+  const readyEdges = readyEdgesFor(blueprint, state);
+  const edgeId = options.get("edge") ?? state.active_edge ?? (readyEdges.length === 1 ? readyEdges[0].edge : null);
+  const edge = edgeId === null ? null : blueprint.edges.find((item) => item.id === edgeId);
+  if (edgeId !== null && !edge) fail(`unknown context edge: ${edgeId}`);
+  const brief = edge ? briefs[edge.id] : null;
+  const handoff = brief?.metadata?.contract?.handoff ?? null;
+  const disclosure = brief?.metadata?.contract?.context ?? null;
+  const budget = structuredClone(disclosure?.budget ?? { max_files: 8, max_chars: 50000 });
+  const output = {
+    schema: "mapflow.context-pack/v1",
+    layer,
+    map: {
+      id: blueprint.map_id,
+      destination: blueprint.destination.statement,
+      phase: state.phase,
+      actual_arrival: state.phase === "arrived" ? "audited" : "not-audited",
+    },
+    evidence_levels: runtimeEvidenceLevels(state, blueprint),
+    focus: edge ? {
+      edge: edge.id,
+      title: brief?.metadata?.title ?? edge.id,
+      from: edge.from,
+      to: edge.to,
+      effects: [...edge.effects],
+      status: state.active_edge === edge.id ? "active" : readyEdges.some((entry) => entry.edge === edge.id) ? "ready" : state.verified_edges.includes(edge.id) ? "verified" : "blocked",
+      handoff: structuredClone(handoff),
+      context: disclosure ? {
+        focus: disclosure.focus,
+        load_first: [...disclosure.load_first],
+        budget: structuredClone(disclosure.budget),
+      } : null,
+    } : {
+      edge: null,
+      ready_edges: readyEdges.map((entry) => entry.edge),
+      note: readyEdges.length > 1 ? "choose one ready edge before loading work context" : "no active or uniquely ready edge",
+    },
+    available_layers: ["focus", "work", "evidence", "history"],
+    budget: {
+      ...budget,
+      declared_load_first: disclosure?.load_first?.length ?? 0,
+      included_chars: 0,
+      within_budget: true,
+    },
+  };
+  if (layer === "work" && edge) {
+    output.work = {
+      edge: structuredClone(edge),
+      from_node: structuredClone(blueprint.nodes.find((node) => node.id === edge.from)),
+      to_node: structuredClone(blueprint.nodes.find((node) => node.id === edge.to)),
+      applicable_invariants: structuredClone(blueprint.invariants.filter((invariant) => edge.invariants.includes(invariant.id))),
+      brief: structuredClone(brief),
+      load_on_demand: structuredClone(disclosure?.load_on_demand ?? []),
+    };
+  } else if (layer === "evidence") {
+    output.evidence = {
+      edge: edgeId,
+      records: structuredClone(edgeId ? state.evidence.filter((record) => record.edge === edgeId) : state.evidence),
+      acceptance: structuredClone(blueprint.destination.acceptance),
+      proposals: structuredClone((state.proposals ?? []).filter((proposal) => proposal.status === "pending")),
+    };
+  } else if (layer === "history") {
+    const limit = Number(options.get("limit") ?? 20);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) fail("context history limit must be an integer from 1 to 100");
+    output.history = structuredClone(state.history.filter((entry) => (
+      !edgeId
+      || (!entry.edge && !entry.details?.edge)
+      || entry.edge === edgeId
+      || entry.details?.edge === edgeId
+    )).slice(-limit));
+  }
+  for (let pass = 0; pass < 3; pass += 1) {
+    output.budget.included_chars = JSON.stringify(output).length;
+  }
+  output.budget.within_budget = output.budget.included_chars <= output.budget.max_chars;
+  if (!output.budget.within_budget) {
+    fail(`context ${layer} exceeds ${output.budget.max_chars} chars; narrow the edge/history limit, summarize references, or split the Work Edge`);
+  }
+  if (options.has("json")) {
+    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`context ${layer}: ${blueprint.map_id}\n`);
+  process.stdout.write(`destination: ${blueprint.destination.statement}\n`);
+  process.stdout.write(edge ? `edge: ${edge.id} (${output.focus.status})\n` : `ready edges: ${output.focus.ready_edges.join(", ") || "none"}\n`);
+  if (disclosure) process.stdout.write(`focus: ${disclosure.focus}\nload first: ${disclosure.load_first.join(", ")}\n`);
 }
 
 function commandProve(statePath, options) {
@@ -1279,8 +1710,8 @@ function commandProve(statePath, options) {
 }
 
 function ensureApprovableProof(state) {
-  if (state.last_proof.structural !== "complete") fail("approval requires a structurally complete map");
-  if (state.last_proof.reachability === "unreachable") fail("approval requires a logical or conditional route");
+  if (state.last_proof.structural !== "complete") fail("edge execution requires a structurally complete map");
+  if (state.last_proof.reachability === "unreachable") fail("edge execution requires a logical or conditional route");
 }
 
 function currentProofDigest(state) {
@@ -1289,7 +1720,7 @@ function currentProofDigest(state) {
 
 function requestDecisionOwner(options) {
   const owner = options.get("decision-owner") ?? "human:owner";
-  if (!owner.startsWith("human:")) fail("decision-owner must use human:<identity>");
+  if (!/^(?:human|agent):/.test(owner)) fail("decision-owner must use human:<identity> or agent:<identity>");
   return owner;
 }
 
@@ -1297,11 +1728,10 @@ function commandAssignDecisionOwner(statePath, options) {
   const state = loadState(statePath);
   const requestId = required(options, "request");
   const owner = required(options, "decision-owner");
-  if (!owner.startsWith("human:")) fail("decision-owner must use human:<identity>");
+  if (!/^(?:human|agent):/.test(owner)) fail("decision-owner must use human:<identity> or agent:<identity>");
   const actor = options.get("actor") ?? "agent:codex";
   if (!/^(agent|human):/.test(actor)) fail("decision owner assignment actor must use agent:<identity> or human:<identity>");
   const pending = [
-    ...state.route_approval_requests,
     ...state.authorization_requests,
     ...state.arrival_audit_requests,
   ].filter((request) => request.id === requestId && request.status === "pending");
@@ -1333,53 +1763,6 @@ function assertDecisionOwner(request, actor, label) {
   }
 }
 
-function commandRequestRouteApproval(statePath, options) {
-  const state = loadState(statePath);
-  if (state.phase !== "wayfinding" || !new Set(["draft", "changed"]).has(state.destination_status)) {
-    fail("request-route-approval requires wayfinding phase and a draft/changed destination");
-  }
-  const { blueprint, digest, brief_digests: briefDigests } = readStateBlueprint(statePath, state);
-  if (blueprint.intent.status !== "shaped" || blueprint.intent.open_questions.length > 0) {
-    fail("route approval request requires a shaped Intent with no open questions");
-  }
-  assertMapUnchanged(statePath, state, digest);
-  assertVerifiedEdgesPreserved(state, blueprint, briefDigests);
-  refreshDerivedState(state, blueprint);
-  ensureApprovableProof(state);
-  const proofDigest = currentProofDigest(state);
-  const existing = state.route_approval_requests.find((request) => request.status === "pending");
-  if (existing) {
-    if (existing.map_digest === state.map_digest && existing.proof_digest === proofDigest) {
-      fail(`another route approval request is pending: ${existing.id}`);
-    }
-    existing.status = "stale";
-    existing.stale_at = now();
-    existing.stale_reason = "route definition or proof changed";
-  }
-  const question = required(options, "question");
-  const requester = options.get("requester") ?? "agent:codex";
-  const decisionOwner = requestDecisionOwner(options);
-  const request = {
-    id: nextSemanticId(state.route_approval_requests, state.map_id, "route-approval-request"),
-    map_digest: state.map_digest,
-    proof_digest: proofDigest,
-    structural: state.last_proof.structural,
-    reachability: state.last_proof.reachability,
-    proven_edges: [...state.last_proof.proven_edges],
-    question,
-    requested_by: requester,
-    decision_owner: decisionOwner,
-    requested_at: now(),
-    status: "pending",
-  };
-  state.route_approval_requests.push(request);
-  state.runtime_status = "route-approval-required";
-  record(state, "route_approval_requested", { request: request.id, question, decision_owner: decisionOwner, actor: requester });
-  saveState(statePath, state);
-  const output = { request_id: request.id, status: request.status, question, decision_owner: decisionOwner, structural: request.structural, reachability: request.reachability };
-  process.stdout.write(options.has("json") ? `${JSON.stringify(output, null, 2)}\n` : `route approval requested: ${request.id}\n`);
-}
-
 function ensureReadyEdge(blueprint, state, edgeId) {
   assertLoopMayExecute(blueprint, state, edgeId);
   if (!state.last_proof.proven_edges.includes(edgeId)) fail(`edge is not on a destination-reaching route in the current proof: ${edgeId}`);
@@ -1391,88 +1774,43 @@ function ensureReadyEdge(blueprint, state, edgeId) {
   return readiness.edge;
 }
 
-function commandApprove(statePath, options) {
+function commandStart(statePath, options) {
   const state = loadState(statePath);
-  if (state.phase !== "wayfinding" || !new Set(["draft", "changed"]).has(state.destination_status)) {
-    fail("approve requires wayfinding phase and a draft/changed destination");
+  if (state.phase === "arrived") fail("cannot start an edge on an arrived map");
+  if (state.active_edge !== null) fail(`active edge is still running: ${state.active_edge}`);
+  if (state.authorization_requests.some((request) => request.status === "pending")) {
+    fail("answer the pending edge authorization request before starting another edge");
   }
-  const { blueprint, digest, brief_digests: briefDigests } = readStateBlueprint(statePath, state);
-  if (blueprint.intent.status !== "shaped" || blueprint.intent.open_questions.length > 0) {
-    fail("approval requires a shaped Intent with no open questions");
-  }
+  const { blueprint, digest, briefs } = readStateBlueprint(statePath, state);
   assertMapUnchanged(statePath, state, digest);
-  assertVerifiedEdgesPreserved(state, blueprint, briefDigests);
-  refreshDerivedState(state, blueprint);
-  ensureApprovableProof(state);
-  if (options.has("edge")) fail("route approval does not accept --edge; request per-edge authorization after approval");
-  const requestId = required(options, "request");
-  const answer = required(options, "answer");
-  const actor = options.get("actor") ?? "human:owner";
-  if (!actor.startsWith("human:")) fail("route approval actor must use human:<identity>");
-  const request = state.route_approval_requests.find((item) => item.id === requestId);
-  if (!request) fail(`route approval request is missing: ${requestId}`);
-  if (request.status !== "pending") fail(`route approval request is not pending: ${requestId}`);
-  assertDecisionOwner(request, actor, "route approval");
-  if (request.map_digest !== state.map_digest || request.proof_digest !== currentProofDigest(state)) {
-    fail(`route approval request is stale: ${requestId}`);
+  const entered = enterImplementation(state, blueprint);
+  const edgeId = required(options, "edge");
+  if (state.verified_edges.includes(edgeId) && loopsForEdge(blueprint, edgeId).length === 0) {
+    fail(`edge already verified: ${edgeId}`);
   }
-  state.phase = "implementation";
-  state.destination_status = "approved";
-  state.active_edge = null;
-  state.active_run = null;
-  state.runtime_status = "idle";
-  const approval = {
-    id: nextSemanticId(state.route_approvals, state.map_id, "route-approval"),
-    map_digest: state.map_digest,
-    structural: state.last_proof.structural,
-    reachability: state.last_proof.reachability,
-    request: request.id,
-    reason: answer,
-    answer,
-    actor,
-    approved_at: now(),
-  };
-  request.status = "granted";
-  request.answer = answer;
-  request.approved_by = actor;
-  request.approved_at = approval.approved_at;
-  state.route_approvals.push(approval);
-  state.current_route_approval = approval.id;
-  record(state, "destination_approved", { approval: approval.id, request: request.id, answer, actor });
+  ensureReadyEdge(blueprint, state, edgeId);
+  if (edgeNeedsAuthorization(briefs, edgeId)) {
+    fail(`edge ${edgeId} declares an authorization requirement; use request-authorization`);
+  }
+  const actor = options.get("actor") ?? "agent:codex";
+  if (!/^(?:human|agent):/.test(actor)) fail("start actor must use human:<identity> or agent:<identity>");
+  const reason = options.get("reason") ?? "selected from the current proven ready edges";
+  const decision = createDecision(state, blueprint, edgeId, reason, actor);
+  const run = startEdgeRun(state, edgeId, decision);
+  if (entered) record(state, "implementation_entered", { proof_digest: currentProofDigest(state), actor });
+  record(state, "edge_started", { edge: edgeId, run: run.id, decision: decision.id, reason, actor });
   saveState(statePath, state);
-  process.stdout.write(`approved destination route: ${approval.id}; no edge is active\n`);
-}
-
-function commandDeclineRouteApproval(statePath, options) {
-  const state = loadState(statePath);
-  const requestId = required(options, "request");
-  const reason = required(options, "reason");
-  const actor = options.get("actor") ?? "human:owner";
-  if (!actor.startsWith("human:")) fail("route approval actor must use human:<identity>");
-  const request = state.route_approval_requests.find((item) => item.id === requestId);
-  if (!request) fail(`route approval request is missing: ${requestId}`);
-  if (request.status !== "pending") fail(`route approval request is not pending: ${requestId}`);
-  assertDecisionOwner(request, actor, "route approval");
-  request.status = "declined";
-  request.answer = reason;
-  request.approved_by = actor;
-  request.approved_at = now();
-  state.runtime_status = "wayfinding";
-  record(state, "route_approval_declined", { request: request.id, reason, actor });
-  saveState(statePath, state);
-  process.stdout.write(`declined route approval: ${request.id}\n`);
+  process.stdout.write(`started ready edge: ${edgeId}; active run: ${run.id}\n`);
 }
 
 function commandRequestAuthorization(statePath, options) {
   const state = loadState(statePath);
-  if (state.phase !== "implementation" || state.destination_status !== "approved") {
-    fail("request-authorization requires an approved destination in implementation phase");
-  }
+  if (state.phase === "arrived") fail("cannot authorize an edge on an arrived map");
   if (state.active_edge !== null) fail(`active edge is still running: ${state.active_edge}`);
   if (state.authorization_requests.some((request) => request.status === "pending")) fail("another edge authorization request is pending");
-  const { blueprint, digest } = readStateBlueprint(statePath, state);
+  const { blueprint, digest, briefs } = readStateBlueprint(statePath, state);
   assertMapUnchanged(statePath, state, digest);
-  if (!state.current_route_approval) fail("the current route has no human approval");
+  const entered = enterImplementation(state, blueprint);
   const edgeId = required(options, "edge");
   const question = required(options, "question");
   const requester = options.get("requester") ?? "agent:codex";
@@ -1481,10 +1819,12 @@ function commandRequestAuthorization(statePath, options) {
     fail(`edge already verified: ${edgeId}`);
   }
   ensureReadyEdge(blueprint, state, edgeId);
+  if (!edgeNeedsAuthorization(briefs, edgeId)) {
+    fail(`edge ${edgeId} has no declared authorization requirement; use start`);
+  }
   const request = {
     id: nextSemanticId(state.authorization_requests, edgeId, "authorization"),
     edge: edgeId,
-    route_approval: state.current_route_approval,
     question,
     requested_by: requester,
     decision_owner: decisionOwner,
@@ -1493,6 +1833,7 @@ function commandRequestAuthorization(statePath, options) {
   };
   state.authorization_requests.push(request);
   state.runtime_status = "authorization-required";
+  if (entered) record(state, "implementation_entered", { proof_digest: currentProofDigest(state), actor: requester });
   record(state, "edge_authorization_requested", { request: request.id, edge: edgeId, question, decision_owner: decisionOwner, actor: requester });
   saveState(statePath, state);
   const output = { request_id: request.id, edge: edgeId, status: request.status, question, decision_owner: decisionOwner };
@@ -1501,19 +1842,18 @@ function commandRequestAuthorization(statePath, options) {
 
 function commandAuthorize(statePath, options) {
   const state = loadState(statePath);
-  if (state.phase !== "implementation" || state.destination_status !== "approved") {
-    fail("authorize requires an approved destination in implementation phase");
+  if (state.phase !== "implementation" || !destinationConfirmed(state)) {
+    fail("authorize requires a confirmed destination in implementation phase");
   }
   if (state.active_edge !== null) fail(`active edge is still running: ${state.active_edge}`);
   const requestId = required(options, "request");
   const answer = required(options, "answer");
   const actor = options.get("actor") ?? "human:owner";
-  if (!actor.startsWith("human:")) fail("edge authorization actor must use human:<identity>");
+  if (!/^(?:human|agent):/.test(actor)) fail("edge authorization actor must use human:<identity> or agent:<identity>");
   const request = state.authorization_requests.find((item) => item.id === requestId);
   if (!request) fail(`authorization request is missing: ${requestId}`);
   if (request.status !== "pending") fail(`authorization request is not pending: ${requestId}`);
   assertDecisionOwner(request, actor, "edge authorization");
-  if (request.route_approval !== state.current_route_approval) fail(`authorization request is stale: ${requestId}`);
   const { blueprint, digest } = readStateBlueprint(statePath, state);
   assertMapUnchanged(statePath, state, digest);
   if (state.verified_edges.includes(request.edge) && loopsForEdge(blueprint, request.edge).length === 0) {
@@ -1552,12 +1892,12 @@ function commandDeclineAuthorization(statePath, options) {
 }
 
 function commandSelect() {
-  fail("select no longer activates work; use request-authorization, wait for a human answer, then authorize");
+  fail("select no longer activates work; use start for an unprotected ready edge, or request-authorization for a protected edge");
 }
 
 function commandPauseRun(statePath, options, status) {
   const state = loadState(statePath);
-  if (state.phase !== "implementation" || state.destination_status !== "approved") fail(`${status} requires implementation phase`);
+  if (state.phase !== "implementation" || !destinationConfirmed(state)) fail(`${status} requires implementation phase`);
   const reason = required(options, "reason");
   const actor = options.get("actor") ?? "human:owner";
   const run = transitionRun(state, status, status === "waiting" ? { waiting_reason: reason } : { blocking_reason: reason });
@@ -1568,7 +1908,7 @@ function commandPauseRun(statePath, options, status) {
 
 function commandResume(statePath, options) {
   const state = loadState(statePath);
-  if (state.phase !== "implementation" || state.destination_status !== "approved") fail("resume requires implementation phase");
+  if (state.phase !== "implementation" || !destinationConfirmed(state)) fail("resume requires implementation phase");
   if (state.active_run !== null) fail(`another Edge Run is active: ${state.active_run}`);
   if (state.authorization_requests.some((request) => request.status === "pending")) fail("answer the pending edge authorization request before resuming another run");
   const runId = required(options, "run");
@@ -1576,9 +1916,11 @@ function commandResume(statePath, options) {
   const actor = options.get("actor") ?? "human:owner";
   const run = state.edge_runs.find((item) => item.id === runId);
   if (!run || !new Set(["waiting", "blocked"]).has(run.status)) fail(`run is not waiting or blocked: ${runId}`);
-  const authorization = state.authorization_requests.find((request) => request.id === run.authorization_request);
-  if (!authorization || authorization.status !== "granted" || authorization.route_approval !== state.current_route_approval) {
-    fail(`run authorization is not valid for the current route: ${runId}; request fresh authorization`);
+  const authorization = run.authorization_request === null
+    ? null
+    : state.authorization_requests.find((request) => request.id === run.authorization_request);
+  if (run.authorization_request !== null && (!authorization || authorization.status !== "granted")) {
+    fail(`run authorization is no longer valid: ${runId}; request fresh authorization`);
   }
   const { blueprint, digest } = readStateBlueprint(statePath, state);
   assertMapUnchanged(statePath, state, digest);
@@ -1719,8 +2061,8 @@ function commandProposalReject(statePath, options) {
 
 function commandGate(statePath) {
   const state = loadState(statePath);
-  if (state.phase !== "implementation" || state.destination_status !== "approved" || state.active_edge === null || !activeRun(state)) {
-    process.stderr.write("write gate blocked: approve the proven route, then answer and grant a pending authorization for one ready edge\n");
+  if (state.phase !== "implementation" || !destinationConfirmed(state) || state.active_edge === null || !activeRun(state)) {
+    process.stderr.write("write gate blocked: start a proven ready edge, or grant its declared authorization requirement first\n");
     return 1;
   }
   const { blueprint, digest } = readStateBlueprint(statePath, state);
@@ -1732,17 +2074,18 @@ function commandGate(statePath) {
 
 function commandVerify(statePath, options) {
   const state = loadState(statePath);
-  if (state.phase !== "implementation" || state.destination_status !== "approved") {
-    fail("verify requires an approved destination in implementation phase");
+  if (state.phase !== "implementation" || !destinationConfirmed(state)) {
+    fail("verify requires a confirmed destination in implementation phase");
   }
   const edgeId = required(options, "edge");
   if (state.active_edge !== edgeId) fail(`verify must name active edge ${JSON.stringify(state.active_edge)}`);
-  const { blueprint, digest, brief_digests: briefDigests } = readStateBlueprint(statePath, state);
+  const { blueprint, digest, brief_digests: briefDigests, briefs, absolute: mapPath } = readStateBlueprint(statePath, state);
   assertMapUnchanged(statePath, state, digest);
   const edge = ensureReadyEdge(blueprint, state, edgeId);
+  const causalContract = normalizeCausalContract(blueprint, edge);
+  const mode = options.get("mode") ?? "reported";
+  if (!new Set(["reported", "executed"]).has(mode)) fail("verify mode must be reported or executed");
   const claim = required(options, "evidence");
-  const command = required(options, "command");
-  const observed = required(options, "observed");
   const executor = required(options, "executor");
   const actualModel = options.get("model");
   const actualReasoning = options.get("reasoning");
@@ -1752,28 +2095,55 @@ function commandVerify(statePath, options) {
   if (executor.startsWith("agent:") && actualModel === undefined) {
     fail("agent executor requires model and reasoning");
   }
-  const result = required(options, "result");
-  if (!new Set(["pass", "fail"]).has(result)) fail(`invalid verification result: ${result}`);
-  const proves = csv(options, "proves");
-  if (result === "pass" && proves.length === 0) fail("proves is required for a passing verification");
-  if (result === "fail" && proves.length > 0) fail("a failed verification cannot claim edge effects");
-  if (result === "pass") {
-    const unknownProves = proves.filter((predicateId) => !edge.effects.includes(predicateId));
-    if (unknownProves.length > 0) fail(`evidence claims predicates outside edge effects: ${unknownProves.join(", ")}`);
+  let capability = null;
+  let executedCheck = null;
+  let verifier = null;
+  let result;
+  let observed;
+  let command;
+  let declaredProves;
+  if (mode === "executed") {
+    for (const forbidden of ["command", "observed", "result", "proves", "cwd"]) {
+      if (options.has(forbidden)) fail(`executed verification reads ${forbidden} from the frozen Task Brief or process result; --${forbidden} is not accepted`);
+    }
+    const verifierId = required(options, "verifier");
+    verifier = briefs[edgeId]?.metadata?.contract?.verification?.commands?.find((entry) => entry.id === verifierId) ?? null;
+    if (!verifier) fail(`Task Brief for ${edgeId} does not declare verifier: ${verifierId}`);
+    declaredProves = [...verifier.proves];
     const requiredProofs = new Set(edge.evidence_contract.filter((contract) => contract.required).flatMap((contract) => contract.proves));
-    const missingProofs = [...requiredProofs].filter((predicateId) => !proves.includes(predicateId));
-    if (missingProofs.length > 0) fail(`required evidence predicates are missing: ${missingProofs.join(", ")}`);
+    const missingProofs = [...requiredProofs].filter((predicateId) => !declaredProves.includes(predicateId));
+    if (missingProofs.length > 0) fail(`verifier does not cover required evidence predicates: ${missingProofs.join(", ")}`);
+    const missingConclusions = causalContract.conclusions.filter((predicateId) => !declaredProves.includes(predicateId));
+    if (missingConclusions.length > 0) fail(`verifier does not cover causal conclusions: ${missingConclusions.join(", ")}`);
+    capability = capabilityFor(state, required(options, "capability"), edgeId, "run_verifier", verifier);
+    const workspaceRoot = options.get("_workspace-root") ?? process.cwd();
+    executedCheck = runVerifier(verifier, workspaceRoot, path.dirname(mapPath));
+    command = executedCheck.command;
+    result = executedCheck.result;
+    observed = executedCheck.stdout.trim() || executedCheck.stderr.trim() || `exit code ${executedCheck.exit_code}`;
+  } else {
+    command = required(options, "command");
+    result = required(options, "result");
+    observed = required(options, "observed");
+    if (!new Set(["pass", "fail"]).has(result)) fail(`invalid verification result: ${result}`);
+    declaredProves = csv(options, "proves");
+    if (result === "pass" && declaredProves.length === 0) fail("proves is required for a passing verification report");
+    if (result === "fail" && declaredProves.length > 0) fail("a failed verification report cannot claim edge effects");
+    const unknownProves = declaredProves.filter((predicateId) => !edge.effects.includes(predicateId));
+    if (unknownProves.length > 0) fail(`evidence claims predicates outside edge effects: ${unknownProves.join(", ")}`);
   }
+  const proves = result === "pass" ? declaredProves : [];
 
-  const acceptanceIds = csv(options, "acceptance");
+  const requestedAcceptanceIds = csv(options, "acceptance");
   const acceptanceMap = new Map(blueprint.destination.acceptance.map((item) => [item.id, item]));
-  for (const acceptanceId of acceptanceIds) {
+  for (const acceptanceId of requestedAcceptanceIds) {
     const acceptance = acceptanceMap.get(acceptanceId);
     if (!acceptance) fail(`unknown acceptance id: ${acceptanceId}`);
-    if (result !== "pass" || !acceptance.proves.some((predicateId) => proves.includes(predicateId))) {
+    if (!acceptance.proves.some((predicateId) => declaredProves.includes(predicateId))) {
       fail(`edge evidence does not contribute to acceptance: ${acceptanceId}`);
     }
   }
+  const acceptanceIds = result === "pass" ? requestedAcceptanceIds : [];
 
   const limits = {
     simulated: csv(options, "simulated"),
@@ -1791,13 +2161,53 @@ function commandVerify(statePath, options) {
     proves,
     acceptance_ids: acceptanceIds,
     outcome_refs: realizedBy,
-    checks: [{ command, result, observed, mode: "reported" }],
+    checks: mode === "executed"
+      ? [{
+        command,
+        result,
+        observed: observed.slice(0, 2000),
+        mode: "executed",
+        exit_code: executedCheck.exit_code,
+        signal: executedCheck.signal,
+        stdout_digest: executedCheck.stdout_digest,
+        stderr_digest: executedCheck.stderr_digest,
+        started_at: executedCheck.started_at,
+        finished_at: executedCheck.finished_at,
+      }]
+      : [{ command, result, observed, mode: "reported" }],
     limits,
     executor,
+    trust: mode === "executed" ? "verified" : "reported",
+    ...(capability === null ? {} : { capability: capability.id }),
     ...(actualModel === undefined ? {} : { agent: { model: actualModel, reasoning: actualReasoning } }),
     recorded_at: recordedAt,
   };
+  if (mode === "executed" && result === "pass" && limits.unverified.length === 0) {
+    const witnesses = [
+      ...edge.evidence_contract.filter((contract) => contract.required).map((contract) => contract.id),
+      verifier.id,
+      ...realizedBy.map((entry) => entry.ref),
+    ];
+    evidence.proof_certificate = createProofCertificate({
+      blueprint,
+      edge,
+      facts: state.facts,
+      run: state.active_run,
+      evidence: evidence.id,
+      witnesses,
+      verifier: { id: verifier.id, digest: verifierDigest(verifier), proves: [...declaredProves] },
+      mapDigest: digest,
+      briefDigest: briefDigests[edgeId],
+      recordedAt,
+    });
+  }
   state.evidence.push(evidence);
+  if (mode === "reported") {
+    record(state, "edge_verification_reported", { edge: edgeId, run: state.active_run, evidence: evidence.id, claimed_result: result, claimed_proves: proves, executor });
+    saveState(statePath, state);
+    process.stdout.write(`recorded untrusted verification report for edge: ${edgeId}; facts unchanged\n`);
+    return;
+  }
   if (result === "fail") {
     const failedRun = transitionRun(state, "failed", { failure: { claim, observed, action: edge.on_failure.action } });
     if (edge.on_failure.action === "replan") {
@@ -1832,8 +2242,29 @@ function commandVerify(statePath, options) {
     fail(`edge verification has unverified limits: ${edgeId}`);
   }
 
+  if (mode === "executed") {
+    verifyProofCertificate(evidence.proof_certificate, {
+      blueprint,
+      edge,
+      facts: state.facts,
+      run: state.active_run,
+      evidence: evidence.id,
+      mapDigest: digest,
+      briefDigest: briefDigests[edgeId],
+      verifier: { id: verifier.id, digest: verifierDigest(verifier), proves: [...declaredProves] },
+      requiredWitnesses: edge.evidence_contract.filter((contract) => contract.required).map((contract) => contract.id),
+    });
+  }
+
+  const proofEvidence = evidence.proof_certificate === undefined ? [] : [{
+    kind: "observation",
+    ref: `proof-certificate:${evidence.proof_certificate.certificate_digest}`,
+    observed_at: recordedAt,
+    strength: "corroborated",
+  }];
   applyPredicateFacts(state, blueprint, proves, [
     { kind: "command", ref: `${command} -> ${observed}`, observed_at: recordedAt, strength: "observed" },
+    ...proofEvidence,
     ...realizedBy.map((entry) => ({ ...entry, observed_at: recordedAt, strength: entry.strength ?? "observed" })),
   ]);
   if (!state.verified_edges.includes(edgeId)) state.verified_edges.push(edgeId);
@@ -1843,13 +2274,13 @@ function commandVerify(statePath, options) {
   refreshDerivedState(state, blueprint);
   record(state, "edge_verified", { edge: edgeId, run: passedRun.id, proves, acceptance: acceptanceIds, executor });
   saveState(statePath, state);
-  process.stdout.write(`verified edge: ${edgeId}; satisfied nodes: ${state.satisfied_nodes.join(", ") || "-"}\n`);
+  process.stdout.write(`verified edge by executed check: ${edgeId}; satisfied nodes: ${state.satisfied_nodes.join(", ") || "-"}\n`);
 }
 
 function childAcceptanceEvidence(childState, acceptance) {
   const records = childState.evidence.filter((recordEntry) => (
     recordEntry.acceptance_ids?.includes(acceptance.id)
-    && recordEntry.checks?.some((check) => check.result === "pass")
+    && recordEntry.checks?.some((check) => check.result === "pass" && check.mode !== "reported")
     && (recordEntry.limits?.unverified?.length ?? 0) === 0
   ));
   const proven = new Set(records.flatMap((recordEntry) => recordEntry.proves ?? []));
@@ -1859,7 +2290,7 @@ function childAcceptanceEvidence(childState, acceptance) {
 
 function commandVerifySubmap(statePath, options) {
   const state = loadState(statePath);
-  if (state.phase !== "implementation" || state.destination_status !== "approved") fail("verify-submap requires implementation phase");
+  if (state.phase !== "implementation" || !destinationConfirmed(state)) fail("verify-submap requires implementation phase");
   const edgeId = required(options, "edge");
   if (state.active_edge !== edgeId || !activeRun(state)) fail(`verify-submap must name active edge ${JSON.stringify(state.active_edge)}`);
   const actor = required(options, "executor");
@@ -1949,6 +2380,34 @@ function commandVerifySubmap(statePath, options) {
     receipt_id: receiptPayload.receipt_id,
     recorded_at: receiptPayload.accepted_at,
   };
+  evidence.trust = "corroborated";
+  evidence.proof_certificate = createProofCertificate({
+    blueprint,
+    edge,
+    facts: state.facts,
+    run: state.active_run,
+    evidence: evidence.id,
+    witnesses: [
+      ...edge.evidence_contract.filter((contract) => contract.required).map((contract) => contract.id),
+      binding.id,
+      receiptPayload.receipt_id,
+    ],
+    verifier: { id: "map-receipt", digest: receiptPayload.receipt_digest, proves: [...proves] },
+    mapDigest: digest,
+    briefDigest: briefDigests[edgeId],
+    recordedAt: receiptPayload.accepted_at,
+  });
+  verifyProofCertificate(evidence.proof_certificate, {
+    blueprint,
+    edge,
+    facts: state.facts,
+    run: state.active_run,
+    evidence: evidence.id,
+    mapDigest: digest,
+    briefDigest: briefDigests[edgeId],
+    verifier: { id: "map-receipt", digest: receiptPayload.receipt_digest, proves: [...proves] },
+    requiredWitnesses: edge.evidence_contract.filter((contract) => contract.required).map((contract) => contract.id),
+  });
   state.evidence.push(evidence);
   applyPredicateFacts(state, blueprint, proves, [{
     kind: "receipt",
@@ -2037,17 +2496,11 @@ function commandReplan(statePath, options) {
     request.stale_at = now();
     request.stale_reason = `route changed: ${reason}`;
   }
-  for (const request of state.route_approval_requests.filter((item) => item.status === "pending")) {
-    request.status = "stale";
-    request.stale_at = now();
-    request.stale_reason = `route changed: ${reason}`;
-  }
   for (const request of state.arrival_audit_requests.filter((item) => item.status === "pending")) {
     request.status = "stale";
     request.stale_at = now();
     request.stale_reason = `route changed: ${reason}`;
   }
-  state.current_route_approval = null;
   state.map = mapPathForState(statePath, absoluteMap);
   state.map_id = blueprint.map_id;
   state.map_digest = digest;
@@ -2073,8 +2526,8 @@ function arrivalEvidenceDigest(state) {
 }
 
 function assertArrivalReady(statePath, state) {
-  if (state.phase !== "implementation" || state.destination_status !== "approved") {
-    fail("arrival audit requires an approved destination in implementation phase");
+  if (state.phase !== "implementation" || !destinationConfirmed(state)) {
+    fail("arrival audit requires a confirmed destination in implementation phase");
   }
   if (state.active_edge !== null || state.active_run !== null) {
     fail(`cannot audit arrival while an Edge Run is active: ${state.active_run ?? state.active_edge}`);
@@ -2082,13 +2535,8 @@ function assertArrivalReady(statePath, state) {
   if (state.authorization_requests.some((request) => request.status === "pending")) {
     fail("cannot audit arrival while an edge authorization request is pending");
   }
-  if (!state.current_route_approval) fail("arrival audit requires a current human Route Approval");
   const { blueprint, digest } = readStateBlueprint(statePath, state);
   assertMapUnchanged(statePath, state, digest);
-  const routeApproval = state.route_approvals.find((approval) => approval.id === state.current_route_approval);
-  if (!routeApproval || routeApproval.map_digest !== state.map_digest) {
-    fail("arrival audit requires a Route Approval for the current map digest");
-  }
   for (const receipt of state.map_receipts) {
     if (state.receipt_invalidations.some((item) => item.receipt_id === receipt.receipt_id)) fail(`cannot audit arrival with invalidated submap receipt: ${receipt.receipt_id}`);
     const binding = blueprint.submaps.find((item) => item.id === receipt.binding_id);
@@ -2115,7 +2563,7 @@ function assertArrivalReady(statePath, state) {
   for (const acceptance of blueprint.destination.acceptance) {
     const records = state.evidence.filter((recordEntry) => (
       recordEntry.acceptance_ids.includes(acceptance.id)
-      && recordEntry.checks.some((check) => check.result === "pass")
+      && recordEntry.checks.some((check) => check.result === "pass" && check.mode !== "reported")
       && recordEntry.limits.unverified.length === 0
     ));
     const proven = new Set(records.flatMap((recordEntry) => recordEntry.proves));
@@ -2137,7 +2585,6 @@ function commandRequestArrivalAudit(statePath, options) {
   if (existing) {
     if (
       existing.map_digest === state.map_digest
-      && existing.route_approval === state.current_route_approval
       && existing.state_revision === currentRevision
       && existing.evidence_digest === evidenceDigest
     ) {
@@ -2153,7 +2600,6 @@ function commandRequestArrivalAudit(statePath, options) {
   const request = {
     id: nextSemanticId(state.arrival_audit_requests, state.map_id, "arrival-audit-request"),
     map_digest: state.map_digest,
-    route_approval: state.current_route_approval,
     state_revision: currentRevision + 1,
     evidence_digest: evidenceDigest,
     acceptance,
@@ -2179,14 +2625,14 @@ function commandArrive(statePath, options) {
   const requestId = required(options, "request");
   const answer = required(options, "answer");
   const actor = required(options, "actor");
-  if (!actor.startsWith("human:")) fail("arrival audit actor must use human:<identity>");
+  if (!/^(?:human|agent):/.test(actor)) fail("arrival audit actor must use human:<identity> or agent:<identity>");
   const request = state.arrival_audit_requests.find((item) => item.id === requestId);
   if (!request) fail(`arrival audit request is missing: ${requestId}`);
   if (request.status === "stale") fail(`arrival audit request is stale: ${requestId}; ${request.stale_reason ?? "request inputs changed"}`);
   if (request.status !== "pending") fail(`arrival audit request is not pending: ${requestId}`);
   assertDecisionOwner(request, actor, "arrival audit");
-  if (request.map_digest !== state.map_digest || request.route_approval !== state.current_route_approval) {
-    fail(`arrival audit request is stale: ${requestId}; map or Route Approval changed`);
+  if (request.map_digest !== state.map_digest) {
+    fail(`arrival audit request is stale: ${requestId}; map changed`);
   }
   if (request.state_revision !== (state.event_stream?.last_seq ?? 0)) {
     fail(`arrival audit request is stale: ${requestId}; runtime revision changed after the request`);
@@ -2216,7 +2662,7 @@ function commandArrive(statePath, options) {
   };
   record(state, "arrival_audited", { request: request.id, acceptance, answer, actor, causation_id: request.id });
   saveState(statePath, state);
-  process.stdout.write(`arrival audited from human request ${request.id}\n`);
+  process.stdout.write(`arrival audited from request ${request.id}\n`);
 }
 
 export async function main(argv) {
@@ -2242,6 +2688,7 @@ export async function main(argv) {
     root: options.get("root") ?? process.cwd(),
     mapflowHome: options.get("mapflow-home") ?? null,
   });
+  if (workspace) options.set("_workspace-root", workspace.workspace_root);
   statePath ??= workspace.statePath;
   if (!stateExplicit && !options.has("map") && new Set(["validate", "init"]).has(command)) {
     options.set("map", workspace.mapPath);
@@ -2252,16 +2699,17 @@ export async function main(argv) {
     case "validate": commandValidate(options); return 0;
     case "init": commandInit(statePath, options); return 0;
     case "status": commandStatus(statePath, options); return 0;
+    case "context": commandContext(statePath, options); return 0;
     case "prove": commandProve(statePath, options); return 0;
-    case "request-route-approval": commandRequestRouteApproval(statePath, options); return 0;
     case "assign-decision-owner": commandAssignDecisionOwner(statePath, options); return 0;
-    case "approve": commandApprove(statePath, options); return 0;
-    case "decline-route-approval": commandDeclineRouteApproval(statePath, options); return 0;
+    case "start": commandStart(statePath, options); return 0;
     case "request-authorization": commandRequestAuthorization(statePath, options); return 0;
     case "authorize": commandAuthorize(statePath, options); return 0;
     case "decline-authorization": commandDeclineAuthorization(statePath, options); return 0;
     case "select": commandSelect(statePath, options); return 0;
     case "gate": return commandGate(statePath);
+    case "next-actions": commandNextActions(statePath, options); return 0;
+    case "issue-action": commandIssueAction(statePath, options); return 0;
     case "wait": commandPauseRun(statePath, options, "waiting"); return 0;
     case "block": commandPauseRun(statePath, options, "blocked"); return 0;
     case "resume": commandResume(statePath, options); return 0;
@@ -2270,6 +2718,7 @@ export async function main(argv) {
     case "confirm": commandProposalConfirm(statePath, options); return 0;
     case "reject": commandProposalReject(statePath, options); return 0;
     case "verify": commandVerify(statePath, options); return 0;
+    case "verify-executed": options.set("mode", "executed"); commandVerify(statePath, options); return 0;
     case "verify-submap": commandVerifySubmap(statePath, options); return 0;
     case "replan": commandReplan(statePath, options); return 0;
     case "request-arrival-audit": commandRequestArrivalAudit(statePath, options); return 0;

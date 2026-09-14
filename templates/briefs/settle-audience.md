@@ -10,9 +10,24 @@ contract:
   authorization:
     required: []
     allowed_actions: [只读素材并访谈 Owner]
+  handoff:
+    from_roles: [产品或任务所有者]
+    to_roles: [内容执行者]
+    inputs: [素材引用, 待确认受众问题]
+    outputs: [受众决策记录]
+    decision_rights: [任务所有者决定目标受众]
+  context:
+    focus: 只建立可回指的目标受众 Fact
+    load_first: [本 Task Brief, 当前边及相邻节点, 素材索引]
+    load_on_demand:
+      - { when: 受众定义发生冲突时, refs: [访谈记录, 历史受众决定] }
+    budget: { max_files: 6, max_chars: 30000 }
   evidence:
     proves: [audience-known]
     exit_conditions: [读者决策记录明确目标读者且无待决定项]
+  verification:
+    commands:
+      - { id: audience-record-check, program: node, args: [-e, "const fs=require('fs');if(!fs.existsSync('notes/audience-decision.md'))process.exit(1)"], cwd: workspace, timeout_seconds: 30, success_exit_codes: [0], proves: [audience-known] }
   failure:
     action: replan
     rollback: [保留读者为 unknown]

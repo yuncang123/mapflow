@@ -1,6 +1,6 @@
 interface:
   display_name: "Mapflow"
-  short_description: "用状态节点、工作边和证据为未知目的地建图"
-  default_prompt: "使用 $mapflow，仅当用户明确要求启用 mapflow 或进入地图优先模式时，按起始事实、目标回归、可达性证明、工作边施工、证据更新和到达审计推进。"
+  short_description: "把人的思路、决策和证据投影到仓库外的 sidecar"
+  default_prompt: "仅在用户显式调用 $mapflow 后使用；Mapflow 服务人的记录、查看和审计，不介入普通任务，也不替模型决定工作流程。"
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

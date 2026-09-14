@@ -6,18 +6,18 @@
     { "id": "prepared", "description": "空实现仓库已固定且无 Sidecar", "assertions": [
       { "path": "workspace.sidecar_exists", "equals": false }, { "path": "repo.commit_count", "equals": 1 }, { "path": "repo.dirty_paths", "empty": true }
     ] },
-    { "id": "original-route-approved", "description": "原目的地和路线经确认后才成为正式地图", "assertions": [
+    { "id": "original-map-proven", "description": "原目的地已确认，完整候选链整体审阅后成为正式地图", "assertions": [
       { "path": "workspace.map_exists", "equals": true }, { "path": "workspace.briefs_count", "min": 2 },
       { "path": "contract.destination_acceptance", "min": 3 }, { "path": "contract.out_of_scope", "min": 2 }, { "path": "contract.edge_contracts_complete", "equals": true },
       { "path": "proof.structural", "equals": "complete" }, { "path": "proof.reachability", "one_of": ["logical", "conditional"] },
-      { "path": "runtime.destination_status", "equals": "approved" }, { "path": "runtime.current_route_approval", "nonempty": true },
-      { "path": "runtime.route_approvals_count", "min": 1 }, { "path": "runtime.active_edge", "equals": null },
+      { "path": "runtime.destination_status", "one_of": ["draft", "confirmed"] }, { "path": "runtime.active_edge", "equals": null },
       { "path": "runtime.active_run", "equals": null }, { "path": "runtime.edge_runs_count", "equals": 0 },
       { "path": "runtime.decisions_count", "equals": 0 }, { "path": "repo.dirty_paths", "empty": true }
     ] },
     { "id": "shared-edge-verified", "description": "共享基础工作已有真实证据可供后续保留", "assertions": [
       { "path": "runtime.evidence_count", "min": 1 }, { "path": "runtime.edge_runs_count", "min": 1 }, { "path": "repo.changed_paths", "nonempty": true },
-      { "path": "runtime.human_decisions", "equals": true }, { "path": "runtime.evidence_traceable", "equals": true }
+      { "path": "runtime.decisions_attributed", "equals": true }, { "path": "runtime.runs_follow_authorization_contract", "equals": true },
+      { "path": "runtime.evidence_traceable", "equals": true }
     ] },
     { "id": "change-proposed", "description": "范围变化停留在候选层，原正式图和证据仍可见", "assertions": [
       { "path": "workspace.map_exists", "equals": true }, { "path": "runtime.evidence_count", "min": 1 }, { "path": "runtime.replan_count", "equals": 0 },

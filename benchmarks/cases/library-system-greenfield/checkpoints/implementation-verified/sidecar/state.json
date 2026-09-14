@@ -3,181 +3,382 @@
   "phase": "implementation",
   "destination_status": "approved",
   "map": "blueprint.yaml",
-  "map_digest": "fbe91c9501849c1dcb71c1368fa8068dcb68bc0e41035a0f7d7c17c14b44585e",
-  "map_id": "shelfwise-v1",
+  "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
+  "map_id": "library-system-mvp",
   "active_edge": null,
   "active_run": null,
   "runtime_status": "arrival-audit-required",
   "edge_runs": [
     {
-      "id": "build-persistent-library-api-run-1",
-      "edge": "build-persistent-library-api",
+      "id": "confirm-core-journey-run-1",
+      "edge": "confirm-core-journey",
       "status": "passed",
       "attempt": 1,
-      "decision": "build-persistent-library-api-decision-1",
-      "authorization_request": "build-persistent-library-api-authorization-1",
-      "started_at": "2026-09-07T11:29:30Z",
-      "updated_at": "2026-09-07T11:45:49Z",
+      "decision": "confirm-core-journey-decision-1",
+      "authorization_request": "confirm-core-journey-authorization-1",
+      "started_at": "2026-09-10T05:28:04Z",
+      "updated_at": "2026-09-10T05:28:05Z",
       "evidence_ids": [
-        "build-persistent-library-api-evidence-1"
+        "confirm-core-journey-evidence-1"
       ]
     },
     {
-      "id": "build-admin-browser-interface-run-1",
-      "edge": "build-admin-browser-interface",
+      "id": "design-domain-model-run-1",
+      "edge": "design-domain-model",
       "status": "passed",
       "attempt": 1,
-      "decision": "build-admin-browser-interface-decision-1",
-      "authorization_request": "build-admin-browser-interface-authorization-1",
-      "started_at": "2026-09-07T11:49:34Z",
-      "updated_at": "2026-09-07T12:11:32Z",
+      "decision": "design-domain-model-decision-1",
+      "authorization_request": "design-domain-model-authorization-1",
+      "started_at": "2026-09-10T05:28:05Z",
+      "updated_at": "2026-09-10T05:28:06Z",
       "evidence_ids": [
-        "build-admin-browser-interface-evidence-2"
+        "design-domain-model-evidence-2"
       ]
     },
     {
-      "id": "verify-shelfwise-v1-run-1",
-      "edge": "verify-shelfwise-v1",
+      "id": "design-api-contract-run-1",
+      "edge": "design-api-contract",
       "status": "passed",
       "attempt": 1,
-      "decision": "verify-shelfwise-v1-decision-1",
-      "authorization_request": "verify-shelfwise-v1-authorization-1",
-      "started_at": "2026-09-07T12:18:22Z",
-      "updated_at": "2026-09-07T12:38:18Z",
+      "decision": "design-api-contract-decision-1",
+      "authorization_request": "design-api-contract-authorization-1",
+      "started_at": "2026-09-10T05:28:06Z",
+      "updated_at": "2026-09-10T05:28:06Z",
       "evidence_ids": [
-        "verify-shelfwise-v1-evidence-3"
+        "design-api-contract-evidence-3"
+      ]
+    },
+    {
+      "id": "review-engineering-design-run-1",
+      "edge": "review-engineering-design",
+      "status": "passed",
+      "attempt": 1,
+      "decision": "review-engineering-design-decision-1",
+      "authorization_request": "review-engineering-design-authorization-1",
+      "started_at": "2026-09-10T05:28:07Z",
+      "updated_at": "2026-09-10T05:28:07Z",
+      "evidence_ids": [
+        "review-engineering-design-evidence-4"
+      ]
+    },
+    {
+      "id": "build-catalog-slice-run-1",
+      "edge": "build-catalog-slice",
+      "status": "passed",
+      "attempt": 1,
+      "decision": "build-catalog-slice-decision-1",
+      "authorization_request": "build-catalog-slice-authorization-1",
+      "started_at": "2026-09-10T05:28:08Z",
+      "updated_at": "2026-09-10T05:28:08Z",
+      "evidence_ids": [
+        "build-catalog-slice-evidence-5"
+      ]
+    },
+    {
+      "id": "build-circulation-slice-run-1",
+      "edge": "build-circulation-slice",
+      "status": "passed",
+      "attempt": 1,
+      "decision": "build-circulation-slice-decision-1",
+      "authorization_request": "build-circulation-slice-authorization-1",
+      "started_at": "2026-09-10T05:28:09Z",
+      "updated_at": "2026-09-10T05:28:09Z",
+      "evidence_ids": [
+        "build-circulation-slice-evidence-6"
+      ]
+    },
+    {
+      "id": "integrate-library-slices-run-1",
+      "edge": "integrate-library-slices",
+      "status": "passed",
+      "attempt": 1,
+      "decision": "integrate-library-slices-decision-1",
+      "authorization_request": "integrate-library-slices-authorization-1",
+      "started_at": "2026-09-10T05:28:10Z",
+      "updated_at": "2026-09-10T05:28:10Z",
+      "evidence_ids": [
+        "integrate-library-slices-evidence-7"
+      ]
+    },
+    {
+      "id": "accept-library-mvp-run-1",
+      "edge": "accept-library-mvp",
+      "status": "passed",
+      "attempt": 1,
+      "decision": "accept-library-mvp-decision-1",
+      "authorization_request": "accept-library-mvp-authorization-1",
+      "started_at": "2026-09-10T05:28:11Z",
+      "updated_at": "2026-09-10T05:28:11Z",
+      "evidence_ids": [
+        "accept-library-mvp-evidence-8"
       ]
     }
   ],
   "decisions": [
     {
-      "id": "build-persistent-library-api-decision-1",
-      "edge": "build-persistent-library-api",
-      "at_node": "shelfwise-empty-repository",
+      "id": "confirm-core-journey-decision-1",
+      "edge": "confirm-core-journey",
+      "at_node": "workspace-origin-fog",
       "alternatives": [
-        "build-persistent-library-api"
+        "confirm-core-journey"
       ],
-      "reason": "我批准你刚才请求执行的这项工作。完成后先把结果和检查记录告诉我。",
-      "actor": "human:owner",
-      "authorization_request": "build-persistent-library-api-authorization-1",
-      "decided_at": "2026-09-07T11:29:30Z"
+      "reason": "批准执行 confirm-core-journey",
+      "actor": "human:demo",
+      "authorization_request": "confirm-core-journey-authorization-1",
+      "decided_at": "2026-09-10T05:28:04Z"
     },
     {
-      "id": "build-admin-browser-interface-decision-1",
-      "edge": "build-admin-browser-interface",
-      "at_node": "library-api-ready",
+      "id": "design-domain-model-decision-1",
+      "edge": "design-domain-model",
+      "at_node": "core-journey-confirmed",
       "alternatives": [
-        "build-admin-browser-interface"
+        "design-domain-model",
+        "design-api-contract"
       ],
-      "reason": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
-      "actor": "human:owner",
-      "authorization_request": "build-admin-browser-interface-authorization-1",
-      "decided_at": "2026-09-07T11:49:34Z"
+      "reason": "批准执行 design-domain-model",
+      "actor": "human:demo",
+      "authorization_request": "design-domain-model-authorization-1",
+      "decided_at": "2026-09-10T05:28:05Z"
     },
     {
-      "id": "verify-shelfwise-v1-decision-1",
-      "edge": "verify-shelfwise-v1",
-      "at_node": "admin-app-ready",
+      "id": "design-api-contract-decision-1",
+      "edge": "design-api-contract",
+      "at_node": "core-journey-confirmed",
       "alternatives": [
-        "verify-shelfwise-v1"
+        "design-api-contract"
       ],
-      "reason": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
-      "actor": "human:owner",
-      "authorization_request": "verify-shelfwise-v1-authorization-1",
-      "decided_at": "2026-09-07T12:18:22Z"
+      "reason": "批准执行 design-api-contract",
+      "actor": "human:demo",
+      "authorization_request": "design-api-contract-authorization-1",
+      "decided_at": "2026-09-10T05:28:06Z"
+    },
+    {
+      "id": "review-engineering-design-decision-1",
+      "edge": "review-engineering-design",
+      "at_node": "engineering-design-ready",
+      "alternatives": [
+        "review-engineering-design"
+      ],
+      "reason": "批准执行 review-engineering-design",
+      "actor": "human:demo",
+      "authorization_request": "review-engineering-design-authorization-1",
+      "decided_at": "2026-09-10T05:28:07Z"
+    },
+    {
+      "id": "build-catalog-slice-decision-1",
+      "edge": "build-catalog-slice",
+      "at_node": "engineering-design-reviewed",
+      "alternatives": [
+        "build-catalog-slice",
+        "build-circulation-slice"
+      ],
+      "reason": "批准执行 build-catalog-slice",
+      "actor": "human:demo",
+      "authorization_request": "build-catalog-slice-authorization-1",
+      "decided_at": "2026-09-10T05:28:08Z"
+    },
+    {
+      "id": "build-circulation-slice-decision-1",
+      "edge": "build-circulation-slice",
+      "at_node": "engineering-design-reviewed",
+      "alternatives": [
+        "build-circulation-slice"
+      ],
+      "reason": "批准执行 build-circulation-slice",
+      "actor": "human:demo",
+      "authorization_request": "build-circulation-slice-authorization-1",
+      "decided_at": "2026-09-10T05:28:09Z"
+    },
+    {
+      "id": "integrate-library-slices-decision-1",
+      "edge": "integrate-library-slices",
+      "at_node": "independent-slices-ready",
+      "alternatives": [
+        "integrate-library-slices"
+      ],
+      "reason": "批准执行 integrate-library-slices",
+      "actor": "human:demo",
+      "authorization_request": "integrate-library-slices-authorization-1",
+      "decided_at": "2026-09-10T05:28:10Z"
+    },
+    {
+      "id": "accept-library-mvp-decision-1",
+      "edge": "accept-library-mvp",
+      "at_node": "mvp-integrated",
+      "alternatives": [
+        "accept-library-mvp"
+      ],
+      "reason": "批准执行 accept-library-mvp",
+      "actor": "human:demo",
+      "authorization_request": "accept-library-mvp-authorization-1",
+      "decided_at": "2026-09-10T05:28:11Z"
     }
   ],
   "route_approval_requests": [
     {
-      "id": "shelfwise-v1-route-approval-request-1",
-      "map_digest": "fbe91c9501849c1dcb71c1368fa8068dcb68bc0e41035a0f7d7c17c14b44585e",
-      "proof_digest": "e127bcef0145b22fbcf724cfc6d29beef441f0c989808df4acafe344656fc2af",
+      "id": "library-system-mvp-route-approval-request-1",
+      "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
+      "proof_digest": "045368a995d088cf8b39a85fb71a0fc69dd63b66f972ea00a8bf3c7a0b338cc1",
       "structural": "complete",
       "reachability": "logical",
       "proven_edges": [
-        "verify-shelfwise-v1",
-        "build-admin-browser-interface",
-        "build-persistent-library-api"
+        "accept-library-mvp",
+        "integrate-library-slices",
+        "build-circulation-slice",
+        "build-catalog-slice",
+        "review-engineering-design",
+        "design-api-contract",
+        "design-domain-model",
+        "confirm-core-journey"
       ],
-      "question": "是否批准当前已证明的完整路线：build-persistent-library-api → build-admin-browser-interface → verify-shelfwise-v1？",
-      "requested_by": "agent:codex",
-      "requested_at": "2026-09-07T11:25:27Z",
+      "question": "是否批准这条已证明的完整路线？",
+      "requested_by": "agent:demo",
+      "decision_owner": "human:demo",
+      "requested_at": "2026-09-10T05:28:04Z",
       "status": "granted",
-      "answer": "我看懂了，也确认按这条完整路线推进。",
-      "approved_by": "human:owner",
-      "approved_at": "2026-09-07T11:27:03Z"
+      "answer": "确认并批准完整路线",
+      "approved_by": "human:demo",
+      "approved_at": "2026-09-10T05:28:04Z"
     }
   ],
   "route_approvals": [
     {
-      "id": "shelfwise-v1-route-approval-1",
-      "map_digest": "fbe91c9501849c1dcb71c1368fa8068dcb68bc0e41035a0f7d7c17c14b44585e",
+      "id": "library-system-mvp-route-approval-1",
+      "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
       "structural": "complete",
       "reachability": "logical",
-      "request": "shelfwise-v1-route-approval-request-1",
-      "reason": "我看懂了，也确认按这条完整路线推进。",
-      "answer": "我看懂了，也确认按这条完整路线推进。",
-      "actor": "human:owner",
-      "approved_at": "2026-09-07T11:27:03Z"
+      "request": "library-system-mvp-route-approval-request-1",
+      "reason": "确认并批准完整路线",
+      "answer": "确认并批准完整路线",
+      "actor": "human:demo",
+      "approved_at": "2026-09-10T05:28:04Z"
     }
   ],
-  "current_route_approval": "shelfwise-v1-route-approval-1",
+  "current_route_approval": "library-system-mvp-route-approval-1",
   "authorization_requests": [
     {
-      "id": "build-persistent-library-api-authorization-1",
-      "edge": "build-persistent-library-api",
-      "route_approval": "shelfwise-v1-route-approval-1",
-      "question": "是否授权执行工作边 build-persistent-library-api？范围仅包括服务端源码、package.json、自动化测试，以及本机临时端口和临时数据文件验证。失败时停止并返回 replan，不触碰用户既有数据。",
-      "requested_by": "agent:codex",
-      "requested_at": "2026-09-07T11:27:16Z",
+      "id": "confirm-core-journey-authorization-1",
+      "edge": "confirm-core-journey",
+      "route_approval": "library-system-mvp-route-approval-1",
+      "question": "是否授权执行 confirm-core-journey？",
+      "requested_by": "agent:demo",
+      "decision_owner": "human:demo",
+      "requested_at": "2026-09-10T05:28:04Z",
       "status": "granted",
-      "answer": "我批准你刚才请求执行的这项工作。完成后先把结果和检查记录告诉我。",
-      "authorized_by": "human:owner",
-      "authorized_at": "2026-09-07T11:29:30Z"
+      "answer": "批准执行 confirm-core-journey",
+      "authorized_by": "human:demo",
+      "authorized_at": "2026-09-10T05:28:04Z"
     },
     {
-      "id": "build-admin-browser-interface-authorization-1",
-      "edge": "build-admin-browser-interface",
-      "route_approval": "shelfwise-v1-route-approval-1",
-      "question": "是否授权执行工作边 build-admin-browser-interface？范围仅包括 GET / 的本地管理员界面、原生 HTML/CSS/JavaScript、必要的服务接线与本机浏览器验证；不改变已验证 API 合同，不加入第三方生产依赖，也不做外部发布。",
-      "requested_by": "agent:codex",
-      "requested_at": "2026-09-07T11:46:20Z",
+      "id": "design-domain-model-authorization-1",
+      "edge": "design-domain-model",
+      "route_approval": "library-system-mvp-route-approval-1",
+      "question": "是否授权执行 design-domain-model？",
+      "requested_by": "agent:demo",
+      "decision_owner": "human:demo",
+      "requested_at": "2026-09-10T05:28:05Z",
       "status": "granted",
-      "answer": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
-      "authorized_by": "human:owner",
-      "authorized_at": "2026-09-07T11:49:34Z"
+      "answer": "批准执行 design-domain-model",
+      "authorized_by": "human:demo",
+      "authorized_at": "2026-09-10T05:28:05Z"
     },
     {
-      "id": "verify-shelfwise-v1-authorization-1",
-      "edge": "verify-shelfwise-v1",
-      "route_approval": "shelfwise-v1-route-approval-1",
-      "question": "是否授权执行工作边 verify-shelfwise-v1？范围仅包括以临时 PORT 和 LIBRARY_DATA_FILE 运行完整自动化与真实 npm start/browser 验收、检查重启持久化和零生产依赖，并只修复阻塞既定 A1-A6 验收的问题；不新增功能、不外部部署或发布。",
-      "requested_by": "agent:codex",
-      "requested_at": "2026-09-07T12:12:06Z",
+      "id": "design-api-contract-authorization-1",
+      "edge": "design-api-contract",
+      "route_approval": "library-system-mvp-route-approval-1",
+      "question": "是否授权执行 design-api-contract？",
+      "requested_by": "agent:demo",
+      "decision_owner": "human:demo",
+      "requested_at": "2026-09-10T05:28:06Z",
       "status": "granted",
-      "answer": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
-      "authorized_by": "human:owner",
-      "authorized_at": "2026-09-07T12:18:22Z"
+      "answer": "批准执行 design-api-contract",
+      "authorized_by": "human:demo",
+      "authorized_at": "2026-09-10T05:28:06Z"
+    },
+    {
+      "id": "review-engineering-design-authorization-1",
+      "edge": "review-engineering-design",
+      "route_approval": "library-system-mvp-route-approval-1",
+      "question": "是否授权执行 review-engineering-design？",
+      "requested_by": "agent:demo",
+      "decision_owner": "human:demo",
+      "requested_at": "2026-09-10T05:28:07Z",
+      "status": "granted",
+      "answer": "批准执行 review-engineering-design",
+      "authorized_by": "human:demo",
+      "authorized_at": "2026-09-10T05:28:07Z"
+    },
+    {
+      "id": "build-catalog-slice-authorization-1",
+      "edge": "build-catalog-slice",
+      "route_approval": "library-system-mvp-route-approval-1",
+      "question": "是否授权执行 build-catalog-slice？",
+      "requested_by": "agent:demo",
+      "decision_owner": "human:demo",
+      "requested_at": "2026-09-10T05:28:08Z",
+      "status": "granted",
+      "answer": "批准执行 build-catalog-slice",
+      "authorized_by": "human:demo",
+      "authorized_at": "2026-09-10T05:28:08Z"
+    },
+    {
+      "id": "build-circulation-slice-authorization-1",
+      "edge": "build-circulation-slice",
+      "route_approval": "library-system-mvp-route-approval-1",
+      "question": "是否授权执行 build-circulation-slice？",
+      "requested_by": "agent:demo",
+      "decision_owner": "human:demo",
+      "requested_at": "2026-09-10T05:28:08Z",
+      "status": "granted",
+      "answer": "批准执行 build-circulation-slice",
+      "authorized_by": "human:demo",
+      "authorized_at": "2026-09-10T05:28:09Z"
+    },
+    {
+      "id": "integrate-library-slices-authorization-1",
+      "edge": "integrate-library-slices",
+      "route_approval": "library-system-mvp-route-approval-1",
+      "question": "是否授权执行 integrate-library-slices？",
+      "requested_by": "agent:demo",
+      "decision_owner": "human:demo",
+      "requested_at": "2026-09-10T05:28:09Z",
+      "status": "granted",
+      "answer": "批准执行 integrate-library-slices",
+      "authorized_by": "human:demo",
+      "authorized_at": "2026-09-10T05:28:10Z"
+    },
+    {
+      "id": "accept-library-mvp-authorization-1",
+      "edge": "accept-library-mvp",
+      "route_approval": "library-system-mvp-route-approval-1",
+      "question": "是否授权执行 accept-library-mvp？",
+      "requested_by": "agent:demo",
+      "decision_owner": "human:demo",
+      "requested_at": "2026-09-10T05:28:10Z",
+      "status": "granted",
+      "answer": "批准执行 accept-library-mvp",
+      "authorized_by": "human:demo",
+      "authorized_at": "2026-09-10T05:28:11Z"
     }
   ],
   "arrival_audit_requests": [
     {
-      "id": "shelfwise-v1-arrival-audit-request-1",
-      "map_digest": "fbe91c9501849c1dcb71c1368fa8068dcb68bc0e41035a0f7d7c17c14b44585e",
-      "route_approval": "shelfwise-v1-route-approval-1",
-      "state_revision": 17,
-      "evidence_digest": "2d349d8dbde13f687dc58395c61cf2eca2756d8c96871e9b8cb5dc325eebd4e9",
+      "id": "library-system-mvp-arrival-audit-request-1",
+      "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
+      "route_approval": "library-system-mvp-route-approval-1",
+      "state_revision": 36,
+      "evidence_digest": "b446905740a9cf3180f80e96ba4c6004e876a7949127f1bc06dc3700262e25f1",
       "acceptance": [
-        "a1-startup-page",
-        "a2-registration",
-        "a3-a4-loan-lifecycle",
-        "a5-restart-persistence",
-        "a6-api-contract",
-        "a6-production-dependencies"
+        "catalog-slice-accepted",
+        "engineering-design-accepted",
+        "circulation-slice-accepted",
+        "library-integration-accepted",
+        "library-demo-accepted"
       ],
-      "question": "是否确认 Shelfwise v1 的 A1-A6 已按上述实际记录逐项通过，非目标（会员收费、电子书、推荐、预约、多人权限和外部发布）仍保持排除，并接受遗留风险（规模增长后的纯编号办理摩擦、部分窄屏触控目标小于 44px、真实长期使用与无障碍体验及市场需求尚未验证）？",
-      "requested_by": "agent:codex",
-      "requested_at": "2026-09-07T12:39:47Z",
+      "question": "目的地、验收、非目标和风险是否完成独立审计？",
+      "requested_by": "agent:demo",
+      "decision_owner": "human:owner",
+      "requested_at": "2026-09-10T05:28:11Z",
       "status": "pending"
     }
   ],
@@ -187,41 +388,42 @@
   "receipt_invalidations": [],
   "event_stream": {
     "path": "events.jsonl",
-    "last_seq": 17,
-    "head_digest": "03faad83d563e6c25a909406676cd64d03fe058d18af9c332e06976272448631"
+    "last_seq": 36,
+    "head_digest": "497a0c3d52649f8c94d2120be384551f17685fb27a37b39dcb04041637608a6d"
   },
   "verified_edges": [
-    "build-persistent-library-api",
-    "build-admin-browser-interface",
-    "verify-shelfwise-v1"
+    "confirm-core-journey",
+    "design-domain-model",
+    "design-api-contract",
+    "review-engineering-design",
+    "build-catalog-slice",
+    "build-circulation-slice",
+    "integrate-library-slices",
+    "accept-library-mvp"
   ],
   "verified_edge_contracts": {
-    "build-persistent-library-api": {
+    "confirm-core-journey": {
       "edge": {
-        "id": "build-persistent-library-api",
-        "from": "shelfwise-empty-repository",
-        "to": "library-api-ready",
-        "brief_ref": "briefs/build-persistent-library-api.md",
+        "id": "confirm-core-journey",
+        "from": "workspace-origin-fog",
+        "to": "core-journey-confirmed",
+        "brief_ref": "briefs/confirm-core-journey.md",
         "preconditions": [
-          "git-repository-exists",
-          "local-node-runtime-available",
-          "node-sqlite-available",
-          "destination-contract-confirmed"
+          "repository-present",
+          "core-journey-unknown"
         ],
         "effects": [
-          "persistent-library-api-ready"
+          "core-journey-known"
         ],
         "invariants": [
-          "production-dependencies-remain-empty",
-          "configured-data-file-is-authoritative",
           "no-external-release"
         ],
         "certainty": "expected",
         "evidence_contract": [
           {
-            "id": "persistent-api-test-record",
+            "id": "core-journey-record",
             "proves": [
-              "persistent-library-api-ready"
+              "core-journey-known"
             ],
             "required": true
           }
@@ -233,146 +435,401 @@
       "submap": null,
       "nodes": [
         {
-          "id": "library-api-ready",
+          "id": "core-journey-confirmed",
           "kind": "state",
-          "label": "持久化图书借阅 API 已就绪",
+          "label": "核心用户旅程已确认",
           "predicates": [
-            "persistent-library-api-ready"
+            "repository-present",
+            "core-journey-known"
           ]
         },
         {
-          "id": "shelfwise-empty-repository",
-          "kind": "state",
-          "label": "Shelfwise 已定边界的空白仓库",
+          "id": "workspace-origin-fog",
+          "kind": "fog",
+          "label": "仓库存在，核心旅程尚未确认",
           "predicates": [
-            "git-repository-exists",
-            "local-node-runtime-available",
-            "node-sqlite-available",
-            "destination-contract-confirmed",
-            "production-dependencies-forbidden",
-            "configured-data-file-required",
-            "external-release-not-authorized"
-          ],
-          "realization_refs": [
-            {
-              "kind": "git",
-              "ref": "commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
-              "strength": "observed"
-            }
+            "repository-present",
+            "core-journey-unknown"
           ]
         }
       ],
       "predicates": [
         {
-          "id": "configured-data-file-required",
-          "fact": "configured-data-file-required",
+          "id": "core-journey-known",
+          "fact": "core-journey-known",
           "equals": "true",
           "kind": "state"
         },
         {
-          "id": "destination-contract-confirmed",
-          "fact": "destination-contract-confirmed",
-          "equals": "true",
-          "kind": "authorization"
+          "id": "core-journey-unknown",
+          "fact": "core-journey-known",
+          "equals": "unknown",
+          "kind": "state"
         },
         {
           "id": "external-release-not-authorized",
-          "fact": "external-deployment-authorized",
+          "fact": "external-release-authorized",
           "equals": "false",
           "kind": "authorization"
         },
         {
-          "id": "git-repository-exists",
-          "fact": "git-repository-exists",
+          "id": "repository-present",
+          "fact": "repository-present",
           "equals": "true",
-          "kind": "resource"
+          "kind": "state"
+        }
+      ],
+      "invariants": [
+        {
+          "id": "no-external-release",
+          "applies_to": [
+            "confirm-core-journey",
+            "design-domain-model",
+            "design-api-contract",
+            "review-engineering-design",
+            "build-catalog-slice",
+            "build-circulation-slice",
+            "integrate-library-slices",
+            "accept-library-mvp"
+          ],
+          "requires": [
+            "external-release-not-authorized"
+          ]
+        }
+      ],
+      "loops": [],
+      "brief_digest": "f9cfb29860ac53816b0e239271b443da36dc8d0e9f1cc97f25209639d85638aa"
+    },
+    "design-domain-model": {
+      "edge": {
+        "id": "design-domain-model",
+        "from": "core-journey-confirmed",
+        "to": "engineering-design-ready",
+        "brief_ref": "briefs/design-domain-model.md",
+        "preconditions": [
+          "repository-present",
+          "core-journey-known"
+        ],
+        "effects": [
+          "domain-model-ready"
+        ],
+        "invariants": [
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "domain-model-document",
+            "proves": [
+              "domain-model-ready"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      "submap": null,
+      "nodes": [
+        {
+          "id": "core-journey-confirmed",
+          "kind": "state",
+          "label": "核心用户旅程已确认",
+          "predicates": [
+            "repository-present",
+            "core-journey-known"
+          ]
         },
         {
-          "id": "local-node-runtime-available",
-          "fact": "local-node-runtime-available",
-          "equals": "true",
-          "kind": "resource"
-        },
+          "id": "engineering-design-ready",
+          "kind": "join",
+          "label": "领域模型与 API / 持久化契约均已形成",
+          "predicates": [
+            "domain-model-ready",
+            "api-contract-ready"
+          ]
+        }
+      ],
+      "predicates": [
         {
-          "id": "node-sqlite-available",
-          "fact": "node-sqlite-available",
-          "equals": "true",
-          "kind": "resource"
-        },
-        {
-          "id": "persistent-library-api-ready",
-          "fact": "persistent-library-api-ready",
+          "id": "api-contract-ready",
+          "fact": "api-contract-ready",
           "equals": "true",
           "kind": "state"
         },
         {
-          "id": "production-dependencies-forbidden",
-          "fact": "production-dependencies-allowed",
+          "id": "core-journey-known",
+          "fact": "core-journey-known",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "domain-model-ready",
+          "fact": "domain-model-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "external-release-not-authorized",
+          "fact": "external-release-authorized",
+          "equals": "false",
+          "kind": "authorization"
+        },
+        {
+          "id": "repository-present",
+          "fact": "repository-present",
+          "equals": "true",
+          "kind": "state"
+        }
+      ],
+      "invariants": [
+        {
+          "id": "no-external-release",
+          "applies_to": [
+            "confirm-core-journey",
+            "design-domain-model",
+            "design-api-contract",
+            "review-engineering-design",
+            "build-catalog-slice",
+            "build-circulation-slice",
+            "integrate-library-slices",
+            "accept-library-mvp"
+          ],
+          "requires": [
+            "external-release-not-authorized"
+          ]
+        }
+      ],
+      "loops": [],
+      "brief_digest": "13833a2001c3c329156266c4f97a5fccc3628f0ef398da665c7db018b25b9383"
+    },
+    "design-api-contract": {
+      "edge": {
+        "id": "design-api-contract",
+        "from": "core-journey-confirmed",
+        "to": "engineering-design-ready",
+        "brief_ref": "briefs/design-api-contract.md",
+        "preconditions": [
+          "repository-present",
+          "core-journey-known"
+        ],
+        "effects": [
+          "api-contract-ready"
+        ],
+        "invariants": [
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "api-contract-document",
+            "proves": [
+              "api-contract-ready"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      "submap": null,
+      "nodes": [
+        {
+          "id": "core-journey-confirmed",
+          "kind": "state",
+          "label": "核心用户旅程已确认",
+          "predicates": [
+            "repository-present",
+            "core-journey-known"
+          ]
+        },
+        {
+          "id": "engineering-design-ready",
+          "kind": "join",
+          "label": "领域模型与 API / 持久化契约均已形成",
+          "predicates": [
+            "domain-model-ready",
+            "api-contract-ready"
+          ]
+        }
+      ],
+      "predicates": [
+        {
+          "id": "api-contract-ready",
+          "fact": "api-contract-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "core-journey-known",
+          "fact": "core-journey-known",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "domain-model-ready",
+          "fact": "domain-model-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "external-release-not-authorized",
+          "fact": "external-release-authorized",
+          "equals": "false",
+          "kind": "authorization"
+        },
+        {
+          "id": "repository-present",
+          "fact": "repository-present",
+          "equals": "true",
+          "kind": "state"
+        }
+      ],
+      "invariants": [
+        {
+          "id": "no-external-release",
+          "applies_to": [
+            "confirm-core-journey",
+            "design-domain-model",
+            "design-api-contract",
+            "review-engineering-design",
+            "build-catalog-slice",
+            "build-circulation-slice",
+            "integrate-library-slices",
+            "accept-library-mvp"
+          ],
+          "requires": [
+            "external-release-not-authorized"
+          ]
+        }
+      ],
+      "loops": [],
+      "brief_digest": "f716db93a431fb8645269fea2dbcc10b2bb960a1fd6d1cc211389ee743c8c745"
+    },
+    "review-engineering-design": {
+      "edge": {
+        "id": "review-engineering-design",
+        "from": "engineering-design-ready",
+        "to": "engineering-design-reviewed",
+        "brief_ref": "briefs/review-engineering-design.md",
+        "preconditions": [
+          "domain-model-ready",
+          "api-contract-ready"
+        ],
+        "effects": [
+          "engineering-design-reviewed"
+        ],
+        "invariants": [
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "engineering-design-review",
+            "proves": [
+              "engineering-design-reviewed"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      "submap": null,
+      "nodes": [
+        {
+          "id": "engineering-design-ready",
+          "kind": "join",
+          "label": "领域模型与 API / 持久化契约均已形成",
+          "predicates": [
+            "domain-model-ready",
+            "api-contract-ready"
+          ]
+        },
+        {
+          "id": "engineering-design-reviewed",
+          "kind": "state",
+          "label": "工程设计文档已评审并冻结为实施输入",
+          "predicates": [
+            "domain-model-ready",
+            "api-contract-ready",
+            "engineering-design-reviewed"
+          ]
+        }
+      ],
+      "predicates": [
+        {
+          "id": "api-contract-ready",
+          "fact": "api-contract-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "domain-model-ready",
+          "fact": "domain-model-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "engineering-design-reviewed",
+          "fact": "engineering-design-reviewed",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "external-release-not-authorized",
+          "fact": "external-release-authorized",
           "equals": "false",
           "kind": "authorization"
         }
       ],
       "invariants": [
         {
-          "id": "configured-data-file-is-authoritative",
-          "applies_to": [
-            "build-persistent-library-api",
-            "build-admin-browser-interface",
-            "verify-shelfwise-v1"
-          ],
-          "requires": [
-            "configured-data-file-required"
-          ]
-        },
-        {
           "id": "no-external-release",
           "applies_to": [
-            "build-persistent-library-api",
-            "build-admin-browser-interface",
-            "verify-shelfwise-v1"
+            "confirm-core-journey",
+            "design-domain-model",
+            "design-api-contract",
+            "review-engineering-design",
+            "build-catalog-slice",
+            "build-circulation-slice",
+            "integrate-library-slices",
+            "accept-library-mvp"
           ],
           "requires": [
             "external-release-not-authorized"
           ]
-        },
-        {
-          "id": "production-dependencies-remain-empty",
-          "applies_to": [
-            "build-persistent-library-api",
-            "build-admin-browser-interface",
-            "verify-shelfwise-v1"
-          ],
-          "requires": [
-            "production-dependencies-forbidden"
-          ]
         }
       ],
       "loops": [],
-      "brief_digest": "4c748eb885e0680c55d924b38be7eec10cbc32af9a0ba86dd6780a408a2830c5"
+      "brief_digest": "8bc8fd73a4bc6f7ce640d3672d34d9480cab55973a8a696d50f700d6f67dd62a"
     },
-    "build-admin-browser-interface": {
+    "build-catalog-slice": {
       "edge": {
-        "id": "build-admin-browser-interface",
-        "from": "library-api-ready",
-        "to": "admin-app-ready",
-        "brief_ref": "briefs/build-admin-browser-interface.md",
+        "id": "build-catalog-slice",
+        "from": "engineering-design-reviewed",
+        "to": "independent-slices-ready",
+        "brief_ref": "briefs/build-catalog-slice.md",
         "preconditions": [
-          "persistent-library-api-ready"
+          "repository-present",
+          "core-journey-known",
+          "engineering-design-reviewed"
         ],
         "effects": [
-          "admin-browser-workflows-ready"
+          "catalog-slice-ready"
         ],
         "invariants": [
-          "production-dependencies-remain-empty",
-          "configured-data-file-is-authoritative",
           "no-external-release"
         ],
         "certainty": "expected",
         "evidence_contract": [
           {
-            "id": "admin-browser-workflow-record",
+            "id": "catalog-slice-check",
             "proves": [
-              "admin-browser-workflows-ready"
+              "catalog-slice-ready"
             ],
             "required": true
           }
@@ -384,127 +841,120 @@
       "submap": null,
       "nodes": [
         {
-          "id": "admin-app-ready",
-          "kind": "join",
-          "label": "管理员浏览器工作流已就绪",
+          "id": "engineering-design-reviewed",
+          "kind": "state",
+          "label": "工程设计文档已评审并冻结为实施输入",
           "predicates": [
-            "persistent-library-api-ready",
-            "admin-browser-workflows-ready"
+            "domain-model-ready",
+            "api-contract-ready",
+            "engineering-design-reviewed"
           ]
         },
         {
-          "id": "library-api-ready",
-          "kind": "state",
-          "label": "持久化图书借阅 API 已就绪",
+          "id": "independent-slices-ready",
+          "kind": "join",
+          "label": "目录与借还两个独立切片均就绪",
           "predicates": [
-            "persistent-library-api-ready"
+            "engineering-design-reviewed",
+            "catalog-slice-ready",
+            "circulation-slice-ready"
           ]
         }
       ],
       "predicates": [
         {
-          "id": "admin-browser-workflows-ready",
-          "fact": "admin-browser-workflows-ready",
+          "id": "api-contract-ready",
+          "fact": "api-contract-ready",
           "equals": "true",
           "kind": "state"
         },
         {
-          "id": "configured-data-file-required",
-          "fact": "configured-data-file-required",
+          "id": "catalog-slice-ready",
+          "fact": "catalog-slice-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "circulation-slice-ready",
+          "fact": "circulation-slice-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "core-journey-known",
+          "fact": "core-journey-known",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "domain-model-ready",
+          "fact": "domain-model-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "engineering-design-reviewed",
+          "fact": "engineering-design-reviewed",
           "equals": "true",
           "kind": "state"
         },
         {
           "id": "external-release-not-authorized",
-          "fact": "external-deployment-authorized",
+          "fact": "external-release-authorized",
           "equals": "false",
           "kind": "authorization"
         },
         {
-          "id": "persistent-library-api-ready",
-          "fact": "persistent-library-api-ready",
+          "id": "repository-present",
+          "fact": "repository-present",
           "equals": "true",
           "kind": "state"
-        },
-        {
-          "id": "production-dependencies-forbidden",
-          "fact": "production-dependencies-allowed",
-          "equals": "false",
-          "kind": "authorization"
         }
       ],
       "invariants": [
         {
-          "id": "configured-data-file-is-authoritative",
-          "applies_to": [
-            "build-persistent-library-api",
-            "build-admin-browser-interface",
-            "verify-shelfwise-v1"
-          ],
-          "requires": [
-            "configured-data-file-required"
-          ]
-        },
-        {
           "id": "no-external-release",
           "applies_to": [
-            "build-persistent-library-api",
-            "build-admin-browser-interface",
-            "verify-shelfwise-v1"
+            "confirm-core-journey",
+            "design-domain-model",
+            "design-api-contract",
+            "review-engineering-design",
+            "build-catalog-slice",
+            "build-circulation-slice",
+            "integrate-library-slices",
+            "accept-library-mvp"
           ],
           "requires": [
             "external-release-not-authorized"
           ]
-        },
-        {
-          "id": "production-dependencies-remain-empty",
-          "applies_to": [
-            "build-persistent-library-api",
-            "build-admin-browser-interface",
-            "verify-shelfwise-v1"
-          ],
-          "requires": [
-            "production-dependencies-forbidden"
-          ]
         }
       ],
       "loops": [],
-      "brief_digest": "54aef0f1ef521ab74a769d8b4da18e2895863dc0ffc3866fa3e18095272846f1"
+      "brief_digest": "6778adcb0f192a1fd1563592b5615a0c92d33f97428c453e3fb5f1e6d83b5444"
     },
-    "verify-shelfwise-v1": {
+    "build-circulation-slice": {
       "edge": {
-        "id": "verify-shelfwise-v1",
-        "from": "admin-app-ready",
-        "to": "shelfwise-v1-ready",
-        "brief_ref": "briefs/verify-shelfwise-v1.md",
+        "id": "build-circulation-slice",
+        "from": "engineering-design-reviewed",
+        "to": "independent-slices-ready",
+        "brief_ref": "briefs/build-circulation-slice.md",
         "preconditions": [
-          "persistent-library-api-ready",
-          "admin-browser-workflows-ready"
+          "repository-present",
+          "core-journey-known",
+          "engineering-design-reviewed"
         ],
         "effects": [
-          "startup-and-page-verified",
-          "registration-workflows-verified",
-          "loan-lifecycle-verified",
-          "restart-persistence-verified",
-          "required-api-contract-verified",
-          "production-dependency-policy-verified"
+          "circulation-slice-ready"
         ],
         "invariants": [
-          "production-dependencies-remain-empty",
-          "configured-data-file-is-authoritative",
           "no-external-release"
         ],
         "certainty": "expected",
         "evidence_contract": [
           {
-            "id": "shelfwise-v1-acceptance-record",
+            "id": "circulation-slice-check",
             "proves": [
-              "startup-and-page-verified",
-              "registration-workflows-verified",
-              "loan-lifecycle-verified",
-              "restart-persistence-verified",
-              "required-api-contract-verified",
-              "production-dependency-policy-verified"
+              "circulation-slice-ready"
             ],
             "required": true
           }
@@ -516,459 +966,541 @@
       "submap": null,
       "nodes": [
         {
-          "id": "admin-app-ready",
-          "kind": "join",
-          "label": "管理员浏览器工作流已就绪",
+          "id": "engineering-design-reviewed",
+          "kind": "state",
+          "label": "工程设计文档已评审并冻结为实施输入",
           "predicates": [
-            "persistent-library-api-ready",
-            "admin-browser-workflows-ready"
+            "domain-model-ready",
+            "api-contract-ready",
+            "engineering-design-reviewed"
           ]
         },
         {
-          "id": "shelfwise-v1-ready",
+          "id": "independent-slices-ready",
+          "kind": "join",
+          "label": "目录与借还两个独立切片均就绪",
+          "predicates": [
+            "engineering-design-reviewed",
+            "catalog-slice-ready",
+            "circulation-slice-ready"
+          ]
+        }
+      ],
+      "predicates": [
+        {
+          "id": "api-contract-ready",
+          "fact": "api-contract-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "catalog-slice-ready",
+          "fact": "catalog-slice-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "circulation-slice-ready",
+          "fact": "circulation-slice-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "core-journey-known",
+          "fact": "core-journey-known",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "domain-model-ready",
+          "fact": "domain-model-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "engineering-design-reviewed",
+          "fact": "engineering-design-reviewed",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "external-release-not-authorized",
+          "fact": "external-release-authorized",
+          "equals": "false",
+          "kind": "authorization"
+        },
+        {
+          "id": "repository-present",
+          "fact": "repository-present",
+          "equals": "true",
+          "kind": "state"
+        }
+      ],
+      "invariants": [
+        {
+          "id": "no-external-release",
+          "applies_to": [
+            "confirm-core-journey",
+            "design-domain-model",
+            "design-api-contract",
+            "review-engineering-design",
+            "build-catalog-slice",
+            "build-circulation-slice",
+            "integrate-library-slices",
+            "accept-library-mvp"
+          ],
+          "requires": [
+            "external-release-not-authorized"
+          ]
+        }
+      ],
+      "loops": [],
+      "brief_digest": "eb5add70059118cd4b73c6fad9ea217f7ab39a393c9edec6cb4a4ced5d8080c9"
+    },
+    "integrate-library-slices": {
+      "edge": {
+        "id": "integrate-library-slices",
+        "from": "independent-slices-ready",
+        "to": "mvp-integrated",
+        "brief_ref": "briefs/integrate-library-slices.md",
+        "preconditions": [
+          "catalog-slice-ready",
+          "circulation-slice-ready"
+        ],
+        "effects": [
+          "integration-tests-pass"
+        ],
+        "invariants": [
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "integration-check",
+            "proves": [
+              "integration-tests-pass"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      "submap": null,
+      "nodes": [
+        {
+          "id": "independent-slices-ready",
+          "kind": "join",
+          "label": "目录与借还两个独立切片均就绪",
+          "predicates": [
+            "engineering-design-reviewed",
+            "catalog-slice-ready",
+            "circulation-slice-ready"
+          ]
+        },
+        {
+          "id": "mvp-integrated",
+          "kind": "state",
+          "label": "两个切片已集成并通过自动检查",
+          "predicates": [
+            "engineering-design-reviewed",
+            "catalog-slice-ready",
+            "circulation-slice-ready",
+            "integration-tests-pass"
+          ]
+        }
+      ],
+      "predicates": [
+        {
+          "id": "catalog-slice-ready",
+          "fact": "catalog-slice-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "circulation-slice-ready",
+          "fact": "circulation-slice-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "engineering-design-reviewed",
+          "fact": "engineering-design-reviewed",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "external-release-not-authorized",
+          "fact": "external-release-authorized",
+          "equals": "false",
+          "kind": "authorization"
+        },
+        {
+          "id": "integration-tests-pass",
+          "fact": "integration-tests-pass",
+          "equals": "true",
+          "kind": "state"
+        }
+      ],
+      "invariants": [
+        {
+          "id": "no-external-release",
+          "applies_to": [
+            "confirm-core-journey",
+            "design-domain-model",
+            "design-api-contract",
+            "review-engineering-design",
+            "build-catalog-slice",
+            "build-circulation-slice",
+            "integrate-library-slices",
+            "accept-library-mvp"
+          ],
+          "requires": [
+            "external-release-not-authorized"
+          ]
+        }
+      ],
+      "loops": [],
+      "brief_digest": "c22c22abe8264b7ddb22de5a883db0c33bbd157231e63892c41412293cf7b2ac"
+    },
+    "accept-library-mvp": {
+      "edge": {
+        "id": "accept-library-mvp",
+        "from": "mvp-integrated",
+        "to": "workspace-destination-fog",
+        "brief_ref": "briefs/accept-library-mvp.md",
+        "preconditions": [
+          "catalog-slice-ready",
+          "circulation-slice-ready",
+          "integration-tests-pass"
+        ],
+        "effects": [
+          "demo-accepted"
+        ],
+        "invariants": [
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "owner-demo-record",
+            "proves": [
+              "demo-accepted"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      "submap": null,
+      "nodes": [
+        {
+          "id": "mvp-integrated",
+          "kind": "state",
+          "label": "两个切片已集成并通过自动检查",
+          "predicates": [
+            "engineering-design-reviewed",
+            "catalog-slice-ready",
+            "circulation-slice-ready",
+            "integration-tests-pass"
+          ]
+        },
+        {
+          "id": "workspace-destination-fog",
           "kind": "destination",
-          "label": "Shelfwise v1 合同已验证",
+          "label": "MVP 已通过完整核心旅程验收",
           "predicates": [
-            "startup-and-page-verified",
-            "registration-workflows-verified",
-            "loan-lifecycle-verified",
-            "restart-persistence-verified",
-            "required-api-contract-verified",
-            "production-dependency-policy-verified"
+            "engineering-design-reviewed",
+            "catalog-slice-ready",
+            "circulation-slice-ready",
+            "integration-tests-pass",
+            "demo-accepted"
           ]
         }
       ],
       "predicates": [
         {
-          "id": "admin-browser-workflows-ready",
-          "fact": "admin-browser-workflows-ready",
+          "id": "catalog-slice-ready",
+          "fact": "catalog-slice-ready",
           "equals": "true",
           "kind": "state"
         },
         {
-          "id": "configured-data-file-required",
-          "fact": "configured-data-file-required",
+          "id": "circulation-slice-ready",
+          "fact": "circulation-slice-ready",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "demo-accepted",
+          "fact": "demo-accepted",
+          "equals": "true",
+          "kind": "state"
+        },
+        {
+          "id": "engineering-design-reviewed",
+          "fact": "engineering-design-reviewed",
           "equals": "true",
           "kind": "state"
         },
         {
           "id": "external-release-not-authorized",
-          "fact": "external-deployment-authorized",
+          "fact": "external-release-authorized",
           "equals": "false",
           "kind": "authorization"
         },
         {
-          "id": "loan-lifecycle-verified",
-          "fact": "loan-lifecycle-verified",
-          "equals": "true",
-          "kind": "state"
-        },
-        {
-          "id": "persistent-library-api-ready",
-          "fact": "persistent-library-api-ready",
-          "equals": "true",
-          "kind": "state"
-        },
-        {
-          "id": "production-dependencies-forbidden",
-          "fact": "production-dependencies-allowed",
-          "equals": "false",
-          "kind": "authorization"
-        },
-        {
-          "id": "production-dependency-policy-verified",
-          "fact": "production-dependency-policy-verified",
-          "equals": "true",
-          "kind": "state"
-        },
-        {
-          "id": "registration-workflows-verified",
-          "fact": "registration-workflows-verified",
-          "equals": "true",
-          "kind": "state"
-        },
-        {
-          "id": "required-api-contract-verified",
-          "fact": "required-api-contract-verified",
-          "equals": "true",
-          "kind": "state"
-        },
-        {
-          "id": "restart-persistence-verified",
-          "fact": "restart-persistence-verified",
-          "equals": "true",
-          "kind": "state"
-        },
-        {
-          "id": "startup-and-page-verified",
-          "fact": "startup-and-page-verified",
+          "id": "integration-tests-pass",
+          "fact": "integration-tests-pass",
           "equals": "true",
           "kind": "state"
         }
       ],
       "invariants": [
         {
-          "id": "configured-data-file-is-authoritative",
-          "applies_to": [
-            "build-persistent-library-api",
-            "build-admin-browser-interface",
-            "verify-shelfwise-v1"
-          ],
-          "requires": [
-            "configured-data-file-required"
-          ]
-        },
-        {
           "id": "no-external-release",
           "applies_to": [
-            "build-persistent-library-api",
-            "build-admin-browser-interface",
-            "verify-shelfwise-v1"
+            "confirm-core-journey",
+            "design-domain-model",
+            "design-api-contract",
+            "review-engineering-design",
+            "build-catalog-slice",
+            "build-circulation-slice",
+            "integrate-library-slices",
+            "accept-library-mvp"
           ],
           "requires": [
             "external-release-not-authorized"
           ]
-        },
-        {
-          "id": "production-dependencies-remain-empty",
-          "applies_to": [
-            "build-persistent-library-api",
-            "build-admin-browser-interface",
-            "verify-shelfwise-v1"
-          ],
-          "requires": [
-            "production-dependencies-forbidden"
-          ]
         }
       ],
       "loops": [],
-      "brief_digest": "d9809fe399c50fa45aaf163b47571d1302eb07412aa6790db35557f9da7b6bd5"
+      "brief_digest": "a435525a613191d2a151d8a6f0ef94a0f846ca733565272558ef521f70b738b7"
     }
   },
   "blueprint_snapshot": {
     "schema_version": 2,
-    "map_id": "shelfwise-v1",
+    "map_id": "library-system-mvp",
     "intent": {
-      "statement": "从零开发 Shelfwise，供小型社区图书室管理员在本机完成日常借阅管理",
+      "statement": "为个人藏书建立可搜索、可借还、可验收的本地 MVP",
       "status": "shaped",
       "open_questions": []
     },
     "destination": {
-      "statement": "Shelfwise v1 已在本机提供可持久化、可验证的单管理员图书借阅闭环",
+      "statement": "个人图书管理系统 MVP 已通过分支检查、集成检查和核心旅程演示",
       "requires": [
-        "startup-and-page-verified",
-        "registration-workflows-verified",
-        "loan-lifecycle-verified",
-        "restart-persistence-verified",
-        "required-api-contract-verified",
-        "production-dependency-policy-verified"
+        "engineering-design-reviewed",
+        "catalog-slice-ready",
+        "circulation-slice-ready",
+        "integration-tests-pass",
+        "demo-accepted"
       ],
       "invariants": [
-        "production-dependencies-remain-empty",
-        "configured-data-file-is-authoritative",
         "no-external-release"
       ],
       "acceptance": [
         {
-          "id": "a1-startup-page",
+          "id": "catalog-slice-accepted",
           "proves": [
-            "startup-and-page-verified"
+            "catalog-slice-ready"
           ],
-          "proof": "临时 PORT 和 LIBRARY_DATA_FILE 下 npm start 成功，GET / 返回可操作页面"
+          "proof": "新增与搜索拥有独立自动检查"
         },
         {
-          "id": "a2-registration",
+          "id": "engineering-design-accepted",
           "proves": [
-            "registration-workflows-verified"
+            "engineering-design-reviewed"
           ],
-          "proof": "页面和 API 可登记单册图书与读者并返回稳定 ID"
+          "proof": "领域模型与 API / 持久化契约已经分别评审并汇合"
         },
         {
-          "id": "a3-a4-loan-lifecycle",
+          "id": "circulation-slice-accepted",
           "proves": [
-            "loan-lifecycle-verified"
+            "circulation-slice-ready"
           ],
-          "proof": "借阅、有效查询、归还和非法重复操作符合合同且不产生脏数据"
+          "proof": "借出与归还拥有独立自动检查"
         },
         {
-          "id": "a5-restart-persistence",
+          "id": "library-integration-accepted",
           "proves": [
-            "restart-persistence-verified"
+            "integration-tests-pass"
           ],
-          "proof": "使用同一数据文件重启后，图书、读者与借阅状态完全一致"
+          "proof": "两个切片汇合后通过跨切片检查"
         },
         {
-          "id": "a6-api-contract",
+          "id": "library-demo-accepted",
           "proves": [
-            "required-api-contract-verified"
+            "demo-accepted"
           ],
-          "proof": "自动化测试逐一调用页面入口和五个指定 API"
-        },
-        {
-          "id": "a6-production-dependencies",
-          "proves": [
-            "production-dependency-policy-verified"
-          ],
-          "proof": "package.json 的生产 dependencies 为空且服务不依赖第三方包"
+          "proof": "Owner 按完整核心旅程完成回读"
         }
       ]
     },
     "predicates": [
       {
-        "id": "git-repository-exists",
-        "fact": "git-repository-exists",
+        "id": "repository-present",
+        "fact": "repository-present",
         "equals": "true",
-        "kind": "resource"
+        "kind": "state"
       },
       {
-        "id": "local-node-runtime-available",
-        "fact": "local-node-runtime-available",
+        "id": "core-journey-unknown",
+        "fact": "core-journey-known",
+        "equals": "unknown",
+        "kind": "state"
+      },
+      {
+        "id": "core-journey-known",
+        "fact": "core-journey-known",
         "equals": "true",
-        "kind": "resource"
+        "kind": "state"
       },
       {
-        "id": "node-sqlite-available",
-        "fact": "node-sqlite-available",
+        "id": "domain-model-ready",
+        "fact": "domain-model-ready",
         "equals": "true",
-        "kind": "resource"
+        "kind": "state"
       },
       {
-        "id": "destination-contract-confirmed",
-        "fact": "destination-contract-confirmed",
+        "id": "api-contract-ready",
+        "fact": "api-contract-ready",
         "equals": "true",
-        "kind": "authorization"
+        "kind": "state"
       },
       {
-        "id": "production-dependencies-forbidden",
-        "fact": "production-dependencies-allowed",
-        "equals": "false",
-        "kind": "authorization"
+        "id": "engineering-design-reviewed",
+        "fact": "engineering-design-reviewed",
+        "equals": "true",
+        "kind": "state"
       },
       {
-        "id": "configured-data-file-required",
-        "fact": "configured-data-file-required",
+        "id": "catalog-slice-ready",
+        "fact": "catalog-slice-ready",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "circulation-slice-ready",
+        "fact": "circulation-slice-ready",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "integration-tests-pass",
+        "fact": "integration-tests-pass",
+        "equals": "true",
+        "kind": "state"
+      },
+      {
+        "id": "demo-accepted",
+        "fact": "demo-accepted",
         "equals": "true",
         "kind": "state"
       },
       {
         "id": "external-release-not-authorized",
-        "fact": "external-deployment-authorized",
+        "fact": "external-release-authorized",
         "equals": "false",
         "kind": "authorization"
-      },
-      {
-        "id": "persistent-library-api-ready",
-        "fact": "persistent-library-api-ready",
-        "equals": "true",
-        "kind": "state"
-      },
-      {
-        "id": "admin-browser-workflows-ready",
-        "fact": "admin-browser-workflows-ready",
-        "equals": "true",
-        "kind": "state"
-      },
-      {
-        "id": "startup-and-page-verified",
-        "fact": "startup-and-page-verified",
-        "equals": "true",
-        "kind": "state"
-      },
-      {
-        "id": "registration-workflows-verified",
-        "fact": "registration-workflows-verified",
-        "equals": "true",
-        "kind": "state"
-      },
-      {
-        "id": "loan-lifecycle-verified",
-        "fact": "loan-lifecycle-verified",
-        "equals": "true",
-        "kind": "state"
-      },
-      {
-        "id": "restart-persistence-verified",
-        "fact": "restart-persistence-verified",
-        "equals": "true",
-        "kind": "state"
-      },
-      {
-        "id": "required-api-contract-verified",
-        "fact": "required-api-contract-verified",
-        "equals": "true",
-        "kind": "state"
-      },
-      {
-        "id": "production-dependency-policy-verified",
-        "fact": "production-dependency-policy-verified",
-        "equals": "true",
-        "kind": "state"
       }
     ],
     "initial_state": {
       "facts": [
         {
-          "id": "git-repository-exists",
+          "id": "repository-present",
           "value": "true",
           "evidence": [
             {
               "kind": "git",
-              "ref": "commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
-              "strength": "observed"
+              "ref": "demo workspace initialized"
             }
           ]
         },
         {
-          "id": "local-node-runtime-available",
-          "value": "true",
+          "id": "core-journey-known",
+          "value": "unknown",
+          "evidence": []
+        },
+        {
+          "id": "domain-model-ready",
+          "value": "false",
           "evidence": [
             {
-              "kind": "command",
-              "ref": "node --version => v24.18.0",
-              "strength": "observed"
+              "kind": "observation",
+              "ref": "domain model document does not exist"
             }
           ]
         },
         {
-          "id": "node-sqlite-available",
-          "value": "true",
+          "id": "api-contract-ready",
+          "value": "false",
           "evidence": [
             {
-              "kind": "command",
-              "ref": "node:sqlite in-memory probe => SQLite 3.53.1",
-              "strength": "observed"
+              "kind": "observation",
+              "ref": "API and persistence contract does not exist"
             }
           ]
         },
         {
-          "id": "destination-contract-confirmed",
-          "value": "true",
+          "id": "engineering-design-reviewed",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "engineering design review has not happened"
+            }
+          ]
+        },
+        {
+          "id": "catalog-slice-ready",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "catalog slice does not exist"
+            }
+          ]
+        },
+        {
+          "id": "circulation-slice-ready",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "circulation slice does not exist"
+            }
+          ]
+        },
+        {
+          "id": "integration-tests-pass",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "integration tests have not run"
+            }
+          ]
+        },
+        {
+          "id": "demo-accepted",
+          "value": "false",
+          "evidence": [
+            {
+              "kind": "observation",
+              "ref": "demo has not been audited"
+            }
+          ]
+        },
+        {
+          "id": "external-release-authorized",
+          "value": "false",
           "evidence": [
             {
               "kind": "note",
-              "ref": "conversation-user-message-2026-09-07-destination-confirmation",
-              "strength": "asserted"
-            }
-          ]
-        },
-        {
-          "id": "production-dependencies-allowed",
-          "value": "false",
-          "evidence": [
-            {
-              "kind": "note",
-              "ref": "conversation-user-message-2026-09-07-v1-scope",
-              "strength": "asserted"
-            }
-          ]
-        },
-        {
-          "id": "configured-data-file-required",
-          "value": "true",
-          "evidence": [
-            {
-              "kind": "note",
-              "ref": "conversation-user-message-2026-09-07-v1-scope",
-              "strength": "asserted"
-            }
-          ]
-        },
-        {
-          "id": "external-deployment-authorized",
-          "value": "false",
-          "evidence": [
-            {
-              "kind": "note",
-              "ref": "conversation-user-message-2026-09-07-v1-scope",
-              "strength": "asserted"
-            }
-          ]
-        },
-        {
-          "id": "persistent-library-api-ready",
-          "value": "false",
-          "evidence": [
-            {
-              "kind": "observation",
-              "ref": "repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
-              "strength": "observed"
-            }
-          ]
-        },
-        {
-          "id": "admin-browser-workflows-ready",
-          "value": "false",
-          "evidence": [
-            {
-              "kind": "observation",
-              "ref": "repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
-              "strength": "observed"
-            }
-          ]
-        },
-        {
-          "id": "startup-and-page-verified",
-          "value": "false",
-          "evidence": [
-            {
-              "kind": "observation",
-              "ref": "no implementation or acceptance evidence exists in the initial repository",
-              "strength": "observed"
-            }
-          ]
-        },
-        {
-          "id": "registration-workflows-verified",
-          "value": "false",
-          "evidence": [
-            {
-              "kind": "observation",
-              "ref": "no implementation or acceptance evidence exists in the initial repository",
-              "strength": "observed"
-            }
-          ]
-        },
-        {
-          "id": "loan-lifecycle-verified",
-          "value": "false",
-          "evidence": [
-            {
-              "kind": "observation",
-              "ref": "no implementation or acceptance evidence exists in the initial repository",
-              "strength": "observed"
-            }
-          ]
-        },
-        {
-          "id": "restart-persistence-verified",
-          "value": "false",
-          "evidence": [
-            {
-              "kind": "observation",
-              "ref": "no implementation or acceptance evidence exists in the initial repository",
-              "strength": "observed"
-            }
-          ]
-        },
-        {
-          "id": "required-api-contract-verified",
-          "value": "false",
-          "evidence": [
-            {
-              "kind": "observation",
-              "ref": "no implementation or acceptance evidence exists in the initial repository",
-              "strength": "observed"
-            }
-          ]
-        },
-        {
-          "id": "production-dependency-policy-verified",
-          "value": "false",
-          "evidence": [
-            {
-              "kind": "observation",
-              "ref": "no package manifest or implementation exists in the initial repository",
-              "strength": "observed"
+              "ref": "demo scope excludes production deployment"
             }
           ]
         }
@@ -977,33 +1509,16 @@
     "assumptions": [],
     "invariants": [
       {
-        "id": "production-dependencies-remain-empty",
-        "applies_to": [
-          "build-persistent-library-api",
-          "build-admin-browser-interface",
-          "verify-shelfwise-v1"
-        ],
-        "requires": [
-          "production-dependencies-forbidden"
-        ]
-      },
-      {
-        "id": "configured-data-file-is-authoritative",
-        "applies_to": [
-          "build-persistent-library-api",
-          "build-admin-browser-interface",
-          "verify-shelfwise-v1"
-        ],
-        "requires": [
-          "configured-data-file-required"
-        ]
-      },
-      {
         "id": "no-external-release",
         "applies_to": [
-          "build-persistent-library-api",
-          "build-admin-browser-interface",
-          "verify-shelfwise-v1"
+          "confirm-core-journey",
+          "design-domain-model",
+          "design-api-contract",
+          "review-engineering-design",
+          "build-catalog-slice",
+          "build-circulation-slice",
+          "integrate-library-slices",
+          "accept-library-mvp"
         ],
         "requires": [
           "external-release-not-authorized"
@@ -1012,97 +1527,114 @@
     ],
     "boundaries": {
       "in_scope": [
-        "单管理员使用的图书、读者、借阅、归还和有效借阅查询",
-        "本地浏览器管理页面、SQLite 文件持久化和对应自动化验证"
+        "新增与搜索切片",
+        "借出与归还切片",
+        "本地集成与人工演示"
       ],
       "out_of_scope": [
-        "会员收费、电子书、推荐、预约和多人权限",
-        "外部部署、发布和外部系统写入"
+        "多用户权限",
+        "云同步",
+        "推荐算法",
+        "生产部署"
       ],
       "authorization": [
-        "每条工作边都需要独立人工施工授权",
-        "仅允许本仓库写入、本机临时端口、临时数据文件和本机浏览器验证"
+        "每条工作边单独获得 Owner 授权"
       ]
     },
     "nodes": [
       {
-        "id": "shelfwise-empty-repository",
-        "kind": "state",
-        "label": "Shelfwise 已定边界的空白仓库",
+        "id": "workspace-origin-fog",
+        "kind": "fog",
+        "label": "仓库存在，核心旅程尚未确认",
         "predicates": [
-          "git-repository-exists",
-          "local-node-runtime-available",
-          "node-sqlite-available",
-          "destination-contract-confirmed",
-          "production-dependencies-forbidden",
-          "configured-data-file-required",
-          "external-release-not-authorized"
-        ],
-        "realization_refs": [
-          {
-            "kind": "git",
-            "ref": "commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
-            "strength": "observed"
-          }
+          "repository-present",
+          "core-journey-unknown"
         ]
       },
       {
-        "id": "library-api-ready",
+        "id": "core-journey-confirmed",
         "kind": "state",
-        "label": "持久化图书借阅 API 已就绪",
+        "label": "核心用户旅程已确认",
         "predicates": [
-          "persistent-library-api-ready"
+          "repository-present",
+          "core-journey-known"
         ]
       },
       {
-        "id": "admin-app-ready",
+        "id": "engineering-design-ready",
         "kind": "join",
-        "label": "管理员浏览器工作流已就绪",
+        "label": "领域模型与 API / 持久化契约均已形成",
         "predicates": [
-          "persistent-library-api-ready",
-          "admin-browser-workflows-ready"
+          "domain-model-ready",
+          "api-contract-ready"
         ]
       },
       {
-        "id": "shelfwise-v1-ready",
-        "kind": "destination",
-        "label": "Shelfwise v1 合同已验证",
+        "id": "engineering-design-reviewed",
+        "kind": "state",
+        "label": "工程设计文档已评审并冻结为实施输入",
         "predicates": [
-          "startup-and-page-verified",
-          "registration-workflows-verified",
-          "loan-lifecycle-verified",
-          "restart-persistence-verified",
-          "required-api-contract-verified",
-          "production-dependency-policy-verified"
+          "domain-model-ready",
+          "api-contract-ready",
+          "engineering-design-reviewed"
+        ]
+      },
+      {
+        "id": "independent-slices-ready",
+        "kind": "join",
+        "label": "目录与借还两个独立切片均就绪",
+        "predicates": [
+          "engineering-design-reviewed",
+          "catalog-slice-ready",
+          "circulation-slice-ready"
+        ]
+      },
+      {
+        "id": "mvp-integrated",
+        "kind": "state",
+        "label": "两个切片已集成并通过自动检查",
+        "predicates": [
+          "engineering-design-reviewed",
+          "catalog-slice-ready",
+          "circulation-slice-ready",
+          "integration-tests-pass"
+        ]
+      },
+      {
+        "id": "workspace-destination-fog",
+        "kind": "destination",
+        "label": "MVP 已通过完整核心旅程验收",
+        "predicates": [
+          "engineering-design-reviewed",
+          "catalog-slice-ready",
+          "circulation-slice-ready",
+          "integration-tests-pass",
+          "demo-accepted"
         ]
       }
     ],
     "edges": [
       {
-        "id": "build-persistent-library-api",
-        "from": "shelfwise-empty-repository",
-        "to": "library-api-ready",
-        "brief_ref": "briefs/build-persistent-library-api.md",
+        "id": "confirm-core-journey",
+        "from": "workspace-origin-fog",
+        "to": "core-journey-confirmed",
+        "brief_ref": "briefs/confirm-core-journey.md",
         "preconditions": [
-          "git-repository-exists",
-          "local-node-runtime-available",
-          "node-sqlite-available",
-          "destination-contract-confirmed"
+          "repository-present",
+          "core-journey-unknown"
         ],
         "effects": [
-          "persistent-library-api-ready"
+          "core-journey-known"
         ],
         "invariants": [
-          "production-dependencies-remain-empty",
-          "configured-data-file-is-authoritative",
           "no-external-release"
         ],
         "certainty": "expected",
         "evidence_contract": [
           {
-            "id": "persistent-api-test-record",
+            "id": "core-journey-record",
             "proves": [
-              "persistent-library-api-ready"
+              "core-journey-known"
             ],
             "required": true
           }
@@ -1112,27 +1644,26 @@
         }
       },
       {
-        "id": "build-admin-browser-interface",
-        "from": "library-api-ready",
-        "to": "admin-app-ready",
-        "brief_ref": "briefs/build-admin-browser-interface.md",
+        "id": "design-domain-model",
+        "from": "core-journey-confirmed",
+        "to": "engineering-design-ready",
+        "brief_ref": "briefs/design-domain-model.md",
         "preconditions": [
-          "persistent-library-api-ready"
+          "repository-present",
+          "core-journey-known"
         ],
         "effects": [
-          "admin-browser-workflows-ready"
+          "domain-model-ready"
         ],
         "invariants": [
-          "production-dependencies-remain-empty",
-          "configured-data-file-is-authoritative",
           "no-external-release"
         ],
         "certainty": "expected",
         "evidence_contract": [
           {
-            "id": "admin-browser-workflow-record",
+            "id": "domain-model-document",
             "proves": [
-              "admin-browser-workflows-ready"
+              "domain-model-ready"
             ],
             "required": true
           }
@@ -1142,38 +1673,174 @@
         }
       },
       {
-        "id": "verify-shelfwise-v1",
-        "from": "admin-app-ready",
-        "to": "shelfwise-v1-ready",
-        "brief_ref": "briefs/verify-shelfwise-v1.md",
+        "id": "design-api-contract",
+        "from": "core-journey-confirmed",
+        "to": "engineering-design-ready",
+        "brief_ref": "briefs/design-api-contract.md",
         "preconditions": [
-          "persistent-library-api-ready",
-          "admin-browser-workflows-ready"
+          "repository-present",
+          "core-journey-known"
         ],
         "effects": [
-          "startup-and-page-verified",
-          "registration-workflows-verified",
-          "loan-lifecycle-verified",
-          "restart-persistence-verified",
-          "required-api-contract-verified",
-          "production-dependency-policy-verified"
+          "api-contract-ready"
         ],
         "invariants": [
-          "production-dependencies-remain-empty",
-          "configured-data-file-is-authoritative",
           "no-external-release"
         ],
         "certainty": "expected",
         "evidence_contract": [
           {
-            "id": "shelfwise-v1-acceptance-record",
+            "id": "api-contract-document",
             "proves": [
-              "startup-and-page-verified",
-              "registration-workflows-verified",
-              "loan-lifecycle-verified",
-              "restart-persistence-verified",
-              "required-api-contract-verified",
-              "production-dependency-policy-verified"
+              "api-contract-ready"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      {
+        "id": "review-engineering-design",
+        "from": "engineering-design-ready",
+        "to": "engineering-design-reviewed",
+        "brief_ref": "briefs/review-engineering-design.md",
+        "preconditions": [
+          "domain-model-ready",
+          "api-contract-ready"
+        ],
+        "effects": [
+          "engineering-design-reviewed"
+        ],
+        "invariants": [
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "engineering-design-review",
+            "proves": [
+              "engineering-design-reviewed"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      {
+        "id": "build-catalog-slice",
+        "from": "engineering-design-reviewed",
+        "to": "independent-slices-ready",
+        "brief_ref": "briefs/build-catalog-slice.md",
+        "preconditions": [
+          "repository-present",
+          "core-journey-known",
+          "engineering-design-reviewed"
+        ],
+        "effects": [
+          "catalog-slice-ready"
+        ],
+        "invariants": [
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "catalog-slice-check",
+            "proves": [
+              "catalog-slice-ready"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      {
+        "id": "build-circulation-slice",
+        "from": "engineering-design-reviewed",
+        "to": "independent-slices-ready",
+        "brief_ref": "briefs/build-circulation-slice.md",
+        "preconditions": [
+          "repository-present",
+          "core-journey-known",
+          "engineering-design-reviewed"
+        ],
+        "effects": [
+          "circulation-slice-ready"
+        ],
+        "invariants": [
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "circulation-slice-check",
+            "proves": [
+              "circulation-slice-ready"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      {
+        "id": "integrate-library-slices",
+        "from": "independent-slices-ready",
+        "to": "mvp-integrated",
+        "brief_ref": "briefs/integrate-library-slices.md",
+        "preconditions": [
+          "catalog-slice-ready",
+          "circulation-slice-ready"
+        ],
+        "effects": [
+          "integration-tests-pass"
+        ],
+        "invariants": [
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "integration-check",
+            "proves": [
+              "integration-tests-pass"
+            ],
+            "required": true
+          }
+        ],
+        "on_failure": {
+          "action": "replan"
+        }
+      },
+      {
+        "id": "accept-library-mvp",
+        "from": "mvp-integrated",
+        "to": "workspace-destination-fog",
+        "brief_ref": "briefs/accept-library-mvp.md",
+        "preconditions": [
+          "catalog-slice-ready",
+          "circulation-slice-ready",
+          "integration-tests-pass"
+        ],
+        "effects": [
+          "demo-accepted"
+        ],
+        "invariants": [
+          "no-external-release"
+        ],
+        "certainty": "expected",
+        "evidence_contract": [
+          {
+            "id": "owner-demo-record",
+            "proves": [
+              "demo-accepted"
             ],
             "required": true
           }
@@ -1186,489 +1853,725 @@
     "loops": [],
     "submaps": [],
     "extensions": {
-      "x-prior-art": "research/prior-art.md"
+      "x-purpose": "evolution-demo-with-parallel-join"
     }
   },
   "brief_digests": {
-    "build-admin-browser-interface": "54aef0f1ef521ab74a769d8b4da18e2895863dc0ffc3866fa3e18095272846f1",
-    "build-persistent-library-api": "4c748eb885e0680c55d924b38be7eec10cbc32af9a0ba86dd6780a408a2830c5",
-    "verify-shelfwise-v1": "d9809fe399c50fa45aaf163b47571d1302eb07412aa6790db35557f9da7b6bd5"
+    "accept-library-mvp": "a435525a613191d2a151d8a6f0ef94a0f846ca733565272558ef521f70b738b7",
+    "build-catalog-slice": "6778adcb0f192a1fd1563592b5615a0c92d33f97428c453e3fb5f1e6d83b5444",
+    "build-circulation-slice": "eb5add70059118cd4b73c6fad9ea217f7ab39a393c9edec6cb4a4ced5d8080c9",
+    "confirm-core-journey": "f9cfb29860ac53816b0e239271b443da36dc8d0e9f1cc97f25209639d85638aa",
+    "design-api-contract": "f716db93a431fb8645269fea2dbcc10b2bb960a1fd6d1cc211389ee743c8c745",
+    "design-domain-model": "13833a2001c3c329156266c4f97a5fccc3628f0ef398da665c7db018b25b9383",
+    "integrate-library-slices": "c22c22abe8264b7ddb22de5a883db0c33bbd157231e63892c41412293cf7b2ac",
+    "review-engineering-design": "8bc8fd73a4bc6f7ce640d3672d34d9480cab55973a8a696d50f700d6f67dd62a"
   },
   "brief_snapshots": {
-    "build-persistent-library-api": {
-      "ref": "briefs/build-persistent-library-api.md",
+    "confirm-core-journey": {
+      "ref": "briefs/confirm-core-journey.md",
       "metadata": {
-        "edge": "build-persistent-library-api",
-        "title": "构建持久化图书借阅 API",
-        "status": "ready",
-        "map": "../blueprint.yaml",
-        "created": "2026-09-07",
-        "updated": "2026-09-07",
+        "edge": "confirm-core-journey",
         "contract": {
           "scope": {
             "in": [
-              "建立 package.json 与 npm start 入口",
-              "使用 Node.js 内置模块实现领域规则、SQLite 文件存储和指定 HTTP API",
-              "使用临时数据文件验证错误原子性与重启恢复"
+              "确认新增、搜索、借出、归还这一条核心旅程"
             ],
             "out": [
-              "浏览器管理界面",
-              "会员收费、电子书、推荐、预约和多人权限"
+              "设计全部未来功能"
             ]
           },
           "authorization": {
             "required": [
-              "当前工作边的独立人工施工授权"
+              "Owner 对旅程边界的回答"
             ],
             "allowed_actions": [
-              "修改 Shelfwise 仓库内的服务端源码、package.json 和自动化测试",
-              "在本机以临时 PORT 和 LIBRARY_DATA_FILE 运行测试与服务"
+              "记录决定"
             ]
           },
           "evidence": {
             "proves": [
-              "persistent-library-api-ready"
+              "core-journey-known"
             ],
             "exit_conditions": [
-              "五个指定 API 均可由集成测试调用",
-              "借阅与归还保持引用和单册状态一致性",
-              "同一临时数据文件重启后回读一致",
-              "当前 Node.js 可加载 node:sqlite 并打开数据库",
-              "package.json 没有第三方生产依赖"
+              "核心旅程及非目标可回读"
+            ]
+          },
+          "verification": {
+            "commands": [
+              {
+                "id": "confirm-core-journey-check",
+                "program": "node",
+                "args": [
+                  "-e",
+                  "const fs=require('fs');if(!fs.existsSync('.mapflow-demo/confirm-core-journey.ok'))process.exit(1)"
+                ],
+                "cwd": "workspace",
+                "timeout_seconds": 30,
+                "success_exit_codes": [
+                  0
+                ],
+                "proves": [
+                  "core-journey-known"
+                ]
+              }
             ]
           },
           "failure": {
             "action": "replan",
             "rollback": [
-              "只清理本边创建的临时进程、端口和临时测试数据"
+              "保留问题并继续定形"
             ]
           }
         }
       },
-      "content": "---\nedge: build-persistent-library-api\ntitle: 构建持久化图书借阅 API\nstatus: ready\nmap: ../blueprint.yaml\ncreated: 2026-09-07\nupdated: 2026-09-07\ncontract:\n  scope:\n    in:\n      - 建立 package.json 与 npm start 入口\n      - 使用 Node.js 内置模块实现领域规则、SQLite 文件存储和指定 HTTP API\n      - 使用临时数据文件验证错误原子性与重启恢复\n    out:\n      - 浏览器管理界面\n      - 会员收费、电子书、推荐、预约和多人权限\n  authorization:\n    required:\n      - 当前工作边的独立人工施工授权\n    allowed_actions:\n      - 修改 Shelfwise 仓库内的服务端源码、package.json 和自动化测试\n      - 在本机以临时 PORT 和 LIBRARY_DATA_FILE 运行测试与服务\n  evidence:\n    proves:\n      - persistent-library-api-ready\n    exit_conditions:\n      - 五个指定 API 均可由集成测试调用\n      - 借阅与归还保持引用和单册状态一致性\n      - 同一临时数据文件重启后回读一致\n      - 当前 Node.js 可加载 node:sqlite 并打开数据库\n      - package.json 没有第三方生产依赖\n  failure:\n    action: replan\n    rollback:\n      - 只清理本边创建的临时进程、端口和临时测试数据\n---\n\n# State transition\n\n- From：`shelfwise-empty-repository`\n- To：`library-api-ready`\n- Preconditions：Git 仓库、Node.js 运行时和已确认目的地合同均存在\n- Expected effects：`persistent-library-api-ready=true`\n\n# Scope\n\n## In scope\n\n- 定义单册图书、读者和借阅记录的 SQLite schema、约束与稳定 ID。\n- 使用事务完成借阅和归还，使失败请求不改变已确认数据。\n- 实现 `POST /api/books`、`POST /api/readers`、`POST /api/loans`、`POST /api/returns` 与 `GET /api/loans?status=active`。\n- 使用 Node.js 内置测试运行器覆盖正常路径、非法引用、重复借还与重启回读。\n\n## Out of scope\n\n- 根页面的操作体验与视觉设计。\n- 任何外部部署或网络服务写入。\n\n# Execution boundary\n\n- 执行器或责任人：当前获授权的 Codex Edge Run。\n- 允许写入或外部动作：仅仓库源码与本机临时验证资源。\n- 所需授权：该边的新鲜施工授权。\n- 与同源其他边共享的只有起始状态；不存在未建模的产出依赖。\n\n# Evidence contract\n\n| Evidence | Proves predicate | Observable exit condition |\n| --- | --- | --- |\n| `node:sqlite` 探针、Node 内置集成测试与重启回读记录 | `persistent-library-api-ready` | 内置 SQLite、API、领域规则、事务回滚和文件持久化均通过 |\n\n# Failure and rollback\n\n- 失败分支：`replan`\n- 可回滚边界：停止本机进程并删除本边创建的临时测试数据，不触碰用户既有数据。\n- 触发 proof gap 的条件：当前 Node.js 无法稳定加载 `node:sqlite`、内置模块无法满足已确认 HTTP 或持久化合同，或实现需要第三方生产依赖。\n"
+      "content": "---\nedge: confirm-core-journey\ncontract:\n  scope:\n    in: [确认新增、搜索、借出、归还这一条核心旅程]\n    out: [设计全部未来功能]\n  authorization:\n    required: [Owner 对旅程边界的回答]\n    allowed_actions: [记录决定]\n  evidence:\n    proves: [core-journey-known]\n    exit_conditions: [核心旅程及非目标可回读]\n  verification:\n    commands:\n      - { id: confirm-core-journey-check, program: node, args: [-e, \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/confirm-core-journey.ok'))process.exit(1)\"], cwd: workspace, timeout_seconds: 30, success_exit_codes: [0], proves: [core-journey-known] }\n  failure:\n    action: replan\n    rollback: [保留问题并继续定形]\n---\n\n# 确认核心旅程\n\n这条边只固定 MVP 的第一条端到端旅程，不实施功能。\n"
     },
-    "build-admin-browser-interface": {
-      "ref": "briefs/build-admin-browser-interface.md",
+    "design-domain-model": {
+      "ref": "briefs/design-domain-model.md",
       "metadata": {
-        "edge": "build-admin-browser-interface",
-        "title": "构建管理员浏览器界面",
-        "status": "ready",
-        "map": "../blueprint.yaml",
-        "created": "2026-09-07",
-        "updated": "2026-09-07",
+        "edge": "design-domain-model",
         "contract": {
           "scope": {
             "in": [
-              "在 GET / 提供单管理员浏览器管理页面",
-              "提供图书登记、读者登记、借书、还书和有效借阅查询工作流",
-              "使用原生 HTML、CSS 和浏览器 JavaScript 调用已验证 API"
+              "为图书、读者、借阅和归还建立领域模型文档"
             ],
             "out": [
-              "改变已确认 API 与持久化合同",
-              "多人权限、预约、推荐、收费和外部发布"
+              "API 路径、前端实现、借还代码、跨切片集成"
             ]
           },
           "authorization": {
             "required": [
-              "当前工作边的独立人工施工授权"
+              "Owner 对领域模型设计边的单次授权"
             ],
             "allowed_actions": [
-              "修改 Shelfwise 仓库内的静态页面资源、服务入口和相关测试",
-              "在本机浏览器和临时服务进程中验证交互"
+              "读取需求",
+              "编写领域模型文档",
+              "记录待决假设"
             ]
           },
           "evidence": {
             "proves": [
-              "admin-browser-workflows-ready"
+              "domain-model-ready"
             ],
             "exit_conditions": [
-              "根页面在常用桌面和窄屏视口可操作",
-              "五条管理员工作流均能通过页面完成并得到 API 回读",
-              "加载、空状态、成功和错误反馈不互相遮挡"
+              "实体、关系、状态变化和关键不变量均有可回读文档"
+            ]
+          },
+          "verification": {
+            "commands": [
+              {
+                "id": "design-domain-model-check",
+                "program": "node",
+                "args": [
+                  "-e",
+                  "const fs=require('fs');if(!fs.existsSync('.mapflow-demo/design-domain-model.ok'))process.exit(1)"
+                ],
+                "cwd": "workspace",
+                "timeout_seconds": 30,
+                "success_exit_codes": [
+                  0
+                ],
+                "proves": [
+                  "domain-model-ready"
+                ]
+              }
             ]
           },
           "failure": {
             "action": "replan",
             "rollback": [
-              "停止临时服务并保留已通过的 API 实现与证据"
+              "保留设计讨论和失败假设，不进入编码"
             ]
           }
         }
       },
-      "content": "---\nedge: build-admin-browser-interface\ntitle: 构建管理员浏览器界面\nstatus: ready\nmap: ../blueprint.yaml\ncreated: 2026-09-07\nupdated: 2026-09-07\ncontract:\n  scope:\n    in:\n      - 在 GET / 提供单管理员浏览器管理页面\n      - 提供图书登记、读者登记、借书、还书和有效借阅查询工作流\n      - 使用原生 HTML、CSS 和浏览器 JavaScript 调用已验证 API\n    out:\n      - 改变已确认 API 与持久化合同\n      - 多人权限、预约、推荐、收费和外部发布\n  authorization:\n    required:\n      - 当前工作边的独立人工施工授权\n    allowed_actions:\n      - 修改 Shelfwise 仓库内的静态页面资源、服务入口和相关测试\n      - 在本机浏览器和临时服务进程中验证交互\n  evidence:\n    proves:\n      - admin-browser-workflows-ready\n    exit_conditions:\n      - 根页面在常用桌面和窄屏视口可操作\n      - 五条管理员工作流均能通过页面完成并得到 API 回读\n      - 加载、空状态、成功和错误反馈不互相遮挡\n  failure:\n    action: replan\n    rollback:\n      - 停止临时服务并保留已通过的 API 实现与证据\n---\n\n# State transition\n\n- From：`library-api-ready`\n- To：`admin-app-ready`\n- Preconditions：`persistent-library-api-ready=true`\n- Expected effects：`admin-browser-workflows-ready=true`\n\n# Scope\n\n## In scope\n\n- 设计安静、紧凑、适合管理员重复操作的本地工作台。\n- 将登记、借阅、查询和归还组织成清晰且可恢复的交互。\n- 保证文本、表单、状态反馈在桌面与移动宽度下不重叠。\n\n## Out of scope\n\n- 新增用户账户、角色、预约、费用、通知或推荐。\n- 重写或扩张服务端领域边界。\n\n# Execution boundary\n\n- 执行器或责任人：当前获授权的 Codex Edge Run。\n- 允许写入或外部动作：仓库内前端资源、必要的本地静态服务接线与测试；本机浏览器操作。\n- 所需授权：该边的新鲜施工授权。\n- 与同源其他边共享的只有起始状态；不存在未建模的产出依赖。\n\n# Evidence contract\n\n| Evidence | Proves predicate | Observable exit condition |\n| --- | --- | --- |\n| 本机浏览器逐项操作记录与 API readback | `admin-browser-workflows-ready` | 管理员可从 `/` 完成五条核心工作流 |\n\n# Failure and rollback\n\n- 失败分支：`replan`\n- 可回滚边界：仅回退本边未通过的界面改动，保留已验证后端状态。\n- 触发 proof gap 的条件：既有 API 无法支撑已确认页面闭环，或界面在目标视口不可操作。\n"
+      "content": "---\nedge: design-domain-model\ncontract:\n  scope:\n    in: [为图书、读者、借阅和归还建立领域模型文档]\n    out: [API 路径、前端实现、借还代码、跨切片集成]\n  authorization:\n    required: [Owner 对领域模型设计边的单次授权]\n    allowed_actions: [读取需求, 编写领域模型文档, 记录待决假设]\n  evidence:\n    proves: [domain-model-ready]\n    exit_conditions: [实体、关系、状态变化和关键不变量均有可回读文档]\n  verification:\n    commands:\n      - { id: design-domain-model-check, program: node, args: [-e, \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/design-domain-model.ok'))process.exit(1)\"], cwd: workspace, timeout_seconds: 30, success_exit_codes: [0], proves: [domain-model-ready] }\n  failure:\n    action: replan\n    rollback: [保留设计讨论和失败假设，不进入编码]\n---\n\n# 形成领域模型设计\n\n明确 Book、Reader、Loan 及归还后的状态变化，记录唯一性、借阅状态和持久化需要保持的不变量。该边只产生领域模型文档，不决定 API 形状，也不实现代码。\n"
     },
-    "verify-shelfwise-v1": {
-      "ref": "briefs/verify-shelfwise-v1.md",
+    "design-api-contract": {
+      "ref": "briefs/design-api-contract.md",
       "metadata": {
-        "edge": "verify-shelfwise-v1",
-        "title": "验证 Shelfwise v1 完整合同",
-        "status": "ready",
-        "map": "../blueprint.yaml",
-        "created": "2026-09-07",
-        "updated": "2026-09-07",
+        "edge": "design-api-contract",
         "contract": {
           "scope": {
             "in": [
-              "运行自动化测试并用真实 npm start 进程执行 HTTP readback",
-              "在本机浏览器逐项验证管理员核心工作流与响应式布局",
-              "检查重启持久化、生产依赖和外部发布边界",
-              "仅修复阻塞既定验收且不改变目的地合同的问题"
+              "为图书管理 MVP 建立 API 与持久化契约文档"
             ],
             "out": [
-              "增加新的产品能力或 API",
-              "外部部署、发布和外部系统写入"
+              "领域模型取舍、Node.js 实现、前端实现、跨切片集成"
             ]
           },
           "authorization": {
             "required": [
-              "当前工作边的独立人工施工授权"
+              "Owner 对 API / 持久化设计边的单次授权"
             ],
             "allowed_actions": [
-              "运行仓库测试与本机临时服务",
-              "使用临时数据文件执行 API 和浏览器验收",
-              "修改仓库内仅与既定验收阻塞直接相关的代码、测试和说明"
+              "编写 API 路径与 payload 文档",
+              "编写持久化边界文档",
+              "标记兼容约束"
             ]
           },
           "evidence": {
             "proves": [
-              "startup-and-page-verified",
-              "registration-workflows-verified",
-              "loan-lifecycle-verified",
-              "restart-persistence-verified",
-              "required-api-contract-verified",
-              "production-dependency-policy-verified"
+              "api-contract-ready"
             ],
             "exit_conditions": [
-              "A1 至 A6 均有通过记录并能回指实际命令或浏览器观察",
-              "临时数据文件重启 readback 一致",
-              "package.json 的生产 dependencies 为空",
-              "未发生外部发布、部署或外部写入"
+              "请求响应、错误语义、重启持久化和环境变量边界均有可回读文档"
+            ]
+          },
+          "verification": {
+            "commands": [
+              {
+                "id": "design-api-contract-check",
+                "program": "node",
+                "args": [
+                  "-e",
+                  "const fs=require('fs');if(!fs.existsSync('.mapflow-demo/design-api-contract.ok'))process.exit(1)"
+                ],
+                "cwd": "workspace",
+                "timeout_seconds": 30,
+                "success_exit_codes": [
+                  0
+                ],
+                "proves": [
+                  "api-contract-ready"
+                ]
+              }
             ]
           },
           "failure": {
             "action": "replan",
             "rollback": [
-              "停止临时服务并删除仅用于验收的临时数据"
+              "保留契约冲突并阻止编码分支开放"
             ]
           }
         }
       },
-      "content": "---\nedge: verify-shelfwise-v1\ntitle: 验证 Shelfwise v1 完整合同\nstatus: ready\nmap: ../blueprint.yaml\ncreated: 2026-09-07\nupdated: 2026-09-07\ncontract:\n  scope:\n    in:\n      - 运行自动化测试并用真实 npm start 进程执行 HTTP readback\n      - 在本机浏览器逐项验证管理员核心工作流与响应式布局\n      - 检查重启持久化、生产依赖和外部发布边界\n      - 仅修复阻塞既定验收且不改变目的地合同的问题\n    out:\n      - 增加新的产品能力或 API\n      - 外部部署、发布和外部系统写入\n  authorization:\n    required:\n      - 当前工作边的独立人工施工授权\n    allowed_actions:\n      - 运行仓库测试与本机临时服务\n      - 使用临时数据文件执行 API 和浏览器验收\n      - 修改仓库内仅与既定验收阻塞直接相关的代码、测试和说明\n  evidence:\n    proves:\n      - startup-and-page-verified\n      - registration-workflows-verified\n      - loan-lifecycle-verified\n      - restart-persistence-verified\n      - required-api-contract-verified\n      - production-dependency-policy-verified\n    exit_conditions:\n      - A1 至 A6 均有通过记录并能回指实际命令或浏览器观察\n      - 临时数据文件重启 readback 一致\n      - package.json 的生产 dependencies 为空\n      - 未发生外部发布、部署或外部写入\n  failure:\n    action: replan\n    rollback:\n      - 停止临时服务并删除仅用于验收的临时数据\n---\n\n# State transition\n\n- From：`admin-app-ready`\n- To：`shelfwise-v1`\n- Preconditions：`persistent-library-api-ready=true` 且 `admin-browser-workflows-ready=true`\n- Expected effects：六项 Shelfwise v1 目的地验收 Predicate 均由实际证据证明\n\n# Scope\n\n## In scope\n\n- A1：以临时环境变量启动服务并读取 `/`。\n- A2：通过页面和 API 登记单册图书及读者。\n- A3/A4：借阅、有效借阅查询、归还和非法重复操作。\n- A5：停止并使用同一数据文件重启后的完整回读。\n- A6：指定 HTTP 合同、自动化测试和零第三方生产依赖检查。\n\n## Out of scope\n\n- 对验收合同之外的功能做顺手扩展。\n- 任何外部发布、生产部署或外部系统写入。\n\n# Execution boundary\n\n- 执行器或责任人：当前获授权的 Codex Edge Run。\n- 允许写入或外部动作：本仓库内的验收阻塞修复、本机临时端口、临时数据文件和浏览器。\n- 所需授权：该边的新鲜施工授权。\n- 与同源其他边共享的只有起始状态；不存在未建模的产出依赖。\n\n# Evidence contract\n\n| Evidence | Proves predicate | Observable exit condition |\n| --- | --- | --- |\n| `npm test` 与真实 `npm start` HTTP readback | 启动、登记、借阅、重启、API 和依赖策略 Predicate | A1-A6 自动化检查全部通过 |\n| 本机浏览器桌面与窄屏操作记录 | 页面、登记和借阅生命周期 Predicate | 页面可见、可操作、无重叠且状态回读正确 |\n\n# Failure and rollback\n\n- 失败分支：`replan`\n- 可回滚边界：停止验收进程并删除临时验收数据；保留历史证据，不把失败包装成通过。\n- 触发 proof gap 的条件：任一 A1-A6 缺少真实通过证据，或修复需要改变已确认目的地。\n"
+      "content": "---\nedge: design-api-contract\ncontract:\n  scope:\n    in: [为图书管理 MVP 建立 API 与持久化契约文档]\n    out: [领域模型取舍、Node.js 实现、前端实现、跨切片集成]\n  authorization:\n    required: [Owner 对 API / 持久化设计边的单次授权]\n    allowed_actions: [编写 API 路径与 payload 文档, 编写持久化边界文档, 标记兼容约束]\n  evidence:\n    proves: [api-contract-ready]\n    exit_conditions: [请求响应、错误语义、重启持久化和环境变量边界均有可回读文档]\n  verification:\n    commands:\n      - { id: design-api-contract-check, program: node, args: [-e, \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/design-api-contract.ok'))process.exit(1)\"], cwd: workspace, timeout_seconds: 30, success_exit_codes: [0], proves: [api-contract-ready] }\n  failure:\n    action: replan\n    rollback: [保留契约冲突并阻止编码分支开放]\n---\n\n# 形成 API 与持久化契约\n\n明确页面入口、书籍/读者/借阅/归还接口、查询参数、错误响应、数据文件和重启后的保留语义。该边只产生接口与持久化契约，不消费领域模型边的未声明输出，也不实现代码。\n"
+    },
+    "review-engineering-design": {
+      "ref": "briefs/review-engineering-design.md",
+      "metadata": {
+        "edge": "review-engineering-design",
+        "contract": {
+          "scope": {
+            "in": [
+              "对领域模型文档与 API / 持久化契约进行一致性评审并冻结实施输入"
+            ],
+            "out": [
+              "任何产品代码、前端实现、生产部署、范围扩张"
+            ]
+          },
+          "authorization": {
+            "required": [
+              "Owner 对设计评审边的单次授权"
+            ],
+            "allowed_actions": [
+              "逐项核对文档",
+              "记录冲突",
+              "确认实施前置条件"
+            ]
+          },
+          "evidence": {
+            "proves": [
+              "engineering-design-reviewed"
+            ],
+            "exit_conditions": [
+              "两份文档均存在、相互一致、范围和非目标明确，并留下评审记录"
+            ]
+          },
+          "verification": {
+            "commands": [
+              {
+                "id": "review-engineering-design-check",
+                "program": "node",
+                "args": [
+                  "-e",
+                  "const fs=require('fs');if(!fs.existsSync('.mapflow-demo/review-engineering-design.ok'))process.exit(1)"
+                ],
+                "cwd": "workspace",
+                "timeout_seconds": 30,
+                "success_exit_codes": [
+                  0
+                ],
+                "proves": [
+                  "engineering-design-reviewed"
+                ]
+              }
+            ]
+          },
+          "failure": {
+            "action": "replan",
+            "rollback": [
+              "保留冲突列表，暂停所有编码边"
+            ]
+          }
+        }
+      },
+      "content": "---\nedge: review-engineering-design\ncontract:\n  scope:\n    in: [对领域模型文档与 API / 持久化契约进行一致性评审并冻结实施输入]\n    out: [任何产品代码、前端实现、生产部署、范围扩张]\n  authorization:\n    required: [Owner 对设计评审边的单次授权]\n    allowed_actions: [逐项核对文档, 记录冲突, 确认实施前置条件]\n  evidence:\n    proves: [engineering-design-reviewed]\n    exit_conditions: [两份文档均存在、相互一致、范围和非目标明确，并留下评审记录]\n  verification:\n    commands:\n      - { id: review-engineering-design-check, program: node, args: [-e, \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/review-engineering-design.ok'))process.exit(1)\"], cwd: workspace, timeout_seconds: 30, success_exit_codes: [0], proves: [engineering-design-reviewed] }\n  failure:\n    action: replan\n    rollback: [保留冲突列表，暂停所有编码边]\n---\n\n# 评审并冻结工程设计文档\n\n只有领域模型和 API / 持久化契约两条独立边都留下文档证据，才执行这条汇合边。评审记录必须指出冲突如何处理，以及实现切片共同遵守的输入；没有评审通过证据时，任何编码边都不应开放。\n"
+    },
+    "build-catalog-slice": {
+      "ref": "briefs/build-catalog-slice.md",
+      "metadata": {
+        "edge": "build-catalog-slice",
+        "contract": {
+          "scope": {
+            "in": [
+              "实现本地新增与搜索并运行该切片的独立检查"
+            ],
+            "out": [
+              "借出归还",
+              "跨切片集成",
+              "多用户权限",
+              "生产部署"
+            ]
+          },
+          "authorization": {
+            "required": [
+              "Owner 对目录切片的单次授权"
+            ],
+            "allowed_actions": [
+              "修改演示工作区的目录切片",
+              "运行本地目录检查"
+            ]
+          },
+          "evidence": {
+            "proves": [
+              "catalog-slice-ready"
+            ],
+            "exit_conditions": [
+              "新增与搜索在不依赖借还切片时通过检查"
+            ]
+          },
+          "verification": {
+            "commands": [
+              {
+                "id": "build-catalog-slice-check",
+                "program": "node",
+                "args": [
+                  "-e",
+                  "const fs=require('fs');if(!fs.existsSync('.mapflow-demo/build-catalog-slice.ok'))process.exit(1)"
+                ],
+                "cwd": "workspace",
+                "timeout_seconds": 30,
+                "success_exit_codes": [
+                  0
+                ],
+                "proves": [
+                  "catalog-slice-ready"
+                ]
+              }
+            ]
+          },
+          "failure": {
+            "action": "replan",
+            "rollback": [
+              "只撤销未通过检查的目录切片改动"
+            ]
+          }
+        }
+      },
+      "content": "---\nedge: build-catalog-slice\ncontract:\n  scope:\n    in: [实现本地新增与搜索并运行该切片的独立检查]\n    out: [借出归还, 跨切片集成, 多用户权限, 生产部署]\n  authorization:\n    required: [Owner 对目录切片的单次授权]\n    allowed_actions: [修改演示工作区的目录切片, 运行本地目录检查]\n  evidence:\n    proves: [catalog-slice-ready]\n    exit_conditions: [新增与搜索在不依赖借还切片时通过检查]\n  verification:\n    commands:\n      - { id: build-catalog-slice-check, program: node, args: [-e, \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/build-catalog-slice.ok'))process.exit(1)\"], cwd: workspace, timeout_seconds: 30, success_exit_codes: [0], proves: [catalog-slice-ready] }\n  failure:\n    action: replan\n    rollback: [只撤销未通过检查的目录切片改动]\n---\n\n# 构建目录与搜索切片\n\n施工输入：`engineering-design-reviewed` 必须已经由设计评审边的实际证据建立。该边不消费借还切片的输出，也不承担跨切片集成；它只把冻结的领域/API 约定落实为目录与搜索切片。\n"
+    },
+    "build-circulation-slice": {
+      "ref": "briefs/build-circulation-slice.md",
+      "metadata": {
+        "edge": "build-circulation-slice",
+        "contract": {
+          "scope": {
+            "in": [
+              "实现本地借出与归还并运行该切片的独立检查"
+            ],
+            "out": [
+              "新增搜索",
+              "跨切片集成",
+              "多用户权限",
+              "生产部署"
+            ]
+          },
+          "authorization": {
+            "required": [
+              "Owner 对借还切片的单次授权"
+            ],
+            "allowed_actions": [
+              "修改演示工作区的借还切片",
+              "运行本地借还检查"
+            ]
+          },
+          "evidence": {
+            "proves": [
+              "circulation-slice-ready"
+            ],
+            "exit_conditions": [
+              "借出与归还在不消费目录切片实现输出时通过检查"
+            ]
+          },
+          "verification": {
+            "commands": [
+              {
+                "id": "build-circulation-slice-check",
+                "program": "node",
+                "args": [
+                  "-e",
+                  "const fs=require('fs');if(!fs.existsSync('.mapflow-demo/build-circulation-slice.ok'))process.exit(1)"
+                ],
+                "cwd": "workspace",
+                "timeout_seconds": 30,
+                "success_exit_codes": [
+                  0
+                ],
+                "proves": [
+                  "circulation-slice-ready"
+                ]
+              }
+            ]
+          },
+          "failure": {
+            "action": "replan",
+            "rollback": [
+              "只撤销未通过检查的借还切片改动"
+            ]
+          }
+        }
+      },
+      "content": "---\nedge: build-circulation-slice\ncontract:\n  scope:\n    in: [实现本地借出与归还并运行该切片的独立检查]\n    out: [新增搜索, 跨切片集成, 多用户权限, 生产部署]\n  authorization:\n    required: [Owner 对借还切片的单次授权]\n    allowed_actions: [修改演示工作区的借还切片, 运行本地借还检查]\n  evidence:\n    proves: [circulation-slice-ready]\n    exit_conditions: [借出与归还在不消费目录切片实现输出时通过检查]\n  verification:\n    commands:\n      - { id: build-circulation-slice-check, program: node, args: [-e, \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/build-circulation-slice.ok'))process.exit(1)\"], cwd: workspace, timeout_seconds: 30, success_exit_codes: [0], proves: [circulation-slice-ready] }\n  failure:\n    action: replan\n    rollback: [只撤销未通过检查的借还切片改动]\n---\n\n# 构建借还生命周期切片\n\n施工输入：`engineering-design-reviewed` 必须已经由设计评审边的实际证据建立。该边与目录切片共享的只有已经冻结的设计输入，不消费目录切片的实现产物。\n"
+    },
+    "integrate-library-slices": {
+      "ref": "briefs/integrate-library-slices.md",
+      "metadata": {
+        "edge": "integrate-library-slices",
+        "contract": {
+          "scope": {
+            "in": [
+              "在两个独立切片均完成后接线并运行跨切片检查"
+            ],
+            "out": [
+              "修改已经通过的切片合同",
+              "人工演示验收",
+              "生产部署"
+            ]
+          },
+          "authorization": {
+            "required": [
+              "Owner 对集成工作的单次授权"
+            ],
+            "allowed_actions": [
+              "连接两个切片",
+              "运行本地集成检查"
+            ]
+          },
+          "evidence": {
+            "proves": [
+              "integration-tests-pass"
+            ],
+            "exit_conditions": [
+              "新增搜索借出归还的组合路径通过自动检查"
+            ]
+          },
+          "verification": {
+            "commands": [
+              {
+                "id": "integrate-library-slices-check",
+                "program": "node",
+                "args": [
+                  "-e",
+                  "const fs=require('fs');if(!fs.existsSync('.mapflow-demo/integrate-library-slices.ok'))process.exit(1)"
+                ],
+                "cwd": "workspace",
+                "timeout_seconds": 30,
+                "success_exit_codes": [
+                  0
+                ],
+                "proves": [
+                  "integration-tests-pass"
+                ]
+              }
+            ]
+          },
+          "failure": {
+            "action": "replan",
+            "rollback": [
+              "撤销集成接线并保留两个切片的独立通过证据"
+            ]
+          }
+        }
+      },
+      "content": "---\nedge: integrate-library-slices\ncontract:\n  scope:\n    in: [在两个独立切片均完成后接线并运行跨切片检查]\n    out: [修改已经通过的切片合同, 人工演示验收, 生产部署]\n  authorization:\n    required: [Owner 对集成工作的单次授权]\n    allowed_actions: [连接两个切片, 运行本地集成检查]\n  evidence:\n    proves: [integration-tests-pass]\n    exit_conditions: [新增搜索借出归还的组合路径通过自动检查]\n  verification:\n    commands:\n      - { id: integrate-library-slices-check, program: node, args: [-e, \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/integrate-library-slices.ok'))process.exit(1)\"], cwd: workspace, timeout_seconds: 30, success_exit_codes: [0], proves: [integration-tests-pass] }\n  failure:\n    action: replan\n    rollback: [撤销集成接线并保留两个切片的独立通过证据]\n---\n\n# 集成并自动验证两个切片\n\n只有 Join Node 的两个切片 Predicate 都成为实际事实后，该边才会前置就绪；它保留并验证前置设计评审状态，不重新定义任何设计或实现边的合同。\n"
+    },
+    "accept-library-mvp": {
+      "ref": "briefs/accept-library-mvp.md",
+      "metadata": {
+        "edge": "accept-library-mvp",
+        "contract": {
+          "scope": {
+            "in": [
+              "按核心旅程演示并记录 Owner 回读"
+            ],
+            "out": [
+              "把演示等同于生产验收"
+            ]
+          },
+          "authorization": {
+            "required": [
+              "Owner 的演示授权与回答"
+            ],
+            "allowed_actions": [
+              "运行本地演示",
+              "记录回读"
+            ]
+          },
+          "evidence": {
+            "proves": [
+              "demo-accepted"
+            ],
+            "exit_conditions": [
+              "Owner 可回读新增、搜索、借出、归还结果"
+            ]
+          },
+          "verification": {
+            "commands": [
+              {
+                "id": "accept-library-mvp-check",
+                "program": "node",
+                "args": [
+                  "-e",
+                  "const fs=require('fs');if(!fs.existsSync('.mapflow-demo/accept-library-mvp.ok'))process.exit(1)"
+                ],
+                "cwd": "workspace",
+                "timeout_seconds": 30,
+                "success_exit_codes": [
+                  0
+                ],
+                "proves": [
+                  "demo-accepted"
+                ]
+              }
+            ]
+          },
+          "failure": {
+            "action": "replan",
+            "rollback": [
+              "保留失败观察并局部修图"
+            ]
+          }
+        }
+      },
+      "content": "---\nedge: accept-library-mvp\ncontract:\n  scope:\n    in: [按核心旅程演示并记录 Owner 回读]\n    out: [把演示等同于生产验收]\n  authorization:\n    required: [Owner 的演示授权与回答]\n    allowed_actions: [运行本地演示, 记录回读]\n  evidence:\n    proves: [demo-accepted]\n    exit_conditions: [Owner 可回读新增、搜索、借出、归还结果]\n  verification:\n    commands:\n      - { id: accept-library-mvp-check, program: node, args: [-e, \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/accept-library-mvp.ok'))process.exit(1)\"], cwd: workspace, timeout_seconds: 30, success_exit_codes: [0], proves: [demo-accepted] }\n  failure:\n    action: replan\n    rollback: [保留失败观察并局部修图]\n---\n\n# 验收图书管理 MVP\n\n这条边证明演示目标，不证明部署、市场或长期使用价值。\n"
     }
   },
   "loop_iterations": {},
   "facts": {
-    "git-repository-exists": {
+    "repository-present": {
       "value": "true",
       "evidence": [
         {
           "kind": "git",
-          "ref": "commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
-          "strength": "observed"
+          "ref": "demo workspace initialized"
         }
       ]
     },
-    "local-node-runtime-available": {
+    "core-journey-known": {
       "value": "true",
       "evidence": [
         {
           "kind": "command",
-          "ref": "node --version => v24.18.0",
+          "ref": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/confirm-core-journey.ok'))process.exit(1)\" -> exit code 0",
+          "observed_at": "2026-09-10T05:28:05Z",
           "strength": "observed"
-        }
-      ]
-    },
-    "node-sqlite-available": {
-      "value": "true",
-      "evidence": [
+        },
         {
           "kind": "command",
-          "ref": "node:sqlite in-memory probe => SQLite 3.53.1",
+          "ref": "demo-check-confirm-core-journey",
+          "observed_at": "2026-09-10T05:28:05Z",
           "strength": "observed"
         }
       ]
     },
-    "destination-contract-confirmed": {
+    "domain-model-ready": {
       "value": "true",
       "evidence": [
         {
-          "kind": "note",
-          "ref": "conversation-user-message-2026-09-07-destination-confirmation",
-          "strength": "asserted"
+          "kind": "observation",
+          "ref": "domain model document does not exist"
+        },
+        {
+          "kind": "command",
+          "ref": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/design-domain-model.ok'))process.exit(1)\" -> exit code 0",
+          "observed_at": "2026-09-10T05:28:06Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "demo-check-design-domain-model",
+          "observed_at": "2026-09-10T05:28:06Z",
+          "strength": "observed"
         }
       ]
     },
-    "production-dependencies-allowed": {
+    "api-contract-ready": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "API and persistence contract does not exist"
+        },
+        {
+          "kind": "command",
+          "ref": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/design-api-contract.ok'))process.exit(1)\" -> exit code 0",
+          "observed_at": "2026-09-10T05:28:06Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "demo-check-design-api-contract",
+          "observed_at": "2026-09-10T05:28:06Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "engineering-design-reviewed": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "engineering design review has not happened"
+        },
+        {
+          "kind": "command",
+          "ref": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/review-engineering-design.ok'))process.exit(1)\" -> exit code 0",
+          "observed_at": "2026-09-10T05:28:07Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "demo-check-review-engineering-design",
+          "observed_at": "2026-09-10T05:28:07Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "catalog-slice-ready": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "catalog slice does not exist"
+        },
+        {
+          "kind": "command",
+          "ref": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/build-catalog-slice.ok'))process.exit(1)\" -> exit code 0",
+          "observed_at": "2026-09-10T05:28:08Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "demo-check-build-catalog-slice",
+          "observed_at": "2026-09-10T05:28:08Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "circulation-slice-ready": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "circulation slice does not exist"
+        },
+        {
+          "kind": "command",
+          "ref": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/build-circulation-slice.ok'))process.exit(1)\" -> exit code 0",
+          "observed_at": "2026-09-10T05:28:09Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "demo-check-build-circulation-slice",
+          "observed_at": "2026-09-10T05:28:09Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "integration-tests-pass": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "integration tests have not run"
+        },
+        {
+          "kind": "command",
+          "ref": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/integrate-library-slices.ok'))process.exit(1)\" -> exit code 0",
+          "observed_at": "2026-09-10T05:28:10Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "demo-check-integrate-library-slices",
+          "observed_at": "2026-09-10T05:28:10Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "demo-accepted": {
+      "value": "true",
+      "evidence": [
+        {
+          "kind": "observation",
+          "ref": "demo has not been audited"
+        },
+        {
+          "kind": "command",
+          "ref": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/accept-library-mvp.ok'))process.exit(1)\" -> exit code 0",
+          "observed_at": "2026-09-10T05:28:11Z",
+          "strength": "observed"
+        },
+        {
+          "kind": "command",
+          "ref": "demo-check-accept-library-mvp",
+          "observed_at": "2026-09-10T05:28:11Z",
+          "strength": "observed"
+        }
+      ]
+    },
+    "external-release-authorized": {
       "value": "false",
       "evidence": [
         {
           "kind": "note",
-          "ref": "conversation-user-message-2026-09-07-v1-scope",
-          "strength": "asserted"
-        }
-      ]
-    },
-    "configured-data-file-required": {
-      "value": "true",
-      "evidence": [
-        {
-          "kind": "note",
-          "ref": "conversation-user-message-2026-09-07-v1-scope",
-          "strength": "asserted"
-        }
-      ]
-    },
-    "external-deployment-authorized": {
-      "value": "false",
-      "evidence": [
-        {
-          "kind": "note",
-          "ref": "conversation-user-message-2026-09-07-v1-scope",
-          "strength": "asserted"
-        }
-      ]
-    },
-    "persistent-library-api-ready": {
-      "value": "true",
-      "evidence": [
-        {
-          "kind": "observation",
-          "ref": "repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "npm test；node --check；零生产依赖检查；两次 npm start HTTP readback -> 5 项 HTTP 集成测试全部通过；五个指定 API 可调用；非法引用和重复借还返回 404/409 且活动借阅不变；同一 SQLite 文件三次进程内重开及两次 npm start 均恢复一致；production dependencies 为 0",
-          "observed_at": "2026-09-07T11:45:49Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "npm-test-and-npm-start-readback-2026-09-07",
-          "observed_at": "2026-09-07T11:45:49Z",
-          "strength": "observed"
-        }
-      ]
-    },
-    "admin-browser-workflows-ready": {
-      "value": "true",
-      "evidence": [
-        {
-          "kind": "observation",
-          "ref": "repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "npm test；node --check；Edge 浏览器逐项操作；390x844 响应式与溢出检查；浏览器控制台检查 -> 6 项自动化测试全部通过；GET / 及静态资源返回 200；浏览器完成登记图书、登记读者、借书、活动查询、重复借书错误和归还；桌面与 390x844 窄屏无横向溢出或控件文字溢出；tab 键盘方向键切换通过；控制台警告/错误为 0",
-          "observed_at": "2026-09-07T12:11:32Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "observation",
-          "ref": "edge-browser-workflow-2026-09-07",
-          "observed_at": "2026-09-07T12:11:32Z",
-          "strength": "observed"
-        }
-      ]
-    },
-    "startup-and-page-verified": {
-      "value": "true",
-      "evidence": [
-        {
-          "kind": "observation",
-          "ref": "no implementation or acceptance evidence exists in the initial repository",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "final-a1-a6-acceptance-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "observation",
-          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        }
-      ]
-    },
-    "registration-workflows-verified": {
-      "value": "true",
-      "evidence": [
-        {
-          "kind": "observation",
-          "ref": "no implementation or acceptance evidence exists in the initial repository",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "final-a1-a6-acceptance-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "observation",
-          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        }
-      ]
-    },
-    "loan-lifecycle-verified": {
-      "value": "true",
-      "evidence": [
-        {
-          "kind": "observation",
-          "ref": "no implementation or acceptance evidence exists in the initial repository",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "final-a1-a6-acceptance-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "observation",
-          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        }
-      ]
-    },
-    "restart-persistence-verified": {
-      "value": "true",
-      "evidence": [
-        {
-          "kind": "observation",
-          "ref": "no implementation or acceptance evidence exists in the initial repository",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "final-a1-a6-acceptance-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "observation",
-          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        }
-      ]
-    },
-    "required-api-contract-verified": {
-      "value": "true",
-      "evidence": [
-        {
-          "kind": "observation",
-          "ref": "no implementation or acceptance evidence exists in the initial repository",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "final-a1-a6-acceptance-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "observation",
-          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        }
-      ]
-    },
-    "production-dependency-policy-verified": {
-      "value": "true",
-      "evidence": [
-        {
-          "kind": "observation",
-          "ref": "no package manifest or implementation exists in the initial repository",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck -> 自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "command",
-          "ref": "final-a1-a6-acceptance-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
-        },
-        {
-          "kind": "observation",
-          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07",
-          "observed_at": "2026-09-07T12:38:18Z",
-          "strength": "observed"
+          "ref": "demo scope excludes production deployment"
         }
       ]
     }
   },
   "satisfied_nodes": [
-    "shelfwise-empty-repository",
-    "library-api-ready",
-    "admin-app-ready",
-    "shelfwise-v1-ready"
+    "core-journey-confirmed",
+    "engineering-design-ready",
+    "engineering-design-reviewed",
+    "independent-slices-ready",
+    "mvp-integrated",
+    "workspace-destination-fog"
   ],
   "last_proof": {
     "structural": "complete",
     "reachability": "logical",
     "destination_reachable": true,
     "required_predicates": [
-      "startup-and-page-verified",
-      "registration-workflows-verified",
-      "loan-lifecycle-verified",
-      "restart-persistence-verified",
-      "required-api-contract-verified",
-      "production-dependency-policy-verified",
-      "production-dependencies-forbidden",
-      "configured-data-file-required",
+      "engineering-design-reviewed",
+      "catalog-slice-ready",
+      "circulation-slice-ready",
+      "integration-tests-pass",
+      "demo-accepted",
       "external-release-not-authorized"
     ],
     "candidate_edges": [],
     "proven_edges": [],
     "reachable_nodes": [
-      "shelfwise-empty-repository",
-      "library-api-ready",
-      "admin-app-ready",
-      "shelfwise-v1-ready"
+      "core-journey-confirmed",
+      "engineering-design-ready",
+      "engineering-design-reviewed",
+      "independent-slices-ready",
+      "mvp-integrated",
+      "workspace-destination-fog"
     ],
     "applied_edges": [],
     "assumptions_used": [],
@@ -1676,26 +2579,32 @@
   },
   "evidence": [
     {
-      "id": "build-persistent-library-api-evidence-1",
-      "edge": "build-persistent-library-api",
-      "run": "build-persistent-library-api-run-1",
-      "claim": "持久化图书借阅 API、事务规则和配置数据文件已通过实际检查",
+      "id": "confirm-core-journey-evidence-1",
+      "edge": "confirm-core-journey",
+      "run": "confirm-core-journey-run-1",
+      "claim": "confirm-core-journey fixture evidence",
       "proves": [
-        "persistent-library-api-ready"
+        "core-journey-known"
       ],
       "acceptance_ids": [],
       "outcome_refs": [
         {
           "kind": "command",
-          "ref": "npm-test-and-npm-start-readback-2026-09-07"
+          "ref": "demo-check-confirm-core-journey"
         }
       ],
       "checks": [
         {
-          "command": "npm test；node --check；零生产依赖检查；两次 npm start HTTP readback",
+          "command": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/confirm-core-journey.ok'))process.exit(1)\"",
           "result": "pass",
-          "observed": "5 项 HTTP 集成测试全部通过；五个指定 API 可调用；非法引用和重复借还返回 404/409 且活动借阅不变；同一 SQLite 文件三次进程内重开及两次 npm start 均恢复一致；production dependencies 为 0",
-          "mode": "reported"
+          "observed": "exit code 0",
+          "mode": "executed",
+          "exit_code": 0,
+          "signal": null,
+          "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "started_at": "2026-09-10T05:28:05Z",
+          "finished_at": "2026-09-10T05:28:05Z"
         }
       ],
       "limits": {
@@ -1704,34 +2613,38 @@
         "unverified": [],
         "product_unknowns": []
       },
-      "executor": "agent:codex",
-      "agent": {
-        "model": "gpt-5",
-        "reasoning": "high"
-      },
-      "recorded_at": "2026-09-07T11:45:49Z"
+      "executor": "tool:evolution-demo",
+      "trust": "verified",
+      "capability": "confirm-core-journey-capability-1",
+      "recorded_at": "2026-09-10T05:28:05Z"
     },
     {
-      "id": "build-admin-browser-interface-evidence-2",
-      "edge": "build-admin-browser-interface",
-      "run": "build-admin-browser-interface-run-1",
-      "claim": "管理员可从根页面完成登记、借书、当前借阅查询和归还，桌面与窄屏布局可操作",
+      "id": "design-domain-model-evidence-2",
+      "edge": "design-domain-model",
+      "run": "design-domain-model-run-1",
+      "claim": "design-domain-model fixture evidence",
       "proves": [
-        "admin-browser-workflows-ready"
+        "domain-model-ready"
       ],
       "acceptance_ids": [],
       "outcome_refs": [
         {
-          "kind": "observation",
-          "ref": "edge-browser-workflow-2026-09-07"
+          "kind": "command",
+          "ref": "demo-check-design-domain-model"
         }
       ],
       "checks": [
         {
-          "command": "npm test；node --check；Edge 浏览器逐项操作；390x844 响应式与溢出检查；浏览器控制台检查",
+          "command": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/design-domain-model.ok'))process.exit(1)\"",
           "result": "pass",
-          "observed": "6 项自动化测试全部通过；GET / 及静态资源返回 200；浏览器完成登记图书、登记读者、借书、活动查询、重复借书错误和归还；桌面与 390x844 窄屏无横向溢出或控件文字溢出；tab 键盘方向键切换通过；控制台警告/错误为 0",
-          "mode": "reported"
+          "observed": "exit code 0",
+          "mode": "executed",
+          "exit_code": 0,
+          "signal": null,
+          "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "started_at": "2026-09-10T05:28:05Z",
+          "finished_at": "2026-09-10T05:28:06Z"
         }
       ],
       "limits": {
@@ -1740,236 +2653,867 @@
         "unverified": [],
         "product_unknowns": []
       },
-      "executor": "agent:codex",
-      "agent": {
-        "model": "gpt-5",
-        "reasoning": "high"
-      },
-      "recorded_at": "2026-09-07T12:11:32Z"
+      "executor": "tool:evolution-demo",
+      "trust": "verified",
+      "capability": "design-domain-model-capability-1",
+      "recorded_at": "2026-09-10T05:28:06Z"
     },
     {
-      "id": "verify-shelfwise-v1-evidence-3",
-      "edge": "verify-shelfwise-v1",
-      "run": "verify-shelfwise-v1-run-1",
-      "claim": "Shelfwise v1 的 A1-A6 已由自动化、真实进程重启回读和桌面/窄屏浏览器操作共同验证",
+      "id": "design-api-contract-evidence-3",
+      "edge": "design-api-contract",
+      "run": "design-api-contract-run-1",
+      "claim": "design-api-contract fixture evidence",
       "proves": [
-        "startup-and-page-verified",
-        "registration-workflows-verified",
-        "loan-lifecycle-verified",
-        "restart-persistence-verified",
-        "required-api-contract-verified",
-        "production-dependency-policy-verified"
+        "api-contract-ready"
+      ],
+      "acceptance_ids": [],
+      "outcome_refs": [
+        {
+          "kind": "command",
+          "ref": "demo-check-design-api-contract"
+        }
+      ],
+      "checks": [
+        {
+          "command": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/design-api-contract.ok'))process.exit(1)\"",
+          "result": "pass",
+          "observed": "exit code 0",
+          "mode": "executed",
+          "exit_code": 0,
+          "signal": null,
+          "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "started_at": "2026-09-10T05:28:06Z",
+          "finished_at": "2026-09-10T05:28:06Z"
+        }
+      ],
+      "limits": {
+        "simulated": [],
+        "inferred": [],
+        "unverified": [],
+        "product_unknowns": []
+      },
+      "executor": "tool:evolution-demo",
+      "trust": "verified",
+      "capability": "design-api-contract-capability-1",
+      "recorded_at": "2026-09-10T05:28:06Z"
+    },
+    {
+      "id": "review-engineering-design-evidence-4",
+      "edge": "review-engineering-design",
+      "run": "review-engineering-design-run-1",
+      "claim": "review-engineering-design fixture evidence",
+      "proves": [
+        "engineering-design-reviewed"
       ],
       "acceptance_ids": [
-        "a1-startup-page",
-        "a2-registration",
-        "a3-a4-loan-lifecycle",
-        "a5-restart-persistence",
-        "a6-api-contract",
-        "a6-production-dependencies"
+        "engineering-design-accepted"
       ],
       "outcome_refs": [
         {
           "kind": "command",
-          "ref": "final-a1-a6-acceptance-2026-09-07"
-        },
-        {
-          "kind": "observation",
-          "ref": "desktop-mobile-browser-and-synthetic-precheck-2026-09-07"
+          "ref": "demo-check-review-engineering-design"
         }
       ],
       "checks": [
         {
-          "command": "npm test；node --check 四份 JavaScript；生产依赖计数；两次真实 npm start HTTP 生命周期与同文件重启；Edge 桌面及 390x844 浏览器操作；三个隔离 synthetic user precheck",
+          "command": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/review-engineering-design.ok'))process.exit(1)\"",
           "result": "pass",
-          "observed": "自动化测试两轮均 6/6；全部语法检查通过；生产依赖为 0；指定页面与五个 API 状态符合合同；非法引用为 404 且重复借还为 409；同一 SQLite 文件重启后图书、读者、借阅关系和活动状态一致；桌面与窄屏完整闭环通过且无溢出或控制台错误；合成用户 3/3 继续、无 P0/P1、中位数 86/100",
-          "mode": "reported"
+          "observed": "exit code 0",
+          "mode": "executed",
+          "exit_code": 0,
+          "signal": null,
+          "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "started_at": "2026-09-10T05:28:07Z",
+          "finished_at": "2026-09-10T05:28:07Z"
         }
       ],
       "limits": {
-        "simulated": [
-          "三个隔离角色的 synthetic user precheck"
-        ],
-        "inferred": [
-          "角色对理解、认知负担、信任、动机和可用性的判断"
-        ],
+        "simulated": [],
+        "inferred": [],
         "unverified": [],
-        "product_unknowns": [
-          "真实长期复用；真实无障碍体验；付费与市场需求"
-        ]
+        "product_unknowns": []
       },
-      "executor": "agent:codex",
-      "agent": {
-        "model": "gpt-5",
-        "reasoning": "high"
+      "executor": "tool:evolution-demo",
+      "trust": "verified",
+      "capability": "review-engineering-design-capability-1",
+      "recorded_at": "2026-09-10T05:28:07Z"
+    },
+    {
+      "id": "build-catalog-slice-evidence-5",
+      "edge": "build-catalog-slice",
+      "run": "build-catalog-slice-run-1",
+      "claim": "build-catalog-slice fixture evidence",
+      "proves": [
+        "catalog-slice-ready"
+      ],
+      "acceptance_ids": [
+        "catalog-slice-accepted"
+      ],
+      "outcome_refs": [
+        {
+          "kind": "command",
+          "ref": "demo-check-build-catalog-slice"
+        }
+      ],
+      "checks": [
+        {
+          "command": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/build-catalog-slice.ok'))process.exit(1)\"",
+          "result": "pass",
+          "observed": "exit code 0",
+          "mode": "executed",
+          "exit_code": 0,
+          "signal": null,
+          "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "started_at": "2026-09-10T05:28:08Z",
+          "finished_at": "2026-09-10T05:28:08Z"
+        }
+      ],
+      "limits": {
+        "simulated": [],
+        "inferred": [],
+        "unverified": [],
+        "product_unknowns": []
       },
-      "recorded_at": "2026-09-07T12:38:18Z"
+      "executor": "tool:evolution-demo",
+      "trust": "verified",
+      "capability": "build-catalog-slice-capability-1",
+      "recorded_at": "2026-09-10T05:28:08Z"
+    },
+    {
+      "id": "build-circulation-slice-evidence-6",
+      "edge": "build-circulation-slice",
+      "run": "build-circulation-slice-run-1",
+      "claim": "build-circulation-slice fixture evidence",
+      "proves": [
+        "circulation-slice-ready"
+      ],
+      "acceptance_ids": [
+        "circulation-slice-accepted"
+      ],
+      "outcome_refs": [
+        {
+          "kind": "command",
+          "ref": "demo-check-build-circulation-slice"
+        }
+      ],
+      "checks": [
+        {
+          "command": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/build-circulation-slice.ok'))process.exit(1)\"",
+          "result": "pass",
+          "observed": "exit code 0",
+          "mode": "executed",
+          "exit_code": 0,
+          "signal": null,
+          "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "started_at": "2026-09-10T05:28:09Z",
+          "finished_at": "2026-09-10T05:28:09Z"
+        }
+      ],
+      "limits": {
+        "simulated": [],
+        "inferred": [],
+        "unverified": [],
+        "product_unknowns": []
+      },
+      "executor": "tool:evolution-demo",
+      "trust": "verified",
+      "capability": "build-circulation-slice-capability-1",
+      "recorded_at": "2026-09-10T05:28:09Z"
+    },
+    {
+      "id": "integrate-library-slices-evidence-7",
+      "edge": "integrate-library-slices",
+      "run": "integrate-library-slices-run-1",
+      "claim": "integrate-library-slices fixture evidence",
+      "proves": [
+        "integration-tests-pass"
+      ],
+      "acceptance_ids": [
+        "library-integration-accepted"
+      ],
+      "outcome_refs": [
+        {
+          "kind": "command",
+          "ref": "demo-check-integrate-library-slices"
+        }
+      ],
+      "checks": [
+        {
+          "command": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/integrate-library-slices.ok'))process.exit(1)\"",
+          "result": "pass",
+          "observed": "exit code 0",
+          "mode": "executed",
+          "exit_code": 0,
+          "signal": null,
+          "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "started_at": "2026-09-10T05:28:10Z",
+          "finished_at": "2026-09-10T05:28:10Z"
+        }
+      ],
+      "limits": {
+        "simulated": [],
+        "inferred": [],
+        "unverified": [],
+        "product_unknowns": []
+      },
+      "executor": "tool:evolution-demo",
+      "trust": "verified",
+      "capability": "integrate-library-slices-capability-1",
+      "recorded_at": "2026-09-10T05:28:10Z"
+    },
+    {
+      "id": "accept-library-mvp-evidence-8",
+      "edge": "accept-library-mvp",
+      "run": "accept-library-mvp-run-1",
+      "claim": "accept-library-mvp fixture evidence",
+      "proves": [
+        "demo-accepted"
+      ],
+      "acceptance_ids": [
+        "library-demo-accepted"
+      ],
+      "outcome_refs": [
+        {
+          "kind": "command",
+          "ref": "demo-check-accept-library-mvp"
+        }
+      ],
+      "checks": [
+        {
+          "command": "\"node\" \"-e\" \"const fs=require('fs');if(!fs.existsSync('.mapflow-demo/accept-library-mvp.ok'))process.exit(1)\"",
+          "result": "pass",
+          "observed": "exit code 0",
+          "mode": "executed",
+          "exit_code": 0,
+          "signal": null,
+          "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "started_at": "2026-09-10T05:28:11Z",
+          "finished_at": "2026-09-10T05:28:11Z"
+        }
+      ],
+      "limits": {
+        "simulated": [],
+        "inferred": [],
+        "unverified": [],
+        "product_unknowns": []
+      },
+      "executor": "tool:evolution-demo",
+      "trust": "verified",
+      "capability": "accept-library-mvp-capability-1",
+      "recorded_at": "2026-09-10T05:28:11Z"
     }
   ],
-  "updated_at": "2026-09-07T12:39:48Z",
+  "updated_at": "2026-09-10T05:28:11Z",
   "history": [
     {
-      "at": "2026-09-07T11:22:51Z",
+      "at": "2026-09-10T05:28:04Z",
       "event": "initialized",
       "structural": "complete",
-      "reachability": "logical"
-    },
-    {
-      "at": "2026-09-07T11:23:04Z",
-      "event": "reachability_proved",
-      "structural": "complete",
       "reachability": "logical",
-      "gaps": 0
+      "source_wayfinding": {
+        "stream": "wayfinding/workspace3-643a1bc4ffc5",
+        "seq": 34,
+        "head_digest": "c85a12c8ddb4ab4362827c358ced0b87a1fd94509f078459c9b4ef4f431d1b76",
+        "draft_digest": "6afe793b863fc7a758aed1cf3adb6c78e394d4ed16855060cb0e5f595addccea",
+        "coverage": "complete"
+      }
     },
     {
-      "at": "2026-09-07T11:25:27Z",
+      "at": "2026-09-10T05:28:04Z",
       "event": "route_approval_requested",
-      "request": "shelfwise-v1-route-approval-request-1",
-      "question": "是否批准当前已证明的完整路线：build-persistent-library-api → build-admin-browser-interface → verify-shelfwise-v1？",
-      "actor": "agent:codex"
+      "request": "library-system-mvp-route-approval-request-1",
+      "question": "是否批准这条已证明的完整路线？",
+      "decision_owner": "human:demo",
+      "actor": "agent:demo"
     },
     {
-      "at": "2026-09-07T11:27:03Z",
+      "at": "2026-09-10T05:28:04Z",
       "event": "destination_approved",
-      "approval": "shelfwise-v1-route-approval-1",
-      "request": "shelfwise-v1-route-approval-request-1",
-      "answer": "我看懂了，也确认按这条完整路线推进。",
-      "actor": "human:owner"
+      "approval": "library-system-mvp-route-approval-1",
+      "request": "library-system-mvp-route-approval-request-1",
+      "answer": "确认并批准完整路线",
+      "actor": "human:demo"
     },
     {
-      "at": "2026-09-07T11:27:16Z",
+      "at": "2026-09-10T05:28:04Z",
       "event": "edge_authorization_requested",
-      "request": "build-persistent-library-api-authorization-1",
-      "edge": "build-persistent-library-api",
-      "question": "是否授权执行工作边 build-persistent-library-api？范围仅包括服务端源码、package.json、自动化测试，以及本机临时端口和临时数据文件验证。失败时停止并返回 replan，不触碰用户既有数据。",
-      "actor": "agent:codex"
+      "request": "confirm-core-journey-authorization-1",
+      "edge": "confirm-core-journey",
+      "question": "是否授权执行 confirm-core-journey？",
+      "decision_owner": "human:demo",
+      "actor": "agent:demo"
     },
     {
-      "at": "2026-09-07T11:29:30Z",
+      "at": "2026-09-10T05:28:04Z",
       "event": "edge_authorized",
-      "request": "build-persistent-library-api-authorization-1",
-      "edge": "build-persistent-library-api",
-      "run": "build-persistent-library-api-run-1",
-      "decision": "build-persistent-library-api-decision-1",
-      "answer": "我批准你刚才请求执行的这项工作。完成后先把结果和检查记录告诉我。",
-      "actor": "human:owner"
+      "request": "confirm-core-journey-authorization-1",
+      "edge": "confirm-core-journey",
+      "run": "confirm-core-journey-run-1",
+      "decision": "confirm-core-journey-decision-1",
+      "answer": "批准执行 confirm-core-journey",
+      "actor": "human:demo"
     },
     {
-      "at": "2026-09-07T11:45:49Z",
+      "at": "2026-09-10T05:28:04Z",
+      "event": "action_capability_issued",
+      "capability": "confirm-core-journey-capability-1",
+      "edge": "confirm-core-journey",
+      "run": "confirm-core-journey-run-1",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "记录决定"
+      ],
+      "verifier": "confirm-core-journey-check",
+      "expires_at": "2026-09-10T05:43:04Z",
+      "actor": "agent:mapflow"
+    },
+    {
+      "at": "2026-09-10T05:28:05Z",
       "event": "edge_verified",
-      "edge": "build-persistent-library-api",
-      "run": "build-persistent-library-api-run-1",
+      "edge": "confirm-core-journey",
+      "run": "confirm-core-journey-run-1",
       "proves": [
-        "persistent-library-api-ready"
+        "core-journey-known"
       ],
       "acceptance": [],
-      "executor": "agent:codex"
+      "executor": "tool:evolution-demo"
     },
     {
-      "at": "2026-09-07T11:46:06Z",
-      "event": "reachability_proved",
-      "structural": "complete",
-      "reachability": "logical",
-      "gaps": 0
-    },
-    {
-      "at": "2026-09-07T11:46:20Z",
+      "at": "2026-09-10T05:28:05Z",
       "event": "edge_authorization_requested",
-      "request": "build-admin-browser-interface-authorization-1",
-      "edge": "build-admin-browser-interface",
-      "question": "是否授权执行工作边 build-admin-browser-interface？范围仅包括 GET / 的本地管理员界面、原生 HTML/CSS/JavaScript、必要的服务接线与本机浏览器验证；不改变已验证 API 合同，不加入第三方生产依赖，也不做外部发布。",
-      "actor": "agent:codex"
+      "request": "design-domain-model-authorization-1",
+      "edge": "design-domain-model",
+      "question": "是否授权执行 design-domain-model？",
+      "decision_owner": "human:demo",
+      "actor": "agent:demo"
     },
     {
-      "at": "2026-09-07T11:49:34Z",
+      "at": "2026-09-10T05:28:05Z",
       "event": "edge_authorized",
-      "request": "build-admin-browser-interface-authorization-1",
-      "edge": "build-admin-browser-interface",
-      "run": "build-admin-browser-interface-run-1",
-      "decision": "build-admin-browser-interface-decision-1",
-      "answer": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
-      "actor": "human:owner"
+      "request": "design-domain-model-authorization-1",
+      "edge": "design-domain-model",
+      "run": "design-domain-model-run-1",
+      "decision": "design-domain-model-decision-1",
+      "answer": "批准执行 design-domain-model",
+      "actor": "human:demo"
     },
     {
-      "at": "2026-09-07T12:11:32Z",
+      "at": "2026-09-10T05:28:05Z",
+      "event": "action_capability_issued",
+      "capability": "design-domain-model-capability-1",
+      "edge": "design-domain-model",
+      "run": "design-domain-model-run-1",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "读取需求",
+        "编写领域模型文档",
+        "记录待决假设"
+      ],
+      "verifier": "design-domain-model-check",
+      "expires_at": "2026-09-10T05:43:05Z",
+      "actor": "agent:mapflow"
+    },
+    {
+      "at": "2026-09-10T05:28:06Z",
       "event": "edge_verified",
-      "edge": "build-admin-browser-interface",
-      "run": "build-admin-browser-interface-run-1",
+      "edge": "design-domain-model",
+      "run": "design-domain-model-run-1",
       "proves": [
-        "admin-browser-workflows-ready"
+        "domain-model-ready"
       ],
       "acceptance": [],
-      "executor": "agent:codex"
+      "executor": "tool:evolution-demo"
     },
     {
-      "at": "2026-09-07T12:11:50Z",
-      "event": "reachability_proved",
-      "structural": "complete",
-      "reachability": "logical",
-      "gaps": 0
-    },
-    {
-      "at": "2026-09-07T12:12:06Z",
+      "at": "2026-09-10T05:28:06Z",
       "event": "edge_authorization_requested",
-      "request": "verify-shelfwise-v1-authorization-1",
-      "edge": "verify-shelfwise-v1",
-      "question": "是否授权执行工作边 verify-shelfwise-v1？范围仅包括以临时 PORT 和 LIBRARY_DATA_FILE 运行完整自动化与真实 npm start/browser 验收、检查重启持久化和零生产依赖，并只修复阻塞既定 A1-A6 验收的问题；不新增功能、不外部部署或发布。",
-      "actor": "agent:codex"
+      "request": "design-api-contract-authorization-1",
+      "edge": "design-api-contract",
+      "question": "是否授权执行 design-api-contract？",
+      "decision_owner": "human:demo",
+      "actor": "agent:demo"
     },
     {
-      "at": "2026-09-07T12:18:22Z",
+      "at": "2026-09-10T05:28:06Z",
       "event": "edge_authorized",
-      "request": "verify-shelfwise-v1-authorization-1",
-      "edge": "verify-shelfwise-v1",
-      "run": "verify-shelfwise-v1-run-1",
-      "decision": "verify-shelfwise-v1-decision-1",
-      "answer": "我确认上一项工作的结果，批准你刚才请求的下一项工作。",
-      "actor": "human:owner"
+      "request": "design-api-contract-authorization-1",
+      "edge": "design-api-contract",
+      "run": "design-api-contract-run-1",
+      "decision": "design-api-contract-decision-1",
+      "answer": "批准执行 design-api-contract",
+      "actor": "human:demo"
     },
     {
-      "at": "2026-09-07T12:38:18Z",
+      "at": "2026-09-10T05:28:06Z",
+      "event": "action_capability_issued",
+      "capability": "design-api-contract-capability-1",
+      "edge": "design-api-contract",
+      "run": "design-api-contract-run-1",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "编写 API 路径与 payload 文档",
+        "编写持久化边界文档",
+        "标记兼容约束"
+      ],
+      "verifier": "design-api-contract-check",
+      "expires_at": "2026-09-10T05:43:06Z",
+      "actor": "agent:mapflow"
+    },
+    {
+      "at": "2026-09-10T05:28:06Z",
       "event": "edge_verified",
-      "edge": "verify-shelfwise-v1",
-      "run": "verify-shelfwise-v1-run-1",
+      "edge": "design-api-contract",
+      "run": "design-api-contract-run-1",
       "proves": [
-        "startup-and-page-verified",
-        "registration-workflows-verified",
-        "loan-lifecycle-verified",
-        "restart-persistence-verified",
-        "required-api-contract-verified",
-        "production-dependency-policy-verified"
+        "api-contract-ready"
+      ],
+      "acceptance": [],
+      "executor": "tool:evolution-demo"
+    },
+    {
+      "at": "2026-09-10T05:28:07Z",
+      "event": "edge_authorization_requested",
+      "request": "review-engineering-design-authorization-1",
+      "edge": "review-engineering-design",
+      "question": "是否授权执行 review-engineering-design？",
+      "decision_owner": "human:demo",
+      "actor": "agent:demo"
+    },
+    {
+      "at": "2026-09-10T05:28:07Z",
+      "event": "edge_authorized",
+      "request": "review-engineering-design-authorization-1",
+      "edge": "review-engineering-design",
+      "run": "review-engineering-design-run-1",
+      "decision": "review-engineering-design-decision-1",
+      "answer": "批准执行 review-engineering-design",
+      "actor": "human:demo"
+    },
+    {
+      "at": "2026-09-10T05:28:07Z",
+      "event": "action_capability_issued",
+      "capability": "review-engineering-design-capability-1",
+      "edge": "review-engineering-design",
+      "run": "review-engineering-design-run-1",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "逐项核对文档",
+        "记录冲突",
+        "确认实施前置条件"
+      ],
+      "verifier": "review-engineering-design-check",
+      "expires_at": "2026-09-10T05:43:07Z",
+      "actor": "agent:mapflow"
+    },
+    {
+      "at": "2026-09-10T05:28:07Z",
+      "event": "edge_verified",
+      "edge": "review-engineering-design",
+      "run": "review-engineering-design-run-1",
+      "proves": [
+        "engineering-design-reviewed"
       ],
       "acceptance": [
-        "a1-startup-page",
-        "a2-registration",
-        "a3-a4-loan-lifecycle",
-        "a5-restart-persistence",
-        "a6-api-contract",
-        "a6-production-dependencies"
+        "engineering-design-accepted"
       ],
-      "executor": "agent:codex"
+      "executor": "tool:evolution-demo"
     },
     {
-      "at": "2026-09-07T12:38:29Z",
-      "event": "reachability_proved",
-      "structural": "complete",
-      "reachability": "logical",
-      "gaps": 0
+      "at": "2026-09-10T05:28:08Z",
+      "event": "edge_authorization_requested",
+      "request": "build-catalog-slice-authorization-1",
+      "edge": "build-catalog-slice",
+      "question": "是否授权执行 build-catalog-slice？",
+      "decision_owner": "human:demo",
+      "actor": "agent:demo"
     },
     {
-      "at": "2026-09-07T12:39:48Z",
+      "at": "2026-09-10T05:28:08Z",
+      "event": "edge_authorized",
+      "request": "build-catalog-slice-authorization-1",
+      "edge": "build-catalog-slice",
+      "run": "build-catalog-slice-run-1",
+      "decision": "build-catalog-slice-decision-1",
+      "answer": "批准执行 build-catalog-slice",
+      "actor": "human:demo"
+    },
+    {
+      "at": "2026-09-10T05:28:08Z",
+      "event": "action_capability_issued",
+      "capability": "build-catalog-slice-capability-1",
+      "edge": "build-catalog-slice",
+      "run": "build-catalog-slice-run-1",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "修改演示工作区的目录切片",
+        "运行本地目录检查"
+      ],
+      "verifier": "build-catalog-slice-check",
+      "expires_at": "2026-09-10T05:43:08Z",
+      "actor": "agent:mapflow"
+    },
+    {
+      "at": "2026-09-10T05:28:08Z",
+      "event": "edge_verified",
+      "edge": "build-catalog-slice",
+      "run": "build-catalog-slice-run-1",
+      "proves": [
+        "catalog-slice-ready"
+      ],
+      "acceptance": [
+        "catalog-slice-accepted"
+      ],
+      "executor": "tool:evolution-demo"
+    },
+    {
+      "at": "2026-09-10T05:28:08Z",
+      "event": "edge_authorization_requested",
+      "request": "build-circulation-slice-authorization-1",
+      "edge": "build-circulation-slice",
+      "question": "是否授权执行 build-circulation-slice？",
+      "decision_owner": "human:demo",
+      "actor": "agent:demo"
+    },
+    {
+      "at": "2026-09-10T05:28:09Z",
+      "event": "edge_authorized",
+      "request": "build-circulation-slice-authorization-1",
+      "edge": "build-circulation-slice",
+      "run": "build-circulation-slice-run-1",
+      "decision": "build-circulation-slice-decision-1",
+      "answer": "批准执行 build-circulation-slice",
+      "actor": "human:demo"
+    },
+    {
+      "at": "2026-09-10T05:28:09Z",
+      "event": "action_capability_issued",
+      "capability": "build-circulation-slice-capability-1",
+      "edge": "build-circulation-slice",
+      "run": "build-circulation-slice-run-1",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "修改演示工作区的借还切片",
+        "运行本地借还检查"
+      ],
+      "verifier": "build-circulation-slice-check",
+      "expires_at": "2026-09-10T05:43:09Z",
+      "actor": "agent:mapflow"
+    },
+    {
+      "at": "2026-09-10T05:28:09Z",
+      "event": "edge_verified",
+      "edge": "build-circulation-slice",
+      "run": "build-circulation-slice-run-1",
+      "proves": [
+        "circulation-slice-ready"
+      ],
+      "acceptance": [
+        "circulation-slice-accepted"
+      ],
+      "executor": "tool:evolution-demo"
+    },
+    {
+      "at": "2026-09-10T05:28:09Z",
+      "event": "edge_authorization_requested",
+      "request": "integrate-library-slices-authorization-1",
+      "edge": "integrate-library-slices",
+      "question": "是否授权执行 integrate-library-slices？",
+      "decision_owner": "human:demo",
+      "actor": "agent:demo"
+    },
+    {
+      "at": "2026-09-10T05:28:10Z",
+      "event": "edge_authorized",
+      "request": "integrate-library-slices-authorization-1",
+      "edge": "integrate-library-slices",
+      "run": "integrate-library-slices-run-1",
+      "decision": "integrate-library-slices-decision-1",
+      "answer": "批准执行 integrate-library-slices",
+      "actor": "human:demo"
+    },
+    {
+      "at": "2026-09-10T05:28:10Z",
+      "event": "action_capability_issued",
+      "capability": "integrate-library-slices-capability-1",
+      "edge": "integrate-library-slices",
+      "run": "integrate-library-slices-run-1",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "连接两个切片",
+        "运行本地集成检查"
+      ],
+      "verifier": "integrate-library-slices-check",
+      "expires_at": "2026-09-10T05:43:10Z",
+      "actor": "agent:mapflow"
+    },
+    {
+      "at": "2026-09-10T05:28:10Z",
+      "event": "edge_verified",
+      "edge": "integrate-library-slices",
+      "run": "integrate-library-slices-run-1",
+      "proves": [
+        "integration-tests-pass"
+      ],
+      "acceptance": [
+        "library-integration-accepted"
+      ],
+      "executor": "tool:evolution-demo"
+    },
+    {
+      "at": "2026-09-10T05:28:10Z",
+      "event": "edge_authorization_requested",
+      "request": "accept-library-mvp-authorization-1",
+      "edge": "accept-library-mvp",
+      "question": "是否授权执行 accept-library-mvp？",
+      "decision_owner": "human:demo",
+      "actor": "agent:demo"
+    },
+    {
+      "at": "2026-09-10T05:28:11Z",
+      "event": "edge_authorized",
+      "request": "accept-library-mvp-authorization-1",
+      "edge": "accept-library-mvp",
+      "run": "accept-library-mvp-run-1",
+      "decision": "accept-library-mvp-decision-1",
+      "answer": "批准执行 accept-library-mvp",
+      "actor": "human:demo"
+    },
+    {
+      "at": "2026-09-10T05:28:11Z",
+      "event": "action_capability_issued",
+      "capability": "accept-library-mvp-capability-1",
+      "edge": "accept-library-mvp",
+      "run": "accept-library-mvp-run-1",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "运行本地演示",
+        "记录回读"
+      ],
+      "verifier": "accept-library-mvp-check",
+      "expires_at": "2026-09-10T05:43:11Z",
+      "actor": "agent:mapflow"
+    },
+    {
+      "at": "2026-09-10T05:28:11Z",
+      "event": "edge_verified",
+      "edge": "accept-library-mvp",
+      "run": "accept-library-mvp-run-1",
+      "proves": [
+        "demo-accepted"
+      ],
+      "acceptance": [
+        "library-demo-accepted"
+      ],
+      "executor": "tool:evolution-demo"
+    },
+    {
+      "at": "2026-09-10T05:28:11Z",
       "event": "arrival_audit_requested",
-      "request": "shelfwise-v1-arrival-audit-request-1",
-      "question": "是否确认 Shelfwise v1 的 A1-A6 已按上述实际记录逐项通过，非目标（会员收费、电子书、推荐、预约、多人权限和外部发布）仍保持排除，并接受遗留风险（规模增长后的纯编号办理摩擦、部分窄屏触控目标小于 44px、真实长期使用与无障碍体验及市场需求尚未验证）？",
+      "request": "library-system-mvp-arrival-audit-request-1",
+      "question": "目的地、验收、非目标和风险是否完成独立审计？",
       "acceptance": [
-        "a1-startup-page",
-        "a2-registration",
-        "a3-a4-loan-lifecycle",
-        "a5-restart-persistence",
-        "a6-api-contract",
-        "a6-production-dependencies"
+        "catalog-slice-accepted",
+        "engineering-design-accepted",
+        "circulation-slice-accepted",
+        "library-integration-accepted",
+        "library-demo-accepted"
       ],
-      "actor": "agent:codex"
+      "decision_owner": "human:owner",
+      "actor": "agent:demo"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "confirm-core-journey-capability-1",
+      "edge": "confirm-core-journey",
+      "run": "confirm-core-journey-run-1",
+      "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
+      "brief_digest": "f9cfb29860ac53816b0e239271b443da36dc8d0e9f1cc97f25209639d85638aa",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "记录决定"
+      ],
+      "verifier": "confirm-core-journey-check",
+      "verifier_digest": "a22d576c083347eed5159df91e9382eed92dc0e2bb23e58ed407cdd6aabd74a1",
+      "token_hash": "1a15adcc682bcf76bf5e87830c3bd12e69e48433bce09c5034737d7982509e27",
+      "issued_at": "2026-09-10T05:28:04Z",
+      "expires_at": "2026-09-10T05:43:04Z",
+      "status": "consumed",
+      "consumed_at": "2026-09-10T05:28:05Z"
+    },
+    {
+      "id": "design-domain-model-capability-1",
+      "edge": "design-domain-model",
+      "run": "design-domain-model-run-1",
+      "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
+      "brief_digest": "13833a2001c3c329156266c4f97a5fccc3628f0ef398da665c7db018b25b9383",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "读取需求",
+        "编写领域模型文档",
+        "记录待决假设"
+      ],
+      "verifier": "design-domain-model-check",
+      "verifier_digest": "302534bda245891f3c68c54efd16af083a33abe0d92b941c1135ae5d9c857bdf",
+      "token_hash": "e76622919776262f655ce3bac102a6a7f74d0cea07525041d2b93576068ed5a7",
+      "issued_at": "2026-09-10T05:28:05Z",
+      "expires_at": "2026-09-10T05:43:05Z",
+      "status": "consumed",
+      "consumed_at": "2026-09-10T05:28:05Z"
+    },
+    {
+      "id": "design-api-contract-capability-1",
+      "edge": "design-api-contract",
+      "run": "design-api-contract-run-1",
+      "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
+      "brief_digest": "f716db93a431fb8645269fea2dbcc10b2bb960a1fd6d1cc211389ee743c8c745",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "编写 API 路径与 payload 文档",
+        "编写持久化边界文档",
+        "标记兼容约束"
+      ],
+      "verifier": "design-api-contract-check",
+      "verifier_digest": "46f890d3d196c3353fa42b7659b75ce55cfddbf93bdd91b65458abcdff3f7125",
+      "token_hash": "db361f257bf7b8321ef916a901395c1f02d0a5a776c7aad442e2dbca053d543b",
+      "issued_at": "2026-09-10T05:28:06Z",
+      "expires_at": "2026-09-10T05:43:06Z",
+      "status": "consumed",
+      "consumed_at": "2026-09-10T05:28:06Z"
+    },
+    {
+      "id": "review-engineering-design-capability-1",
+      "edge": "review-engineering-design",
+      "run": "review-engineering-design-run-1",
+      "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
+      "brief_digest": "8bc8fd73a4bc6f7ce640d3672d34d9480cab55973a8a696d50f700d6f67dd62a",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "逐项核对文档",
+        "记录冲突",
+        "确认实施前置条件"
+      ],
+      "verifier": "review-engineering-design-check",
+      "verifier_digest": "4ef54fcd9a67df74409447b3b3a040d1f7f93b13bff91b2c524cdc6796b06b7a",
+      "token_hash": "2c686d1e126a1bbd94dddf9e0fd418c3e2b34dacd5a10816449648da5665e625",
+      "issued_at": "2026-09-10T05:28:07Z",
+      "expires_at": "2026-09-10T05:43:07Z",
+      "status": "consumed",
+      "consumed_at": "2026-09-10T05:28:07Z"
+    },
+    {
+      "id": "build-catalog-slice-capability-1",
+      "edge": "build-catalog-slice",
+      "run": "build-catalog-slice-run-1",
+      "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
+      "brief_digest": "6778adcb0f192a1fd1563592b5615a0c92d33f97428c453e3fb5f1e6d83b5444",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "修改演示工作区的目录切片",
+        "运行本地目录检查"
+      ],
+      "verifier": "build-catalog-slice-check",
+      "verifier_digest": "f750cfb238d08ff48614353fae9706199363c3f3f09cbe81de27895571519e01",
+      "token_hash": "01d2aa57af172b40241565fd8de8e4353eb6266a42ca7163ca23eb39182c43ca",
+      "issued_at": "2026-09-10T05:28:08Z",
+      "expires_at": "2026-09-10T05:43:08Z",
+      "status": "consumed",
+      "consumed_at": "2026-09-10T05:28:08Z"
+    },
+    {
+      "id": "build-circulation-slice-capability-1",
+      "edge": "build-circulation-slice",
+      "run": "build-circulation-slice-run-1",
+      "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
+      "brief_digest": "eb5add70059118cd4b73c6fad9ea217f7ab39a393c9edec6cb4a4ced5d8080c9",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "修改演示工作区的借还切片",
+        "运行本地借还检查"
+      ],
+      "verifier": "build-circulation-slice-check",
+      "verifier_digest": "f73eb7fc7925ed7161b6526808362bee6118da9feb8d09a997d6e608ab0b1ffb",
+      "token_hash": "99639d228cfae68409ece4232be6b1725b96356b4ae8224225e944a39daf7d62",
+      "issued_at": "2026-09-10T05:28:09Z",
+      "expires_at": "2026-09-10T05:43:09Z",
+      "status": "consumed",
+      "consumed_at": "2026-09-10T05:28:09Z"
+    },
+    {
+      "id": "integrate-library-slices-capability-1",
+      "edge": "integrate-library-slices",
+      "run": "integrate-library-slices-run-1",
+      "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
+      "brief_digest": "c22c22abe8264b7ddb22de5a883db0c33bbd157231e63892c41412293cf7b2ac",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "连接两个切片",
+        "运行本地集成检查"
+      ],
+      "verifier": "integrate-library-slices-check",
+      "verifier_digest": "e65e9e62946d69eb0d5a7099f68b5c0fd795dff5da19171c08706de1eb543524",
+      "token_hash": "3cd73792fe9c04d9dc9768aa086f7db620dab1913343be00d7aff3c9668e0453",
+      "issued_at": "2026-09-10T05:28:10Z",
+      "expires_at": "2026-09-10T05:43:10Z",
+      "status": "consumed",
+      "consumed_at": "2026-09-10T05:28:10Z"
+    },
+    {
+      "id": "accept-library-mvp-capability-1",
+      "edge": "accept-library-mvp",
+      "run": "accept-library-mvp-run-1",
+      "map_digest": "54de37e3ce1b18b6131e9ee09bb22cdec1f9e23e11e115db279456a19895d617",
+      "brief_digest": "a435525a613191d2a151d8a6f0ef94a0f846ca733565272558ef521f70b738b7",
+      "allowed_actions": [
+        "run_verifier"
+      ],
+      "brief_allowed_actions": [
+        "运行本地演示",
+        "记录回读"
+      ],
+      "verifier": "accept-library-mvp-check",
+      "verifier_digest": "dcb86c54ece89aa229fa3aca76abeba1b051fe1b00712fabd0d19714a06c5688",
+      "token_hash": "914504c361efa757406a21b33c122f1e5c32a3173b23b05bf4bebe5252fbcdad",
+      "issued_at": "2026-09-10T05:28:11Z",
+      "expires_at": "2026-09-10T05:43:11Z",
+      "status": "consumed",
+      "consumed_at": "2026-09-10T05:28:11Z"
     }
   ]
 }

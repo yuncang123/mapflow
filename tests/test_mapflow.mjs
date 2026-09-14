@@ -23,28 +23,6 @@ function runCli(state, ...args) {
   });
 }
 
-function requestRouteApproval(state, question = "May I approve the proven complete route?") {
-  return runCli(
-    state,
-    "request-route-approval", "--question", question,
-    "--requester", "agent:codex",
-    "--decision-owner", "human:owner",
-    "--json",
-  );
-}
-
-function approveRoute(state, answer = "The proven complete route is accepted") {
-  const requested = requestRouteApproval(state);
-  assertExit(requested);
-  const requestId = JSON.parse(requested.stdout).request_id;
-  return runCli(
-    state,
-    "approve", "--request", requestId,
-    "--answer", answer,
-    "--actor", "human:owner",
-  );
-}
-
 function requestAuthorization(state, edge, question = `May I execute ${edge}?`) {
   return runCli(
     state,
@@ -67,6 +45,14 @@ function requestArrivalAudit(state, question = "Have the destination contract, a
 }
 
 function authorizeEdge(state, edge, answer = `Approved to execute ${edge}`) {
+  const started = runCli(
+    state,
+    "start", "--edge", edge,
+    "--reason", answer,
+    "--actor", "agent:test",
+  );
+  if (started.status === 0) return started;
+  if (!/declares an authorization requirement/.test(started.stderr)) return started;
   const requested = requestAuthorization(state, edge);
   assertExit(requested);
   const requestId = JSON.parse(requested.stdout).request_id;
@@ -79,8 +65,7 @@ function authorizeEdge(state, edge, answer = `Approved to execute ${edge}`) {
 }
 
 function approveAndAuthorize(state, edge, reason = "The complete route is accepted") {
-  assertExit(approveRoute(state, reason));
-  return authorizeEdge(state, edge);
+  return authorizeEdge(state, edge, reason);
 }
 
 function runInstaller(target, ...args) {
@@ -105,6 +90,28 @@ function assertExit(result, expected = 0) {
 function makeMap(directory, mutate = () => {}) {
   const blueprint = structuredClone(readBlueprint(TEMPLATE_MAP).blueprint);
   mutate(blueprint);
+  for (const edge of blueprint.edges) {
+    const source = blueprint.nodes.find((node) => node.id === edge.from);
+    const invariantIds = new Set(edge.invariants);
+    for (const invariantId of blueprint.destination.invariants) {
+      const invariant = blueprint.invariants.find((item) => item.id === invariantId);
+      if (invariant?.applies_to.includes(edge.id)) invariantIds.add(invariantId);
+    }
+    const premises = [...new Set([
+      ...(source?.predicates ?? []),
+      ...edge.preconditions,
+      ...[...invariantIds].flatMap((invariantId) => blueprint.invariants.find((item) => item.id === invariantId)?.requires ?? []),
+    ])];
+    edge.causal_contract = {
+      rule_id: `${edge.id}-rule`,
+      premises,
+      conclusions: [...edge.effects],
+      proof_mode: "executed-verifier",
+      rule_basis: { kind: "verifier", ref: "fixture-pass" },
+      required_witnesses: edge.evidence_contract.filter((contract) => contract.required).map((contract) => contract.id),
+      non_interference: [],
+    };
+  }
   const mapPath = path.join(directory, "blueprint.yaml");
   fs.writeFileSync(mapPath, `${JSON.stringify(blueprint, null, 2)}\n`, "utf8");
   for (const edge of blueprint.edges) {
@@ -112,7 +119,7 @@ function makeMap(directory, mutate = () => {}) {
     fs.mkdirSync(path.dirname(briefPath), { recursive: true });
     if (!fs.existsSync(briefPath)) fs.writeFileSync(
       briefPath,
-      `---\nedge: ${edge.id}\ncontract:\n  scope:\n    in: [test fixture for ${edge.id}]\n    out: [all unrelated work]\n  authorization:\n    required: []\n    allowed_actions: [local test fixture]\n  evidence:\n    proves: [${edge.effects.join(", ")}]\n    exit_conditions: [fixture effects are observable]\n  failure:\n    action: ${edge.on_failure.action}\n    rollback: [discard temporary fixture]\n---\n\n# ${edge.id}\n`,
+      `---\nedge: ${edge.id}\ncontract:\n  scope:\n    in: [test fixture for ${edge.id}]\n    out: [all unrelated work]\n  authorization:\n    required: []\n    allowed_actions: [local test fixture]\n  evidence:\n    proves: [${edge.effects.join(", ")}]\n    exit_conditions: [fixture effects are observable]\n  verification:\n    commands:\n      - id: fixture-pass\n        program: node\n        args: [-e, "process.stdout.write('fixture pass')"]\n        cwd: workspace\n        timeout_seconds: 30\n        success_exit_codes: [0]\n        proves: [${edge.effects.join(", ")}]\n      - id: fixture-fail\n        program: node\n        args: [-e, "process.stderr.write('fixture fail'); process.exit(1)"]\n        cwd: workspace\n        timeout_seconds: 30\n        success_exit_codes: [0]\n        proves: [${edge.effects.join(", ")}]\n  failure:\n    action: ${edge.on_failure.action}\n    rollback: [discard temporary fixture]\n---\n\n# ${edge.id}\n`,
       "utf8",
     );
   }
@@ -120,13 +127,13 @@ function makeMap(directory, mutate = () => {}) {
 }
 
 function verify(state, edge, proves, acceptance = "", outcomeRef = "") {
+  const issued = runCli(state, "issue-action", "--edge", edge, "--verifier", "fixture-pass", "--json");
+  assertExit(issued);
   const args = [
-    "verify", "--edge", edge,
+    "verify-executed", "--edge", edge,
     "--evidence", `${edge} evidence`,
-    "--command", `check ${edge}`,
-    "--observed", `${edge} observed`,
-    "--result", "pass",
-    "--proves", proves,
+    "--verifier", "fixture-pass",
+    "--capability", JSON.parse(issued.stdout).token,
     "--executor", "agent:codex",
     "--model", "gpt-5.6-sol",
     "--reasoning", "high",
@@ -134,6 +141,17 @@ function verify(state, edge, proves, acceptance = "", outcomeRef = "") {
   if (acceptance) args.push("--acceptance", acceptance);
   if (outcomeRef) args.push("--outcome-ref", outcomeRef);
   return runCli(state, ...args);
+}
+
+function verifyFailure(state, edge, claim = `${edge} failed`) {
+  const issued = runCli(state, "issue-action", "--edge", edge, "--verifier", "fixture-fail", "--json");
+  assertExit(issued);
+  return runCli(
+    state, "verify-executed", "--edge", edge,
+    "--evidence", claim, "--verifier", "fixture-fail",
+    "--capability", JSON.parse(issued.stdout).token,
+    "--executor", "tool:test",
+  );
 }
 
 function makeSubmapFixture({ childArrived = true } = {}) {
@@ -237,6 +255,209 @@ test("template blueprint is structurally complete and conditionally reachable", 
   assert.deepEqual(new Set(proof.proven_edges), new Set(["settle-audience", "write-candidate", "obtain-owner-approval", "publish-article"]));
 });
 
+test("a proven ready edge without an authorization requirement starts directly", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-direct-start-"));
+  const mapPath = makeMap(directory);
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+
+  const next = runCli(state, "next-actions", "--json");
+  assertExit(next);
+  const nextResult = JSON.parse(next.stdout);
+  assert.ok(nextResult.actions.some((action) => action.id === "start" && action.edge === "settle-audience"));
+  assert.equal(nextResult.actions.some((action) => action.id === "request-route-approval"), false);
+
+  assertExit(runCli(state, "start", "--edge", "settle-audience", "--actor", "agent:test"));
+  const status = runCli(state, "status", "--json");
+  assertExit(status);
+  const runtime = JSON.parse(status.stdout);
+  assert.equal(runtime.phase, "implementation");
+  assert.equal(runtime.destination_status, "confirmed");
+  assert.equal(runtime.active_edge, "settle-audience");
+  assert.equal(runtime.edge_runs.at(-1).authorization_request, null);
+});
+
+test("independent branches collectively establish an AND Join and remain separately runnable", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-parallel-join-"));
+  const mapPath = makeMap(directory, (blueprint) => {
+    blueprint.map_id = "parallel-library-slices";
+    blueprint.intent = { statement: "独立构建目录和借还切片", status: "shaped", open_questions: [] };
+    blueprint.destination = {
+      statement: "两个独立切片汇合后完成集成验收",
+      requires: ["catalog-ready", "circulation-ready", "integration-verified"],
+      invariants: [],
+      acceptance: [{
+        id: "parallel-slices-accepted",
+        proves: ["catalog-ready", "circulation-ready", "integration-verified"],
+        proof: "两条独立分支和汇合后的集成检查均可回读",
+      }],
+    };
+    blueprint.predicates = [
+      { id: "journey-confirmed", fact: "journey-confirmed", equals: "true", kind: "state" },
+      { id: "catalog-ready", fact: "catalog-ready", equals: "true", kind: "state" },
+      { id: "circulation-ready", fact: "circulation-ready", equals: "true", kind: "state" },
+      { id: "integration-verified", fact: "integration-verified", equals: "true", kind: "state" },
+    ];
+    blueprint.initial_state = { facts: [
+      { id: "journey-confirmed", value: "true", evidence: [{ kind: "note", ref: "owner-confirmed" }] },
+      { id: "catalog-ready", value: "false", evidence: [{ kind: "observation", ref: "not built" }] },
+      { id: "circulation-ready", value: "false", evidence: [{ kind: "observation", ref: "not built" }] },
+      { id: "integration-verified", value: "false", evidence: [{ kind: "observation", ref: "not checked" }] },
+    ] };
+    blueprint.assumptions = [];
+    blueprint.invariants = [];
+    blueprint.boundaries = {
+      in_scope: ["目录切片", "借还切片", "汇合集成"],
+      out_of_scope: ["外部发布"],
+      authorization: ["每条边独立授权"],
+    };
+    blueprint.nodes = [
+      { id: "journey-ready", kind: "state", label: "核心旅程已确认", predicates: ["journey-confirmed"] },
+      { id: "independent-slices-ready", kind: "join", label: "两个独立切片均就绪", predicates: ["catalog-ready", "circulation-ready"] },
+      { id: "library-integrated", kind: "destination", label: "图书系统已集成验收", predicates: ["catalog-ready", "circulation-ready", "integration-verified"] },
+    ];
+    blueprint.edges = [
+      {
+        id: "build-catalog-slice", from: "journey-ready", to: "independent-slices-ready", brief_ref: "briefs/build-catalog-slice.md",
+        preconditions: ["journey-confirmed"], effects: ["catalog-ready"], invariants: [], certainty: "expected",
+        evidence_contract: [{ id: "catalog-check", proves: ["catalog-ready"], required: true }], on_failure: { action: "replan" },
+      },
+      {
+        id: "build-circulation-slice", from: "journey-ready", to: "independent-slices-ready", brief_ref: "briefs/build-circulation-slice.md",
+        preconditions: ["journey-confirmed"], effects: ["circulation-ready"], invariants: [], certainty: "expected",
+        evidence_contract: [{ id: "circulation-check", proves: ["circulation-ready"], required: true }], on_failure: { action: "replan" },
+      },
+      {
+        id: "integrate-library-slices", from: "independent-slices-ready", to: "library-integrated", brief_ref: "briefs/integrate-library-slices.md",
+        preconditions: ["catalog-ready", "circulation-ready"], effects: ["integration-verified"], invariants: [], certainty: "expected",
+        evidence_contract: [{ id: "integration-check", proves: ["integration-verified"], required: true }], on_failure: { action: "replan" },
+      },
+    ];
+    blueprint.loops = [];
+    blueprint.submaps = [];
+    blueprint.extensions = { "x-purpose": "parallel-join-test" };
+  });
+  const loaded = readBlueprint(mapPath);
+  const proof = proveBlueprint(loaded.blueprint);
+  assert.equal(proof.structural, "complete");
+  assert.equal(proof.reachability, "logical");
+  assert.deepEqual(new Set(proof.proven_edges), new Set([
+    "build-catalog-slice", "build-circulation-slice", "integrate-library-slices",
+  ]));
+
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+  let model = createBoardSnapshotReader({ mapPath, statePath: state })().model;
+  assert.deepEqual(model.summary.ready_edges, ["build-catalog-slice", "build-circulation-slice"]);
+  assert.equal(model.summary.parallel_ready_edges, 2);
+  assert.equal(model.nodes.find((node) => node.id === "independent-slices-ready").satisfied, false);
+  const next = runCli(state, "next-actions", "--json");
+  assertExit(next);
+  assert.deepEqual(
+    JSON.parse(next.stdout).actions.map((action) => action.edge),
+    ["build-catalog-slice", "build-circulation-slice"],
+  );
+
+  assertExit(authorizeEdge(state, "build-catalog-slice"));
+  assertExit(verify(state, "build-catalog-slice", "catalog-ready"));
+  model = createBoardSnapshotReader({ mapPath, statePath: state })().model;
+  assert.equal(model.edges.find((edge) => edge.id === "build-circulation-slice").status, "ready");
+  assert.equal(model.nodes.find((node) => node.id === "independent-slices-ready").satisfied, false);
+
+  assertExit(authorizeEdge(state, "build-circulation-slice"));
+  assertExit(verify(state, "build-circulation-slice", "circulation-ready"));
+  model = createBoardSnapshotReader({ mapPath, statePath: state })().model;
+  assert.equal(model.nodes.find((node) => node.id === "independent-slices-ready").satisfied, true);
+  assert.deepEqual(model.summary.ready_edges, ["integrate-library-slices"]);
+});
+
+test("pre-code design subgraph must converge before implementation branches become ready", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-design-network-"));
+  const mapPath = makeMap(directory, (blueprint) => {
+    blueprint.map_id = "design-gated-library";
+    blueprint.intent = { statement: "先形成工程设计，再实现图书系统", status: "shaped", open_questions: [] };
+    blueprint.destination = {
+      statement: "设计已冻结且两个切片完成集成",
+      requires: ["design-reviewed", "catalog-ready", "circulation-ready", "integration-verified"],
+      invariants: [],
+      acceptance: [{ id: "design-gated-accepted", proves: ["design-reviewed", "catalog-ready", "circulation-ready", "integration-verified"], proof: "设计文档、独立切片和集成检查均有证据" }],
+    };
+    blueprint.predicates = [
+      { id: "journey-known", fact: "journey-known", equals: "true", kind: "state" },
+      { id: "domain-model-ready", fact: "domain-model-ready", equals: "true", kind: "state" },
+      { id: "api-contract-ready", fact: "api-contract-ready", equals: "true", kind: "state" },
+      { id: "design-reviewed", fact: "design-reviewed", equals: "true", kind: "state" },
+      { id: "catalog-ready", fact: "catalog-ready", equals: "true", kind: "state" },
+      { id: "circulation-ready", fact: "circulation-ready", equals: "true", kind: "state" },
+      { id: "integration-verified", fact: "integration-verified", equals: "true", kind: "state" },
+    ];
+    blueprint.initial_state = { facts: [
+      { id: "journey-known", value: "true", evidence: [{ kind: "note", ref: "owner-journey" }] },
+      { id: "domain-model-ready", value: "false", evidence: [{ kind: "observation", ref: "domain design missing" }] },
+      { id: "api-contract-ready", value: "false", evidence: [{ kind: "observation", ref: "API design missing" }] },
+      { id: "design-reviewed", value: "false", evidence: [{ kind: "observation", ref: "review missing" }] },
+      { id: "catalog-ready", value: "false", evidence: [{ kind: "observation", ref: "catalog missing" }] },
+      { id: "circulation-ready", value: "false", evidence: [{ kind: "observation", ref: "circulation missing" }] },
+      { id: "integration-verified", value: "false", evidence: [{ kind: "observation", ref: "integration missing" }] },
+    ] };
+    blueprint.assumptions = [];
+    blueprint.invariants = [];
+    blueprint.boundaries = { in_scope: ["design", "catalog", "circulation", "integration"], out_of_scope: ["deployment"], authorization: ["each edge requires approval"] };
+    blueprint.nodes = [
+      { id: "journey-ready", kind: "state", label: "核心旅程已确认", predicates: ["journey-known"] },
+      { id: "design-docs-ready", kind: "join", label: "两份工程设计文档均已形成", predicates: ["domain-model-ready", "api-contract-ready"] },
+      { id: "design-reviewed", kind: "state", label: "设计已评审并冻结", predicates: ["domain-model-ready", "api-contract-ready", "design-reviewed"] },
+      { id: "slices-ready", kind: "join", label: "两个实现切片均就绪", predicates: ["design-reviewed", "catalog-ready", "circulation-ready"] },
+      { id: "library-destination", kind: "destination", label: "图书系统已集成", predicates: ["design-reviewed", "catalog-ready", "circulation-ready", "integration-verified"] },
+    ];
+    const edgeSpec = (id, from, to, preconditions, effects) => ({
+      id, from, to, brief_ref: `briefs/${id}.md`, preconditions, effects, invariants: [], certainty: "expected",
+      evidence_contract: [{ id: `${id}-evidence`, proves: effects, required: true }], on_failure: { action: "replan" },
+    });
+    blueprint.edges = [
+      edgeSpec("design-domain", "journey-ready", "design-docs-ready", ["journey-known"], ["domain-model-ready"]),
+      edgeSpec("design-api", "journey-ready", "design-docs-ready", ["journey-known"], ["api-contract-ready"]),
+      edgeSpec("review-design", "design-docs-ready", "design-reviewed", ["domain-model-ready", "api-contract-ready"], ["design-reviewed"]),
+      edgeSpec("build-catalog", "design-reviewed", "slices-ready", ["design-reviewed"], ["catalog-ready"]),
+      edgeSpec("build-circulation", "design-reviewed", "slices-ready", ["design-reviewed"], ["circulation-ready"]),
+      edgeSpec("integrate-library", "slices-ready", "library-destination", ["catalog-ready", "circulation-ready"], ["integration-verified"]),
+    ];
+    blueprint.loops = [];
+    blueprint.submaps = [];
+    blueprint.extensions = { "x-purpose": "design-network-gate" };
+  });
+  const loaded = readBlueprint(mapPath);
+  const proof = proveBlueprint(loaded.blueprint);
+  assert.equal(proof.structural, "complete");
+  assert.equal(proof.reachability, "logical");
+  assert.deepEqual(new Set(proof.proven_edges), new Set(loaded.blueprint.edges.map((edge) => edge.id)));
+
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+  let model = createBoardSnapshotReader({ mapPath, statePath: state })().model;
+  assert.deepEqual(model.summary.ready_edges, ["design-domain", "design-api"]);
+  assert.equal(model.edges.find((edge) => edge.id === "build-catalog").status, "blocked");
+  assert.equal(model.edges.find((edge) => edge.id === "build-circulation").status, "blocked");
+
+  assertExit(authorizeEdge(state, "design-domain"));
+  assertExit(verify(state, "design-domain", "domain-model-ready"));
+  model = createBoardSnapshotReader({ mapPath, statePath: state })().model;
+  assert.deepEqual(model.summary.ready_edges, ["design-api"]);
+  assert.equal(model.edges.find((edge) => edge.id === "review-design").status, "blocked");
+
+  assertExit(authorizeEdge(state, "design-api"));
+  assertExit(verify(state, "design-api", "api-contract-ready"));
+  model = createBoardSnapshotReader({ mapPath, statePath: state })().model;
+  assert.deepEqual(model.summary.ready_edges, ["review-design"]);
+  assert.equal(model.nodes.find((node) => node.id === "design-docs-ready").satisfied, true);
+
+  assertExit(authorizeEdge(state, "review-design"));
+  assertExit(verify(state, "review-design", "design-reviewed"));
+  model = createBoardSnapshotReader({ mapPath, statePath: state })().model;
+  assert.deepEqual(model.summary.ready_edges, ["build-catalog", "build-circulation"]);
+  assert.equal(model.nodes.find((node) => node.id === "design-reviewed").satisfied, true);
+});
+
 test("an unreachable OR alternative does not invalidate a reachable route", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v03-or-"));
   const mapPath = makeMap(directory, (blueprint) => {
@@ -313,7 +534,6 @@ test("a ready dead-end edge cannot request authorization when it is not on a des
 
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  assertExit(approveRoute(state));
   const result = requestAuthorization(state, "take-dead-route");
   assertExit(result, 1);
   assert.match(result.stderr, /not on a destination-reaching route/);
@@ -397,6 +617,15 @@ test("edge evidence requires a separate human arrival audit request before arriv
   assert.match(prematureAudit.stderr, /destination predicates are not observed/);
   assertExit(authorizeEdge(state, "publish-article"));
   assertExit(verify(state, "publish-article", "article-published,public-url-exists", "public-page-readable", "external:https://example.invalid/article"));
+
+  const finalActions = runCli(state, "next-actions", "--json");
+  assertExit(finalActions);
+  const finalView = JSON.parse(finalActions.stdout);
+  assert.equal(finalView.proof.causal_soundness, "explicit");
+  assert.equal(finalView.evidence_levels.executed_derivation.status, "complete");
+  assert.deepEqual(finalView.evidence_levels.executed_derivation.verified_edges, [
+    "settle-audience", "write-candidate", "obtain-owner-approval", "publish-article",
+  ]);
 
   const legacyArrival = runCli(
     state,
@@ -551,14 +780,14 @@ test("unverified evidence cannot apply edge effects", () => {
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
   assertExit(approveAndAuthorize(state, "settle-audience"));
+  const issued = runCli(state, "issue-action", "--edge", "settle-audience", "--verifier", "fixture-pass", "--json");
+  assertExit(issued);
   const result = runCli(
     state,
-    "verify", "--edge", "settle-audience",
+    "verify-executed", "--edge", "settle-audience",
     "--evidence", "not actually checked",
-    "--command", "not run",
-    "--observed", "unknown",
-    "--result", "pass",
-    "--proves", "audience-known",
+    "--verifier", "fixture-pass",
+    "--capability", JSON.parse(issued.stdout).token,
     "--unverified", "audience decision",
     "--executor", "agent:codex",
     "--model", "gpt-5.6-sol",
@@ -571,6 +800,93 @@ test("unverified evidence cannot apply edge effects", () => {
   assert.equal(data.active_edge, null);
   assert.equal(data.edge_runs.at(-1).status, "blocked");
   assert.equal(data.evidence.length, 1);
+});
+
+test("reported pass remains an untrusted observation and cannot move the map", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-reported-evidence-"));
+  const mapPath = makeMap(directory);
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
+
+  const reported = runCli(
+    state, "verify", "--edge", "settle-audience",
+    "--evidence", "model claims the audience is known",
+    "--command", "not executed", "--observed", "claimed pass",
+    "--result", "pass", "--proves", "audience-known",
+    "--executor", "agent:codex", "--model", "gpt-5.6-sol", "--reasoning", "high",
+  );
+  assertExit(reported);
+  assert.match(reported.stdout, /facts unchanged/);
+  let data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.facts["audience-known"].value, "unknown");
+  assert.equal(data.active_edge, "settle-audience");
+  assert.deepEqual(data.verified_edges, []);
+  assert.equal(data.evidence[0].trust, "reported");
+  assert.equal(data.evidence[0].checks[0].mode, "reported");
+
+  const next = runCli(state, "next-actions", "--json");
+  assertExit(next);
+  const actions = JSON.parse(next.stdout).actions;
+  assert.equal(actions.some((entry) => entry.id === "issue-action"), true);
+
+  const issued = runCli(state, "issue-action", "--edge", "settle-audience", "--verifier", "fixture-pass", "--json");
+  assertExit(issued);
+  const capability = JSON.parse(issued.stdout);
+  const wrongVerifier = runCli(
+    state, "verify-executed", "--edge", "settle-audience", "--verifier", "fixture-fail",
+    "--capability", capability.token, "--evidence", "wrong verifier", "--executor", "tool:test",
+  );
+  assertExit(wrongVerifier, 1);
+  assert.match(wrongVerifier.stderr, /not bound to this frozen verifier/);
+
+  const verified = runCli(
+    state, "verify-executed", "--edge", "settle-audience", "--verifier", "fixture-pass",
+    "--capability", capability.token, "--evidence", "runtime executed the frozen verifier", "--executor", "tool:test",
+  );
+  assertExit(verified);
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.facts["audience-known"].value, "true");
+  assert.equal(data.capabilities[0].status, "consumed");
+  assert.equal(data.evidence.at(-1).trust, "verified");
+  assert.equal(data.evidence.at(-1).checks[0].exit_code, 0);
+  assert.match(data.evidence.at(-1).checks[0].stdout_digest, /^[a-f0-9]{64}$/);
+
+  const replay = runCli(
+    state, "verify-executed", "--edge", "settle-audience", "--verifier", "fixture-pass",
+    "--capability", capability.token, "--evidence", "replayed token", "--executor", "tool:test",
+  );
+  assertExit(replay, 1);
+  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.evidence.length, 2);
+});
+
+test("executed verification rejects caller supplied result and consumes actual failure", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-executed-failure-"));
+  const mapPath = makeMap(directory);
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
+  const issued = runCli(state, "issue-action", "--edge", "settle-audience", "--verifier", "fixture-fail", "--json");
+  assertExit(issued);
+  const token = JSON.parse(issued.stdout).token;
+  const spoof = runCli(
+    state, "verify-executed", "--edge", "settle-audience", "--verifier", "fixture-fail",
+    "--capability", token, "--evidence", "spoofed pass", "--result", "pass", "--executor", "tool:test",
+  );
+  assertExit(spoof, 1);
+  assert.match(spoof.stderr, /--result is not accepted/);
+  const failed = runCli(
+    state, "verify-executed", "--edge", "settle-audience", "--verifier", "fixture-fail",
+    "--capability", token, "--evidence", "actual process failure", "--executor", "tool:test",
+  );
+  assertExit(failed, 1);
+  const data = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(data.facts["audience-known"].value, "unknown");
+  assert.equal(data.edge_runs.at(-1).status, "failed");
+  assert.equal(data.evidence.at(-1).checks[0].result, "fail");
+  assert.equal(data.evidence.at(-1).checks[0].exit_code, 1);
+  assert.equal(data.capabilities.at(-1).status, "consumed");
 });
 
 test("human work can produce evidence without agent metadata", () => {
@@ -894,6 +1210,35 @@ test("replan preserves verified edges and evidence", () => {
   assert.equal(data.facts["audience-known"].value, "true");
 });
 
+test("replan can revise an unverified future Brief without rebinding earlier proof certificates", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-replan-future-brief-"));
+  const mapPath = makeMap(directory);
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
+  assertExit(verify(state, "settle-audience", "audience-known"));
+
+  const before = JSON.parse(fs.readFileSync(state, "utf8"));
+  const certificate = structuredClone(before.evidence[0].proof_certificate);
+  fs.appendFileSync(
+    path.join(directory, "briefs", "write-candidate.md"),
+    "\nFuture-edge clarification that does not reinterpret completed work.\n",
+    "utf8",
+  );
+
+  assertExit(runCli(
+    state,
+    "replan", "--reason", "clarify an unverified future edge",
+    "--scope", "edge:write-candidate", "--changes", "brief:write-candidate",
+  ));
+  assertExit(runCli(state, "status", "--json"));
+  const after = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.notEqual(after.map_digest, certificate.map_digest);
+  assert.deepEqual(after.evidence[0].proof_certificate, certificate);
+  assert.deepEqual(after.verified_edges, ["settle-audience"]);
+  assert.equal(after.facts["audience-known"].value, "true");
+});
+
 test("replan requires an explicit change set even when the map is unchanged", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v03-replan-explicit-changes-"));
   const mapPath = makeMap(directory);
@@ -919,7 +1264,7 @@ test("replan cannot redefine a verified edge contract", () => {
     "replan", "--reason", "try redefining completed work", "--scope", "edge:settle-audience", "--changes", "edge:settle-audience",
   );
   assertExit(result, 1);
-  assert.match(result.stderr, /verified edge contract cannot be removed or redefined/);
+  assert.match(result.stderr, /causal_contract omits structural premises|verified edge contract cannot be removed or redefined/);
 });
 
 test("replan cannot reinterpret predicates referenced by a verified edge", () => {
@@ -937,7 +1282,7 @@ test("replan cannot reinterpret predicates referenced by a verified edge", () =>
     "replan", "--reason", "try reinterpreting completed evidence", "--scope", "predicate:audience-known", "--changes", "predicate:audience-known",
   );
   assertExit(result, 1);
-  assert.match(result.stderr, /verified edge contract cannot be removed or redefined/);
+  assert.match(result.stderr, /causal_contract omits structural premises|verified edge contract cannot be removed or redefined/);
 });
 
 test("replan cannot change a destination invariant applicable to a verified edge", () => {
@@ -955,7 +1300,7 @@ test("replan cannot change a destination invariant applicable to a verified edge
     "replan", "--reason", "try changing completed execution conditions", "--scope", "destination:approval-before-publish", "--changes", "invariant:approval-before-publish",
   );
   assertExit(result, 1);
-  assert.match(result.stderr, /verified edge contract cannot be removed or redefined/);
+  assert.match(result.stderr, /causal_contract omits structural premises|verified edge contract cannot be removed or redefined/);
 });
 
 test("replan checks the declared bounded change set against the Blueprint diff", () => {
@@ -996,7 +1341,7 @@ test("replan rejects a declared change set outside its repair scope", () => {
   assert.match(result.stderr, /outside repair scope/);
 });
 
-test("prove and approve cannot accept edits made after a bounded replan", () => {
+test("prove and start cannot accept edits made after a bounded replan", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v03-replan-bypass-"));
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
@@ -1011,9 +1356,9 @@ test("prove and approve cannot accept edits made after a bounded replan", () => 
   const proof = runCli(state, "prove");
   assertExit(proof, 1);
   assert.match(proof.stderr, /Blueprint or bound Task Brief changed/);
-  const approval = requestRouteApproval(state);
-  assertExit(approval, 1);
-  assert.match(approval.stderr, /Blueprint or bound Task Brief changed/);
+  const start = runCli(state, "start", "--edge", "settle-audience");
+  assertExit(start, 1);
+  assert.match(start.stderr, /Blueprint or bound Task Brief changed/);
 });
 
 test("predicate repair scope cannot modify unrelated destination fields", () => {
@@ -1366,7 +1711,7 @@ test("wayfinding cannot enter regression with an incomplete destination contract
   assert.throws(() => validateWayfinding(draft), /requires explicit boundaries/);
 });
 
-test("wayfinding-write requires sourced human confirmation for every candidate node and edge", () => {
+test("wayfinding-write reviews a complete candidate chain without per-object confirmation gates", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-candidate-confirmation-"));
   const current = path.join(directory, "current");
   fs.mkdirSync(current, { recursive: true });
@@ -1423,61 +1768,25 @@ test("wayfinding-write requires sourced human confirmation for every candidate n
   };
   fs.writeFileSync(target, `${JSON.stringify(draft, null, 2)}\n`, "utf8");
 
-  let candidate = structuredClone(draft);
+  const candidate = structuredClone(draft);
   candidate.nodes[0].status = "confirmed";
-  fs.writeFileSync(source, `${JSON.stringify(candidate, null, 2)}\n`, "utf8");
-  let result = runCli(state, "wayfinding-write", "--draft-file", source);
-  assertExit(result, 1);
-  assert.match(result.stderr, /node confirmation requires an answered wayfinding question for milestone/);
-
-  assertExit(runCli(
-    state,
-    "wayfinding-answer", "--question", "confirm-milestone",
-    "--answer", "I confirm this milestone",
-    "--evidence-ref", "note:owner",
-  ));
-  candidate = structuredClone(readWayfinding(target).draft);
-  candidate.nodes[0].status = "confirmed";
-  candidate.questions.push({
-    id: "confirm-verify-goal",
-    prompt: "Do you confirm this independent work edge?",
-    target: { kind: "edge", id: "verify-goal", label: "Verify the goal", purpose: "Confirm the edge contract" },
-    status: "pending",
-    answer_updates: ["wayfinding.edges.verify-goal.status"],
-  });
-  fs.writeFileSync(source, `${JSON.stringify(candidate, null, 2)}\n`, "utf8");
-  assertExit(runCli(state, "wayfinding-write", "--draft-file", source));
-
-  candidate = structuredClone(readWayfinding(target).draft);
-  candidate.edges[0].status = "confirmed";
-  fs.writeFileSync(source, `${JSON.stringify(candidate, null, 2)}\n`, "utf8");
-  result = runCli(state, "wayfinding-write", "--draft-file", source);
-  assertExit(result, 1);
-  assert.match(result.stderr, /edge confirmation requires an answered wayfinding question for verify-goal/);
-
-  assertExit(runCli(
-    state,
-    "wayfinding-answer", "--question", "confirm-verify-goal",
-    "--answer", "I confirm this work edge and its contract",
-    "--evidence-ref", "note:owner",
-  ));
-  candidate = structuredClone(readWayfinding(target).draft);
   candidate.edges[0].status = "confirmed";
   fs.writeFileSync(source, `${JSON.stringify(candidate, null, 2)}\n`, "utf8");
   assertExit(runCli(state, "wayfinding-write", "--draft-file", source));
   const persisted = readWayfinding(target).draft;
   assert.equal(persisted.nodes[0].status, "confirmed");
   assert.equal(persisted.edges[0].status, "confirmed");
+  assert.equal(persisted.questions[0].status, "pending");
 });
 
-test("a draft Intent or open question blocks destination approval", () => {
+test("a draft Intent or open question blocks implementation", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v04-intent-"));
   const mapPath = makeMap(directory, (blueprint) => {
     blueprint.intent = { statement: "也许写点东西", status: "draft", open_questions: ["真正读者是谁"] };
   });
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
-  const result = requestRouteApproval(state);
+  const result = runCli(state, "start", "--edge", "settle-audience");
   assertExit(result, 1);
   assert.match(result.stderr, /shaped Intent with no open questions/);
 
@@ -1485,120 +1794,38 @@ test("a draft Intent or open question blocks destination approval", () => {
   const shapedMap = makeMap(shapedDirectory);
   const shapedState = path.join(shapedDirectory, "state.json");
   assertExit(runCli(shapedState, "init", "--map", shapedMap));
-  const missingRequest = spawnSync(process.execPath, [CLI, "--state", shapedState, "approve", "--answer", "Approved"], { cwd: ROOT, encoding: "utf8" });
-  assertExit(missingRequest, 1);
-  assert.match(missingRequest.stderr, /request is required/);
+  assertExit(runCli(shapedState, "start", "--edge", "settle-audience", "--actor", "agent:test"));
 });
 
-test("route approval and per-run human authorization are separate gates", () => {
+test("legacy route approval is absent and only protected edges require authorization", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v05-authorization-"));
   const mapPath = makeMap(directory);
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
 
-  const legacyCombined = runCli(
-    state,
-    "approve", "--edge", "settle-audience",
-    "--reason", "This must not double as implementation permission",
-  );
-  assertExit(legacyCombined, 1);
-  assert.match(legacyCombined.stderr, /does not accept --edge|request-authorization/);
+  for (const command of ["request-route-approval", "approve"]) {
+    const removed = runCli(state, command);
+    assertExit(removed, 1);
+    assert.match(removed.stderr, new RegExp(`unknown command: ${command}`));
+  }
+  const unprotectedRequest = requestAuthorization(state, "settle-audience");
+  assertExit(unprotectedRequest, 1);
+  assert.match(unprotectedRequest.stderr, /has no declared authorization requirement; use start/);
 
-  const directRouteApproval = runCli(state, "approve", "--answer", "The complete route is accepted", "--actor", "human:owner");
-  assertExit(directRouteApproval, 1);
-  assert.match(directRouteApproval.stderr, /request is required/);
-
-  const invalidDecisionOwner = runCli(
-    state,
-    "request-route-approval", "--question", "Do you approve this proven route?",
-    "--decision-owner", "agent:codex",
-  );
-  assertExit(invalidDecisionOwner, 1);
-  assert.match(invalidDecisionOwner.stderr, /decision-owner must use human:<identity>/);
-
-  const routeRequested = requestRouteApproval(state, "Do you approve this proven route?");
-  assertExit(routeRequested);
-  const routeRequestId = JSON.parse(routeRequested.stdout).request_id;
-  let data = JSON.parse(fs.readFileSync(state, "utf8"));
-  assert.equal(data.route_approval_requests.at(-1).status, "pending");
-  assert.equal(data.route_approval_requests.at(-1).decision_owner, "human:owner");
-  assert.equal(data.route_approvals.length, 0);
-  assert.equal(data.current_route_approval, null);
-  assert.equal(data.runtime_status, "route-approval-required");
-
-  const assigned = runCli(
-    state,
-    "assign-decision-owner", "--request", routeRequestId,
-    "--decision-owner", "human:reviewer",
-    "--actor", "agent:codex",
-    "--json",
-  );
-  assertExit(assigned);
-  assert.deepEqual(JSON.parse(assigned.stdout), {
-    request_id: routeRequestId,
-    previous_owner: "human:owner",
-    decision_owner: "human:reviewer",
-    status: "pending",
-  });
-  data = JSON.parse(fs.readFileSync(state, "utf8"));
-  assert.equal(data.route_approval_requests.at(-1).decision_owner, "human:reviewer");
-  assert.equal(data.route_approval_requests.at(-1).status, "pending");
-  assert.equal(data.current_route_approval, null);
-  assert.equal(data.history.at(-1).event, "decision_owner_assigned");
-
-  const wrongOwner = runCli(
-    state,
-    "approve", "--request", routeRequestId,
-    "--answer", "This actor does not own the decision",
-    "--actor", "human:owner",
-  );
-  assertExit(wrongOwner, 1);
-  assert.match(wrongOwner.stderr, /actor must match decision owner human:reviewer/);
-
-  const invalidAssignment = runCli(
-    state,
-    "assign-decision-owner", "--request", routeRequestId,
-    "--decision-owner", "agent:codex",
-  );
-  assertExit(invalidAssignment, 1);
-  assert.match(invalidAssignment.stderr, /decision-owner must use human:<identity>/);
-
-  assertExit(runCli(
-    state,
-    "approve", "--request", routeRequestId,
-    "--answer", "The complete route is accepted",
-    "--actor", "human:reviewer",
-  ));
-  data = JSON.parse(fs.readFileSync(state, "utf8"));
-  assert.equal(data.phase, "implementation");
-  assert.equal(data.destination_status, "approved");
-  assert.equal(data.active_edge, null);
-  assert.equal(data.active_run, null);
-  assert.equal(data.runtime_status, "idle");
-  assert.equal(data.edge_runs.length, 0);
-  assert.equal(data.decisions.length, 0);
-  assert.equal(data.route_approvals.length, 1);
-  assert.equal(data.route_approval_requests.at(-1).status, "granted");
-  assert.equal(data.route_approvals[0].request, routeRequestId);
-  assert.equal(data.current_route_approval, data.route_approvals[0].id);
-  assertExit(runCli(state, "gate"), 1);
-
-  const directAuthorization = runCli(
-    state,
-    "authorize", "--request", "settle-audience-authorization-1",
-    "--answer", "Approved",
-    "--actor", "human:owner",
-  );
-  assertExit(directAuthorization, 1);
-  assert.match(directAuthorization.stderr, /authorization request.*missing|unknown authorization request/i);
+  const briefPath = path.join(directory, "briefs", "settle-audience.md");
+  const protectedBrief = fs.readFileSync(briefPath, "utf8").replace("required: []", "required: [human review]");
+  fs.writeFileSync(briefPath, protectedBrief, "utf8");
+  assertExit(runCli(state, "replan", "--reason", "protect the edge", "--scope", "edge:settle-audience", "--changes", "brief:settle-audience"));
+  const directStart = runCli(state, "start", "--edge", "settle-audience");
+  assertExit(directStart, 1);
+  assert.match(directStart.stderr, /declares an authorization requirement/);
 
   const requested = requestAuthorization(state, "settle-audience", "May I interview the owner to settle the audience?");
   assertExit(requested);
   const requestId = JSON.parse(requested.stdout).request_id;
-  data = JSON.parse(fs.readFileSync(state, "utf8"));
+  let data = JSON.parse(fs.readFileSync(state, "utf8"));
   assert.equal(data.authorization_requests.at(-1).status, "pending");
   assert.equal(data.authorization_requests.at(-1).decision_owner, "human:owner");
-  assert.equal(data.authorization_requests.at(-1).route_approval, data.current_route_approval);
   assert.equal(data.active_run, null);
 
   assertExit(runCli(
@@ -1689,8 +1916,7 @@ test("Edge Runs expose wait, resume, cancel, retry, and failure replan states", 
   assertExit(runCli(state, "init", "--map", mapPath));
   assertExit(approveAndAuthorize(state, "settle-audience", "路线完整且首项可独立执行"));
   let data = JSON.parse(fs.readFileSync(state, "utf8"));
-  assert.equal(data.route_approvals[0].reason, "路线完整且首项可独立执行");
-  assert.equal(data.decisions[0].reason, "Approved to execute settle-audience");
+  assert.equal(data.decisions[0].reason, "路线完整且首项可独立执行");
   assert.equal(data.edge_runs[0].status, "active");
   assertExit(runCli(state, "wait", "--reason", "等待 Owner 访谈"));
   data = JSON.parse(fs.readFileSync(state, "utf8"));
@@ -1701,10 +1927,7 @@ test("Edge Runs expose wait, resume, cancel, retry, and failure replan states", 
   assertExit(runCli(state, "resume", "--run", "settle-audience-run-1", "--reason", "记录已补齐"));
   assertExit(runCli(state, "cancel", "--reason", "改用新的访谈"));
   assertExit(authorizeEdge(state, "settle-audience", "批准重新执行受众确认"));
-  const failed = runCli(
-    state, "verify", "--edge", "settle-audience", "--evidence", "访谈没有形成结论",
-    "--command", "read interview record", "--observed", "audience unresolved", "--result", "fail", "--executor", "human:owner",
-  );
+  const failed = verifyFailure(state, "settle-audience", "访谈没有形成结论");
   assertExit(failed, 1);
   assert.match(failed.stderr, /on_failure replan applied/);
   data = JSON.parse(fs.readFileSync(state, "utf8"));
@@ -1768,10 +1991,7 @@ test("a branch failure action waits for fresh authorization before starting the 
   const state = path.join(directory, "state.json");
   assertExit(runCli(state, "init", "--map", mapPath));
   assertExit(approveAndAuthorize(state, "settle-audience", "路线完整，先读取已有资料"));
-  const failed = runCli(
-    state, "verify", "--edge", "settle-audience", "--evidence", "资料没有明确读者",
-    "--command", "read source", "--observed", "audience absent", "--result", "fail", "--executor", "human:owner",
-  );
+  const failed = verifyFailure(state, "settle-audience", "资料没有明确读者");
   assertExit(failed, 1);
   let data = JSON.parse(fs.readFileSync(state, "utf8"));
   assert.equal(data.edge_runs.find((run) => run.edge === "settle-audience").status, "failed");
@@ -1924,7 +2144,7 @@ test("project-local installation is rejected without touching the target workspa
   assert.equal(fs.existsSync(path.join(target, ".mapflow")), false);
 });
 
-test("global installer provides auto-enable runtime and keeps workspace state outside Git", async () => {
+test("global installer provides explicit-enable runtime and keeps workspace state outside Git", async () => {
   const userProfile = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-global-"));
   const globalRoot = path.join(userProfile, ".agents", "skills");
   assertExit(runGlobalInstaller(userProfile));
@@ -1933,11 +2153,14 @@ test("global installer provides auto-enable runtime and keeps workspace state ou
   assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "SKILL.md")));
   assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "workflow.md")));
   assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "blueprint", "map-model.md")));
+  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "integration", "enterprise-handoffs.md")));
   assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "skill-routing.md")));
   assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "skills", "edge-slicing", "SKILL.md")));
   assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "skills", "edge-delivery", "SKILL.md")));
   assert.ok(fs.existsSync(runtime));
   assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-workspace.mjs")));
+  assert.equal(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-sdlc.mjs")), false);
+  assert.equal(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-activity.mjs")), false);
   assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-wayfinding.mjs")));
   assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "board", "index.html")));
   assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "vendor", "js-yaml", "js-yaml.mjs")));
@@ -1951,17 +2174,24 @@ test("global installer provides auto-enable runtime and keeps workspace state ou
   assert.match(entry, /行为真源：`references\/workflow\.md`/);
   assert.match(entry, /运行时：`runtime\/mapflow\.mjs`/);
   assert.match(entry, /enable --root <当前工作目录> --json/);
-  assert.match(entry, /仓库外 Workspace Sidecar/);
+  assert.match(entry, /服务人的仓库外 sidecar/);
   assert.doesNotMatch(entry, /node \.mapflow\/mapflow\.mjs/);
   assert.match(entry, /内含 Skill：`skills\/<name>\/SKILL\.md`/);
   assert.doesNotMatch(entry, /`\.\.\/<name>\/SKILL\.md`/);
-  assert.match(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: true/);
+  assert.match(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: false/);
+  assert.doesNotMatch(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: true/);
+  assert.match(entry, /disable-model-invocation: true/);
   const globalManifest = JSON.parse(fs.readFileSync(path.join(globalRoot, "mapflow", "install-manifest.json"), "utf8"));
-  assert.equal(globalManifest.version, "0.6.0");
+  assert.equal(globalManifest.version, "0.8.0");
   assert.equal(globalManifest.runtime, "mapflow/runtime/mapflow.mjs");
   assert.equal(globalManifest.workspace_schema, "mapflow.workspace/v1");
   assert.ok(globalManifest.capabilities.includes("workspace-sidecar"));
-  assert.ok(globalManifest.capabilities.includes("auto-enable"));
+  assert.ok(globalManifest.capabilities.includes("causal-contracts"));
+  assert.ok(globalManifest.capabilities.includes("derivation-graph"));
+  assert.ok(globalManifest.capabilities.includes("enterprise-handoff-contract"));
+  assert.ok(globalManifest.capabilities.includes("progressive-context-disclosure"));
+  assert.ok(globalManifest.capabilities.includes("explicit-enable"));
+  assert.ok(!globalManifest.capabilities.includes("auto-enable"));
   assert.ok(globalManifest.capabilities.includes("arrival-audit-request"));
   assert.ok(globalManifest.capabilities.includes("evolution-playback"));
   assert.equal(globalManifest.wayfinding_event_schema, "mapflow.wayfinding-event/v1");
@@ -2034,7 +2264,20 @@ test("global installer provides auto-enable runtime and keeps workspace state ou
   fs.mkdirSync(path.join(globalRoot, "mapflow", "skills", "node-slicing"), { recursive: true });
   fs.writeFileSync(path.join(globalRoot, "mapflow", "skills", "node-slicing", "SKILL.md"), "obsolete\n", "utf8");
   fs.writeFileSync(path.join(globalRoot, "mapflow", "references", "blueprint.md"), "obsolete\n", "utf8");
+  fs.writeFileSync(
+    path.join(globalRoot, "mapflow", "examples", "library-system-evolution", "briefs", "removed-brief.md"),
+    "obsolete\n",
+    "utf8",
+  );
   assertExit(runGlobalInstaller(userProfile, "--force"));
   assert.equal(fs.existsSync(path.join(globalRoot, "mapflow", "skills", "node-slicing")), false);
   assert.equal(fs.existsSync(path.join(globalRoot, "mapflow", "references", "blueprint.md")), false);
+  assert.equal(
+    fs.existsSync(path.join(globalRoot, "mapflow", "examples", "library-system-evolution", "briefs", "removed-brief.md")),
+    false,
+  );
+  assert.deepEqual(
+    fs.readdirSync(globalRoot).filter((entry) => entry.startsWith(".mapflow-install-") || entry.startsWith(".mapflow-backup-")),
+    [],
+  );
 });

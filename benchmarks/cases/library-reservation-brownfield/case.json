@@ -14,5 +14,5 @@
   "primary_risks": ["忽略既有接口", "把需求假设成代码事实", "新增能力通过但回归失败"],
   "fixture": "subject/fixture",
   "operator_mainline": "operator/mainline.md",
-  "required_checkpoints": ["prepared", "surveyed", "destination-shaped", "regression-proposed", "route-approved", "compatibility-preserved", "arrived"]
+  "required_checkpoints": ["prepared", "surveyed", "destination-shaped", "regression-proposed", "map-proven", "compatibility-preserved", "arrived"]
 }

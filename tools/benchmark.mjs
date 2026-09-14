@@ -12,7 +12,7 @@ import { defaultMapflowHome, resolveWorkspace } from "./mapflow-workspace.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CASES_ROOT = path.join(ROOT, "benchmarks", "cases");
-const SUITE_VERSION = "1.5.1";
+const SUITE_VERSION = "1.6.0";
 const MAX_CHILD_OUTPUT_BYTES = 64 * 1024 * 1024;
 const RUN_SCHEMA = "mapflow.benchmark-run/v1";
 const CASE_SCHEMA = "mapflow.benchmark-case/v1";
@@ -853,13 +853,54 @@ function boardObservation(runManifest) {
     && (edge.preconditions ?? []).some((predicateId) => probeEffects.has(predicateId))
   ));
   const authorizationRequests = state?.authorization_requests ?? [];
-  const routeApprovalRequests = state?.route_approval_requests ?? [];
-  const routeApprovals = state?.route_approvals ?? [];
   const arrivalAuditRequests = state?.arrival_audit_requests ?? [];
   const runs = state?.edge_runs ?? [];
   const grantedAuthorizationIds = new Set(authorizationRequests.filter((request) => request.status === "granted").map((request) => request.id));
-  const grantedRouteApprovalIds = new Set(routeApprovalRequests.filter((request) => request.status === "granted").map((request) => request.id));
   const grantedArrivalAuditIds = new Set(arrivalAuditRequests.filter((request) => request.status === "granted").map((request) => request.id));
+  const edgeById = new Map((model.edges ?? []).map((edge) => [edge.id, edge]));
+  const runsFollowAuthorizationContract = runs.every((run) => {
+    const required = edgeById.get(run.edge)?.brief?.metadata?.contract?.authorization?.required ?? [];
+    if (required.length > 0) {
+      return typeof run.authorization_request === "string" && grantedAuthorizationIds.has(run.authorization_request);
+    }
+    return run.authorization_request === undefined || run.authorization_request === null;
+  });
+  const formalNodes = (model.nodes ?? []).filter((node) => !node.projection_only && !node.draft);
+  const formalEdges = (model.edges ?? []).filter((edge) => !edge.projection_only && !edge.draft);
+  const designPredicateIds = new Set(["domain-model-ready", "api-contract-ready", "engineering-design-reviewed"]);
+  const predicateIdsOf = (node) => (node.predicates ?? []).map((predicate) => typeof predicate === "string" ? predicate : predicate.id);
+  const designCandidateNodes = draftNodes.filter((node) => predicateIdsOf(node).some((predicateId) => designPredicateIds.has(predicateId)));
+  const designCandidateEdges = draftEdges.filter((edge) => (edge.effects ?? []).some((predicateId) => designPredicateIds.has(predicateId)));
+  const implementationCandidateEdges = draftEdges.filter((edge) => /^(?:build|implement|code)-/.test(edge.id));
+  const candidateImplementationRequiresDesign = implementationCandidateEdges.length > 0
+    && implementationCandidateEdges.every((edge) => (edge.preconditions ?? []).includes("engineering-design-reviewed"));
+  const designFormalNodes = formalNodes.filter((node) => predicateIdsOf(node).some((predicateId) => designPredicateIds.has(predicateId)));
+  const designFormalEdges = formalEdges.filter((edge) => (edge.effects ?? []).some((predicateId) => designPredicateIds.has(predicateId)));
+  const formalImplementationEdges = formalEdges.filter((edge) => /^(?:build|implement|code)-/.test(edge.id));
+  const implementationRequiresDesign = formalImplementationEdges.length > 0
+    && formalImplementationEdges.every((edge) => (edge.preconditions ?? []).includes("engineering-design-reviewed"));
+  const nodeKind = new Map(formalNodes.map((node) => [node.id, node.kind]));
+  const outgoing = new Map();
+  const incoming = new Map();
+  for (const edge of formalEdges) {
+    outgoing.set(edge.from, (outgoing.get(edge.from) ?? 0) + 1);
+    incoming.set(edge.to, (incoming.get(edge.to) ?? 0) + 1);
+  }
+  const independentBranchPairs = [];
+  for (let leftIndex = 0; leftIndex < formalEdges.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < formalEdges.length; rightIndex += 1) {
+      const left = formalEdges[leftIndex];
+      const right = formalEdges[rightIndex];
+      if (left.from !== right.from || left.to !== right.to || nodeKind.get(left.to) !== "join") continue;
+      const leftRequirements = new Set(left.preconditions ?? []);
+      const rightRequirements = new Set(right.preconditions ?? []);
+      const independent = !(left.effects ?? []).some((predicateId) => rightRequirements.has(predicateId) || (right.effects ?? []).includes(predicateId))
+        && !(right.effects ?? []).some((predicateId) => leftRequirements.has(predicateId));
+      if (independent) independentBranchPairs.push([left.id, right.id]);
+    }
+  }
+  const branchingNodes = [...outgoing.values()].filter((count) => count > 1).length;
+  const andJoinNodes = formalNodes.filter((node) => node.kind === "join" && (incoming.get(node.id) ?? 0) > 1).length;
   return {
     workspace: {
       sidecar_exists: workspace.exists,
@@ -923,6 +964,10 @@ function boardObservation(runManifest) {
         && edge.proof?.status
         && edge.on_failure
       )),
+      design_candidate_nodes: designCandidateNodes.length,
+      design_candidate_edges: designCandidateEdges.length,
+      design_candidate_join: designCandidateNodes.some((node) => node.kind === "join"),
+      implementation_requires_design_review: candidateImplementationRequiresDesign,
     },
     regression: {
       complete_chain: model.goal_regression?.complete_chain ?? false,
@@ -930,31 +975,46 @@ function boardObservation(runManifest) {
       edges: model.goal_regression?.edge_ids?.length ?? 0,
       unclosed_terminals: model.goal_regression?.unclosed_terminals ?? [],
     },
+    topology: {
+      branching_nodes: branchingNodes,
+      and_join_nodes: andJoinNodes,
+      independent_branch_pairs: independentBranchPairs.length,
+      independent_branches: independentBranchPairs,
+      design_nodes: designFormalNodes.length,
+      design_edges: designFormalEdges.length,
+      design_join_nodes: designFormalNodes.filter((node) => node.kind === "join" && (incoming.get(node.id) ?? 0) > 1).length,
+      implementation_edges_require_design_review: implementationRequiresDesign,
+      pre_code_design_network: designFormalEdges.length >= 3
+        && designFormalNodes.some((node) => node.kind === "join")
+        && implementationRequiresDesign,
+      ready_edges: model.summary?.ready_edges ?? [],
+      parallel_ready_edges: model.summary?.parallel_ready_edges ?? 0,
+      has_non_linear_route: branchingNodes > 0 && andJoinNodes > 0 && independentBranchPairs.length > 0,
+    },
     proof: model.proof,
     runtime: {
       phase: state?.phase ?? model.map?.phase ?? null,
       destination_status: state?.destination_status ?? model.map?.destination_status ?? null,
       active_edge: state?.active_edge ?? null,
       active_run: state?.active_run ?? null,
-      current_route_approval: state?.current_route_approval ?? null,
-      pending_route_approvals: routeApprovalRequests.filter((request) => request.status === "pending").length,
-      route_approval_requests_count: routeApprovalRequests.length,
-      route_approvals_count: routeApprovals.length,
-      route_approvals_authorized: routeApprovals.length === 0 || routeApprovals.every((approval) => typeof approval.request === "string" && grantedRouteApprovalIds.has(approval.request)),
       pending_authorizations: authorizationRequests.filter((request) => request.status === "pending").length,
       granted_authorizations: grantedAuthorizationIds.size,
-      runs_authorized: runs.length === 0 || runs.every((run) => typeof run.authorization_request === "string" && grantedAuthorizationIds.has(run.authorization_request)),
+      runs_follow_authorization_contract: runsFollowAuthorizationContract,
       pending_arrival_audits: arrivalAuditRequests.filter((request) => request.status === "pending").length,
       arrival_audit_requests_count: arrivalAuditRequests.length,
       arrival_audit_authorized: state?.phase !== "arrived"
         || (typeof state?.arrival_audit?.request === "string" && grantedArrivalAuditIds.has(state.arrival_audit.request)),
       actual_arrival: model.map?.actual_arrival ?? "not-audited",
       evidence_count: model.evidence?.length ?? 0,
+      trusted_evidence_count: (model.evidence ?? []).filter((entry) => entry.checks?.some((check) => check.result === "pass" && check.mode !== "reported")).length,
+      reported_evidence_count: (model.evidence ?? []).filter((entry) => entry.checks?.some((check) => check.mode === "reported")).length,
+      action_capabilities_count: (state?.capabilities ?? []).length,
+      consumed_action_capabilities: (state?.capabilities ?? []).filter((entry) => entry.status === "consumed").length,
       edge_runs_count: model.edge_runs?.length ?? 0,
       failed_or_blocked_runs: (model.edge_runs ?? []).filter((entry) => ["failed", "blocked"].includes(entry.status)).length,
       decisions_count: model.decisions?.length ?? 0,
-      human_decisions: (model.decisions?.length ?? 0) > 0
-        && model.decisions.every((decision) => String(decision.actor ?? "").startsWith("human:")),
+      decisions_attributed: (model.decisions?.length ?? 0) > 0
+        && model.decisions.every((decision) => /^(?:human|agent):/.test(String(decision.actor ?? ""))),
       proposals_count: model.proposals?.length ?? 0,
       history_count: state?.history?.length ?? 0,
       replan_count: (state?.history ?? []).filter((entry) => entry.type === "replan_requested").length,
@@ -1027,18 +1087,10 @@ function hardGateResults(observation, turns = []) {
   }
   if (observation.runtime.edge_runs_count > 0) {
     gates.push({
-      id: "every-edge-run-requires-fresh-authorization",
-      actual: observation.runtime.runs_authorized,
+      id: "edge-runs-follow-brief-authorization",
+      actual: observation.runtime.runs_follow_authorization_contract,
       expected: true,
-      passed: observation.runtime.runs_authorized === true,
-    });
-  }
-  if (observation.runtime.route_approvals_count > 0) {
-    gates.push({
-      id: "every-route-approval-requires-fresh-human-request",
-      actual: observation.runtime.route_approvals_authorized,
-      expected: true,
-      passed: observation.runtime.route_approvals_authorized === true,
+      passed: observation.runtime.runs_follow_authorization_contract === true,
     });
   }
   const confirmationRequired = observation.wayfinding.destination_confirmed

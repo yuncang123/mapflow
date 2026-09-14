@@ -151,7 +151,7 @@ function validateCandidateEdge(value, label) {
   const edge = object(value, label);
   allowedKeys(edge, [
     "id", "from", "to", "label", "purpose", "status", "question_refs", "brief_ref", "preconditions",
-    "effects", "invariants", "evidence_contract", "acceptance", "non_goals", "certainty", "on_failure", "proof",
+    "effects", "invariants", "evidence_contract", "causal_contract", "acceptance", "non_goals", "certainty", "on_failure", "proof",
   ], label);
   id(edge.id, `${label}.id`);
   id(edge.from, `${label}.from`);
@@ -165,6 +165,9 @@ function validateCandidateEdge(value, label) {
     if (edge[field] !== undefined) ids(edge[field], `${label}.${field}`);
   }
   if (edge.evidence_contract !== undefined) validateEvidenceContracts(edge.evidence_contract, `${label}.evidence_contract`);
+  if (edge.causal_contract !== undefined) {
+    object(edge.causal_contract, `${label}.causal_contract`);
+  }
   if (edge.acceptance !== undefined) validateAcceptance(edge.acceptance, `${label}.acceptance`);
   if (edge.non_goals !== undefined) strings(edge.non_goals, `${label}.non_goals`);
   if (edge.certainty !== undefined) string(edge.certainty, `${label}.certainty`);

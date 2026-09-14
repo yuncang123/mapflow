@@ -1,29 +1,29 @@
 {
   "schema": "mapflow.benchmark-checkpoint/v1",
-  "created_at": "2026-09-07T14:25:18Z",
-  "source_run_id": "library-system-greenfield-20260907102634-b4a0e9",
-  "source_suite_version": "1.4.3",
-  "source_case_version": "1.3.7",
+  "created_at": "2026-09-10T05:29:26Z",
+  "source_run_id": "library-system-greenfield-20260910052743-c716fa",
+  "source_suite_version": "1.6.0",
+  "source_case_version": "1.5.0",
   "case_id": "library-system-greenfield",
   "checkpoint": "implementation-verified",
   "fixture_digest": "c0dad20ca2e365bbd57487d7a8876243ec5fb9b8cbb3a9bf39952115d9cd6016",
-  "checkpoint_contract_digest": "9c378c3a58eee4a255b6f0d264a0f3d9683627dff4f149341dc6a56d5cc30a53",
+  "checkpoint_contract_digest": "314f4ed3abb1fe9fab030d51c7e19f9fa535de1490ea2b25fa3f0d79094b6a76",
   "event_stream": {
     "path": "events.jsonl",
-    "last_seq": 17,
-    "head_digest": "03faad83d563e6c25a909406676cd64d03fe058d18af9c332e06976272448631"
+    "last_seq": 36,
+    "head_digest": "497a0c3d52649f8c94d2120be384551f17685fb27a37b39dcb04041637608a6d"
   },
   "mapflow": {
-    "version": "0.5.1",
+    "version": "0.6.0",
     "profile": "core",
-    "installed_at": "2026-09-07T10:19:26Z",
-    "runtime_sha256": "3b229d5a8d0529b37b7324534f7b9423cb606e7362de74e66e6370d54721d888"
+    "installed_at": "2026-09-08T12:17:32Z",
+    "runtime_sha256": "f391bb7953357c563da5ee4ece742edcb1d30a9c55d6887f1e9d33a05e18312e"
   },
   "digests": {
-    "target": "d240c1fb6041760a5d15c804d24a9153ab238042b5f2a6dfbc4e94d72fde32e5",
-    "sidecar": "70ee3a9aa97dda0f5823a6a54e8f324093f7b1f302c736d3b72e0a257bf69830",
-    "checks": "8e971fa93df6f06c3a67feb3b4c2d8c7304085330245d8b0d9ee416c1c2f0563",
-    "turns": "2d45e97b42f073defb46d90b86c8b3cf330113fdf02420956e9c5326747e7ec9"
+    "target": "14bff19416dd7c9e4b26224ce35121f83bd490ad20477232f9f6b863e3ede448",
+    "sidecar": "af5425dd5fd84110382e4a74df4180bcf4390f14b5a09722c0e1508da202a69e",
+    "checks": "5ca8fbf82bb36a9c067cb5e537f3673c2e71e823e30a9e47873bdaa43a2816c2",
+    "turns": "fad50fcd606800946c17050f61246ce7be9fc030cc0003f49ec30981bd93877f"
   },
-  "boundary": "This package is a benchmark fixture captured from a passing checkpoint, not proof that a new run or current runtime passes."
+  "boundary": "Legacy replay fixture captured from a passing pre-v0.8 checkpoint. Route Approval records are immutable history only, not an active workflow gate or proof that a new run or current runtime passes."
 }

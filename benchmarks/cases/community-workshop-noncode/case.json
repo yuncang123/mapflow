@@ -14,5 +14,5 @@
   "primary_risks": ["Mapflow 被误当成编码专用", "文档存在被当成审批", "未授权发送邀请或预订场地"],
   "fixture": "subject/fixture",
   "operator_mainline": "operator/mainline.md",
-  "required_checkpoints": ["prepared", "surveyed", "destination-shaped", "route-approved", "materials-verified", "authorization-preserved", "arrived"]
+  "required_checkpoints": ["prepared", "surveyed", "destination-shaped", "map-proven", "materials-verified", "authorization-preserved", "arrived"]
 }

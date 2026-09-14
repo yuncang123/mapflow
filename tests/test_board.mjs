@@ -10,7 +10,7 @@ import {
   collapsedSubmapElements,
   currentActionView,
   edgeExecutionLabel,
-  routeApprovalView,
+  parallelEdgeLane,
   selectElementIds,
   timelineEventLabel,
   topologySignature,
@@ -111,7 +111,6 @@ test("an empty workspace exposes onboarding without inventing a Blueprint", () =
   assert.equal(snapshot.model.summary.reachability, "not-started");
   assert.equal(snapshot.model.summary.nodes, 0);
   assert.equal(snapshot.model.summary.edges, 0);
-  assert.equal(snapshot.model.summary.pending_route_approvals, 0);
   assert.deepEqual(snapshot.model.nodes, []);
   assert.deepEqual(snapshot.model.edges, []);
   assert.equal(snapshot.model.goal_regression.steps.length, 0);
@@ -145,7 +144,7 @@ test("a collapsed submap replaces its parent edge with one readable node", () =>
 test("wayfinding next action does not register a Blueprint before regression closes", () => {
   assert.doesNotMatch(wayfindingNextAction("survey"), /写入 Blueprint|登记变更/);
   assert.doesNotMatch(wayfindingNextAction("shaping"), /写入 Blueprint|登记变更/);
-  assert.match(wayfindingNextAction("regression"), /候选链闭合且全部确认后/);
+  assert.match(wayfindingNextAction("regression"), /审阅完整候选链.*validate\/prove/);
   assert.match(wayfindingNextAction("regression"), /写入 Blueprint/);
 });
 
@@ -206,7 +205,6 @@ questions:
   assert.equal(snapshot.model.summary.draft_edges, 0);
   assert.equal(snapshot.model.summary.facts.unknown, 1);
   assert.equal(snapshot.model.summary.pending_regression_candidates, 0);
-  assert.equal(snapshot.model.summary.pending_route_approvals, 0);
   assert.equal(snapshot.model.summary.open_questions, 1);
   assert.equal(snapshot.model.nodes.find((node) => node.id === "orderpulse-origin-fog").draft, true);
   assert.equal(snapshot.model.nodes.find((node) => node.id === "orderpulse-destination-fog").status, "destination-fog");
@@ -781,7 +779,7 @@ test("goal regression keeps human-unconfirmed candidates out of the formal graph
     state,
     stateDigest: "regression-candidate",
   });
-  assert.equal(model.goal_regression.confirmation_policy, "formal-blueprint-only");
+  assert.equal(model.goal_regression.confirmation_policy, "destination-confirmed-then-formal-registration");
   assert.equal(model.goal_regression.unconfirmed_candidates.length, 1);
   assert.equal(model.summary.pending_regression_candidates, 1);
   assert.equal(model.nodes.some((node) => node.id === "probe-audience-route"), false);
@@ -791,43 +789,16 @@ test("goal regression keeps human-unconfirmed candidates out of the formal graph
   assert.ok(regression.edges.includes("publish-article"));
 });
 
-test("BoardModel exposes route, per-run authorization, and arrival audit causality", () => {
+test("BoardModel exposes protected-edge authorization and arrival audit causality", () => {
   const loaded = readBlueprint(TEMPLATE_MAP);
   const state = runtimeState(loaded, TEMPLATE_MAP);
   state.phase = "implementation";
   state.destination_status = "approved";
   state.runtime_status = "running";
-  state.current_route_approval = "publish-article-route-approval-1";
-  state.route_approval_requests = [{
-    id: "publish-article-route-approval-request-1",
-    map_digest: loaded.digest,
-    proof_digest: "proof-digest",
-    structural: "complete",
-    reachability: "conditional",
-    proven_edges: ["settle-audience", "write-candidate", "obtain-owner-approval", "publish-article"],
-    question: "May I approve the proven complete route?",
-    requested_by: "agent:codex",
-    requested_at: "2026-09-03T00:00:00Z",
-    status: "granted",
-    answer: "The complete route is accepted",
-    approved_by: "human:owner",
-    approved_at: "2026-09-03T00:01:00Z",
-  }];
-  state.route_approvals = [{
-    id: state.current_route_approval,
-    map_digest: loaded.digest,
-    structural: "complete",
-    reachability: "conditional",
-    request: state.route_approval_requests[0].id,
-    reason: "The complete route is accepted",
-    actor: "human:owner",
-    approved_at: "2026-09-03T00:01:00Z",
-  }];
   state.authorization_requests = [{
-    id: "settle-audience-authorization-1",
-    edge: "settle-audience",
-    route_approval: state.current_route_approval,
-    question: "May I execute the audience interview?",
+    id: "publish-article-authorization-1",
+    edge: "publish-article",
+    question: "May I publish the approved article?",
     requested_by: "agent:codex",
     requested_at: "2026-09-03T00:02:00Z",
     status: "granted",
@@ -838,7 +809,6 @@ test("BoardModel exposes route, per-run authorization, and arrival audit causali
   state.arrival_audit_requests = [{
     id: "publish-article-arrival-audit-request-1",
     map_digest: loaded.digest,
-    route_approval: state.current_route_approval,
     state_revision: 12,
     evidence_digest: "evidence-digest",
     acceptance: ["public-page-readable", "sensitive-review-recorded"],
@@ -847,26 +817,26 @@ test("BoardModel exposes route, per-run authorization, and arrival audit causali
     requested_at: "2026-09-03T00:04:00Z",
     status: "pending",
   }];
-  state.active_edge = "settle-audience";
-  state.active_run = "settle-audience-run-1";
+  state.active_edge = "publish-article";
+  state.active_run = "publish-article-run-1";
   state.edge_runs = [{
     id: state.active_run,
     edge: state.active_edge,
     status: "active",
     attempt: 1,
-    decision: "settle-audience-decision-1",
-    authorization_request: "settle-audience-authorization-1",
+    decision: "publish-article-decision-1",
+    authorization_request: "publish-article-authorization-1",
     started_at: "2026-09-03T00:03:00Z",
     updated_at: "2026-09-03T00:03:00Z",
   }];
   state.decisions = [{
-    id: "settle-audience-decision-1",
-    edge: "settle-audience",
-    at_node: "material-present-audience-unknown",
-    alternatives: ["settle-audience"],
+    id: "publish-article-decision-1",
+    edge: "publish-article",
+    at_node: "candidate-approved",
+    alternatives: ["publish-article"],
     reason: "Approved for this edge only",
     actor: "human:owner",
-    authorization_request: "settle-audience-authorization-1",
+    authorization_request: "publish-article-authorization-1",
     decided_at: "2026-09-03T00:03:00Z",
   }];
 
@@ -877,18 +847,11 @@ test("BoardModel exposes route, per-run authorization, and arrival audit causali
     state,
     stateDigest: "authorization-causality",
   });
-  const edge = model.edges.find((item) => item.id === "settle-audience");
-  assert.equal(model.map.current_route_approval, state.current_route_approval);
-  assert.equal(model.summary.route_approved, true);
-  assert.equal(model.summary.pending_route_approvals, 0);
+  const edge = model.edges.find((item) => item.id === "publish-article");
   assert.equal(model.summary.pending_authorizations, 0);
   assert.equal(model.summary.pending_arrival_audits, 1);
-  assert.equal(model.route_approvals.length, 1);
-  assert.equal(model.route_approval_requests.length, 1);
-  assert.equal(model.route_approvals[0].request, model.route_approval_requests[0].id);
   assert.equal(model.authorization_requests.length, 1);
   assert.equal(model.arrival_audit_requests.length, 1);
-  assert.equal(model.arrival_audit_requests[0].route_approval, model.map.current_route_approval);
   assert.equal(edge.authorization_requests[0].status, "granted");
   assert.equal(edge.runs[0].authorization_request, edge.authorization_requests[0].id);
   assert.equal(edge.decisions[0].authorization_request, edge.authorization_requests[0].id);
@@ -897,7 +860,7 @@ test("BoardModel exposes route, per-run authorization, and arrival audit causali
   assert.equal(repairAction.title, "补登到达审计责任人");
   assert.equal(repairAction.owner, "当前会话 Agent");
   assert.equal(repairAction.target_id, model.arrival_audit_requests[0].id);
-  assert.match(repairAction.after, /不批准路线、不授权施工，也不登记到达/);
+  assert.match(repairAction.after, /不授权施工，也不登记到达/);
   model.arrival_audit_requests[0].decision_owner = "human:owner";
   const action = currentActionView(model);
   assert.equal(action.state, "waiting-human");
@@ -905,57 +868,76 @@ test("BoardModel exposes route, per-run authorization, and arrival audit causali
   assert.equal(action.owner, "你（human:owner）");
 });
 
-test("the board distinguishes precondition readiness from route and edge authorization", () => {
+test("the board distinguishes directly startable and protected ready edges", () => {
   const loaded = readBlueprint(TEMPLATE_MAP);
   const state = runtimeState(loaded, TEMPLATE_MAP);
-  state.route_approval_requests = [{
-    id: "publish-article-route-approval-request-1",
-    map_digest: loaded.digest,
-    proof_digest: "proof-digest",
-    structural: "complete",
-    reachability: "conditional",
-    proven_edges: ["settle-audience", "write-candidate", "obtain-owner-approval", "publish-article"],
-    question: "Do you approve the proven complete route?",
-    requested_by: "agent:codex",
-    decision_owner: "human:owner",
-    requested_at: "2026-09-03T00:00:00Z",
-    status: "pending",
-  }];
   const model = compileBoardModel({
     blueprint: loaded.blueprint,
     digest: loaded.digest,
     briefs: loaded.briefs,
     state,
-    stateDigest: "route-awaiting-human",
+    stateDigest: "direct-start-ready",
   });
   const edge = model.edges.find((item) => item.id === "settle-audience");
   assert.equal(edge.status, "ready");
-  assert.equal(edgeExecutionLabel(edge, model), "前置已满足，待路线批准");
-  assert.deepEqual(routeApprovalView(model), {
-    status: "pending",
-    label: "等待人工确认 · publish-article-route-approval-request-1",
-    tone: "warn",
-  });
+  assert.equal(edgeExecutionLabel(edge, model), "前置已满足，可直接启动");
   const action = currentActionView(model);
-  assert.equal(action.state, "waiting-human");
-  assert.equal(action.title, "确认完整路线");
-  assert.equal(action.owner, "你（human:owner）");
-  assert.match(action.after, /不启动工作边/);
+  assert.equal(action.state, "agent-next");
+  assert.equal(action.title, "启动工作边：明确文章读者");
+
+  const protectedEdge = structuredClone(edge);
+  protectedEdge.brief.metadata.contract.authorization.required = ["任务所有者明确授权"];
+  assert.equal(edgeExecutionLabel(protectedEdge, model), "前置已满足，需请求声明授权");
+  protectedEdge.authorization_requests = [{ status: "pending" }];
+  assert.equal(edgeExecutionLabel(protectedEdge, model), "前置已满足，待授权确认");
 });
 
-test("an arrived legacy fixture is honest about its unlinked approval history", () => {
+test("the current action exposes multiple independent ready branches instead of choosing one silently", () => {
+  const action = currentActionView({
+    map: { actual_arrival: "not-audited" },
+    summary: { active_edge: null, parallel_ready_edges: 2 },
+    proof: { reachability: "logical" },
+    edges: [
+      { id: "build-catalog", title: "构建目录与搜索", status: "ready", proven: true },
+      { id: "build-circulation", title: "构建借还生命周期", status: "ready", proven: true },
+    ],
+    proposals: [],
+    authorization_requests: [], arrival_audit_requests: [],
+  });
+  assert.equal(action.state_label, "并行分支已就绪");
+  assert.equal(action.title, "2 条独立工作边可推进");
+  assert.match(action.question, /构建目录与搜索.*构建借还生命周期/);
+  assert.match(action.after, /其余独立分支保持就绪/);
+});
+
+test("parallel work edges receive distinct fork-and-join visual lanes", () => {
+  const model = {
+    edges: [
+      { id: "build-catalog", from: "journey-ready", to: "slices-ready" },
+      { id: "build-circulation", from: "journey-ready", to: "slices-ready" },
+      { id: "integrate", from: "slices-ready", to: "integrated" },
+    ],
+  };
+  const catalog = parallelEdgeLane(model.edges[0], model);
+  const circulation = parallelEdgeLane(model.edges[1], model);
+  const integrate = parallelEdgeLane(model.edges[2], model);
+  assert.equal(catalog.className, "parallel-lane");
+  assert.equal(circulation.className, "parallel-lane");
+  assert.equal(catalog.offset, -circulation.offset);
+  assert.notEqual(catalog.offset, 0);
+  assert.notEqual(catalog.labelOffset, circulation.labelOffset);
+  assert.deepEqual(integrate, { className: "", offset: 0, labelOffset: 0 });
+});
+
+test("an arrived legacy fixture keeps old approval events as history only", () => {
   const statePath = path.join(ROOT, "examples", "community-workshop", ".mapflow", "state.json");
   const model = createBoardSnapshotReader({ statePath })().model;
-  const approval = routeApprovalView(model);
-  assert.equal(approval.status, "legacy-unlinked");
-  assert.match(approval.label, /历史到达记录/);
-  assert.doesNotMatch(approval.label, /尚未批准/);
   const historicalApproval = model.timeline.find((entry) => entry.label === "destination_approved");
   assert.equal(timelineEventLabel(historicalApproval), "旧版目的地批准与首边选择");
   assert.equal(currentActionView(model).state, "complete");
 });
 
-test("a formal destination stays unsatisfied before route approval rather than becoming destination fog", () => {
+test("a formal destination stays unsatisfied before executed evidence rather than becoming destination fog", () => {
   const loaded = readBlueprint(TEMPLATE_MAP);
   const state = runtimeState(loaded, TEMPLATE_MAP);
   const model = compileBoardModel({
@@ -1010,7 +992,7 @@ test("order timeout baseline keeps fog, human decision, stage evidence, and regr
     "timeout-understood",
     "service-observed",
   ]);
-  assert.equal(model.goal_regression.confirmation_policy, "formal-blueprint-only");
+  assert.equal(model.goal_regression.confirmation_policy, "destination-confirmed-then-formal-registration");
   assert.ok(model.goal_regression.steps.every((step) => step.confirmed));
   assert.equal(model.acceptance.length, 5);
 });
@@ -1142,7 +1124,8 @@ test("board server serves a read-only ETag API and offline assets", async () => 
     assert.match(appSource, /dblclick/);
     assert.match(appSource, /button\.addEventListener\("dblclick"/);
     assert.match(appSource, /focusSubmap\(bindingPath\)/);
-    assert.match(appSource, /前置已满足，待路线批准/);
+    assert.match(appSource, /前置已满足，可直接启动/);
+    assert.match(appSource, /前置已满足，需请求声明授权/);
     const styles = await fetch(`${base}/styles.css`);
     assert.equal(styles.status, 200);
     const stylesSource = await styles.text();

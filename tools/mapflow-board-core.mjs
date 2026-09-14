@@ -65,6 +65,13 @@ export function emptyBoardModel() {
   const proof = {
     structural: "not-started",
     reachability: "not-started",
+    evidence_levels: {
+      structural_soundness: { status: "not-started" },
+      declared_model_derivability: { status: "not-started" },
+      runtime_readiness: { status: "not-started", ready_edges: [] },
+      executed_derivation: { status: "not-observed", verified_edges: [] },
+      audited_arrival: { status: "not-observed", request: null },
+    },
     destination_reachable: false,
     required_predicates: [],
     candidate_edges: [],
@@ -96,7 +103,6 @@ export function emptyBoardModel() {
       destination_status: "draft",
       actual_arrival: "not-audited",
       runtime_status: "empty",
-      current_route_approval: null,
     },
     summary: {
       structural: "not-started",
@@ -107,8 +113,6 @@ export function emptyBoardModel() {
       verified_edges: 0,
       active_edge: null,
       active_run: null,
-      route_approved: false,
-      pending_route_approvals: 0,
       pending_authorizations: 0,
       pending_arrival_audits: 0,
       proof_gaps: 0,
@@ -124,6 +128,7 @@ export function emptyBoardModel() {
       goal_regression_confirmed: 0,
     },
     proof,
+    evidence_levels: clone(proof.evidence_levels),
     goal_regression: {
       roots: [],
       origin_nodes: [],
@@ -134,8 +139,8 @@ export function emptyBoardModel() {
       terminal_nodes: [],
       unclosed_terminals: [],
       generated_from: "not-started",
-      confirmation_policy: "formal-blueprint-only",
-      confirmation_note: "先定形 Intent 和目的地；没有人工确认的 Blueprint 节点和工作边不会进入正式地图。",
+      confirmation_policy: "destination-confirmed-then-formal-registration",
+      confirmation_note: "先确认 Destination；回归候选作为完整链审阅，写入并通过 validate/prove 后才成为正式地图。",
       unconfirmed_candidates: [],
     },
     acceptance: [],
@@ -148,8 +153,6 @@ export function emptyBoardModel() {
     evidence: [],
     edge_runs: [],
     decisions: [],
-    route_approval_requests: [],
-    route_approvals: [],
     authorization_requests: [],
     arrival_audit_requests: [],
     proposals: [],
@@ -235,8 +238,8 @@ function buildWayfindingRegression({ draft, nodes, edges }) {
       : hasUnknown
         ? "fog"
         : node.status === "confirmed" ? "model-only" : "awaiting-prefix";
-    // Node and edge confirmations are independent decisions. A milestone can
-    // be accepted while its incoming work is still being negotiated.
+    // Legacy drafts may carry per-object status. It is projected as review
+    // metadata only; schema 3 registration does not require per-object gates.
     const humanConfirmed = current.id === destination.id
       ? destination.status === "confirmed" || destination.status === "destination"
       : node.status === "confirmed";
@@ -445,6 +448,13 @@ export function compileWayfindingBoardModel({ draft, digest, sourceStatus = "cur
   const proof = {
     structural: "not-started",
     reachability: "not-started",
+    evidence_levels: {
+      structural_soundness: { status: "not-started" },
+      declared_model_derivability: { status: "not-started" },
+      runtime_readiness: { status: "not-started", ready_edges: [] },
+      executed_derivation: { status: "not-observed", verified_edges: [] },
+      audited_arrival: { status: "not-observed", request: null },
+    },
     destination_reachable: false,
     required_predicates: [],
     candidate_edges: draftEdges.map((edge) => edge.id),
@@ -456,7 +466,7 @@ export function compileWayfindingBoardModel({ draft, digest, sourceStatus = "cur
   };
   const questions = clone(draft.questions ?? []);
   // An answered question remains in the ledger, but it must not keep the
-  // workflow cursor pinned to an object that no longer needs a decision.
+  // reasoning cursor pinned to an object that no longer needs a decision.
   const currentQuestion = questions.find((question) => (question.status ?? "pending") === "pending") ?? null;
   const pendingRegressionCandidates = [...(draft.nodes ?? []), ...(draft.edges ?? [])]
     .filter((item) => item.status !== "confirmed");
@@ -490,7 +500,7 @@ export function compileWayfindingBoardModel({ draft, digest, sourceStatus = "cur
       }];
     }
   }
-  const revision = hash(`wayfinding:${digest}:${sourceStatus}:${sourceError ?? ""}`);
+  const revision = hash("wayfinding:" + digest + ":" + sourceStatus + ":" + (sourceError ?? ""));
   return {
     schema: 1,
     projection: {
@@ -524,7 +534,6 @@ export function compileWayfindingBoardModel({ draft, digest, sourceStatus = "cur
       destination_status: draft.intent.status === "shaped" ? "changed" : "draft",
       actual_arrival: "not-audited",
       runtime_status: "wayfinding-draft",
-      current_route_approval: null,
     },
     summary: {
       structural: "not-started",
@@ -540,8 +549,6 @@ export function compileWayfindingBoardModel({ draft, digest, sourceStatus = "cur
       open_questions: questions.filter((question) => ["pending", "deferred"].includes(question.status ?? "pending")).length,
       active_edge: null,
       active_run: null,
-      route_approved: false,
-      pending_route_approvals: 0,
       pending_authorizations: 0,
       pending_arrival_audits: 0,
       proof_gaps: 0,
@@ -557,10 +564,11 @@ export function compileWayfindingBoardModel({ draft, digest, sourceStatus = "cur
       goal_regression_confirmed: goalRegression.steps.filter((step) => step.human_confirmed).length,
     },
     proof,
+    evidence_levels: clone(proof.evidence_levels),
     goal_regression: {
       ...goalRegression,
-      confirmation_policy: "formal-blueprint-only",
-      confirmation_note: "当前显示的是建模候选；只有人逐项确认并写入 Blueprint，首次 init 或已有地图 replan 后才成为正式拓扑。",
+      confirmation_policy: "destination-confirmed-then-formal-registration",
+      confirmation_note: "当前显示完整回归候选链；整体审阅并补齐合同后，写入 Blueprint 且通过 validate/prove 才成为正式拓扑。",
       unconfirmed_candidates: pendingRegressionCandidates.map((item) => ({ id: item.id, kind: item.kind ?? "edge", summary: item.purpose ?? item.label })),
     },
     acceptance: clone((draft.destination?.acceptance ?? []).map((item) => ({
@@ -578,8 +586,6 @@ export function compileWayfindingBoardModel({ draft, digest, sourceStatus = "cur
     evidence: [],
     edge_runs: [],
     decisions: [],
-    route_approval_requests: [],
-    route_approvals: [],
     authorization_requests: [],
     arrival_audit_requests: [],
     proposals: [],
@@ -608,14 +614,14 @@ export function compileWayfindingBoardModel({ draft, digest, sourceStatus = "cur
             "收敛目标谓词、验收、非目标、不变量和授权边界",
             "展示完整目的地合同并等待后续独立人工确认",
           ]
-          : goalRegression.complete_chain && pendingRegressionCandidates.length === 0 && !currentQuestion
+          : goalRegression.complete_chain && !currentQuestion
             ? [
-              "候选链已闭合且逐项确认；生成独立 Task Brief 和 Blueprint",
+              "候选链已闭合并完成整体审阅；生成独立 Task Brief 和 Blueprint",
               "执行 validate/prove；首次建图用 init，已有地图修图用 replan",
             ]
             : [
-              "从目的地逐项反推里程碑节点与独立工作边",
-              "候选链闭合且逐项确认后再登记正式 Blueprint",
+              "从目的地反推完整里程碑与独立工作边候选链",
+              "整体审阅、补齐合同并证明可达后再登记正式 Blueprint",
             ],
     },
   };
@@ -676,7 +682,6 @@ function readRuntimeEvolutionEvents(eventsPath) {
 function eventLabel(type, details = {}) {
   const labels = {
     "mapflow.initialized.v1": "登记首张正式 Blueprint",
-    "mapflow.route.approved.v1": "人工批准完整路线",
     "mapflow.edge.authorized.v1": "人工授权工作边",
     "mapflow.edge.verified.v1": "验证工作边与 Evidence",
     "mapflow.replan.requested.v1": "反例驱动修图",
@@ -769,7 +774,7 @@ function applicableInvariants(edge, blueprint) {
 function acceptanceView(acceptance, evidence) {
   const records = evidence.filter((record) => (
     record.acceptance_ids?.includes(acceptance.id)
-    && record.checks?.some((check) => check.result === "pass")
+    && record.checks?.some((check) => check.result === "pass" && check.mode !== "reported")
     && (record.limits?.unverified?.length ?? 0) === 0
   ));
   const proven = new Set(records.flatMap((record) => record.proves ?? []));
@@ -801,15 +806,14 @@ function edgeStatus({ edge, activeEdge, verifiedEdges, readiness, proofGaps, pro
 }
 
 function buildTimeline(state) {
-  if (!state) return [];
-  const history = state.history.map((entry, index) => ({
+  const history = (state?.history ?? []).map((entry, index) => ({
     id: `history:${index}`,
     kind: "history",
     at: entry.at ?? null,
     label: entry.event ?? "runtime event",
     details: clone(entry),
   }));
-  const evidence = state.evidence.map((entry, index) => ({
+  const evidence = (state?.evidence ?? []).map((entry, index) => ({
     id: `evidence:${index}`,
     kind: "evidence",
     at: entry.recorded_at ?? null,
@@ -852,9 +856,8 @@ export function compileBoardModel({
   const actualArrival = state?.phase === "arrived" ? "audited" : "not-audited";
   const edgeRuns = clone(state?.edge_runs ?? []);
   const decisions = clone(state?.decisions ?? []);
-  const routeApprovalRequests = clone(state?.route_approval_requests ?? []);
-  const routeApprovals = clone(state?.route_approvals ?? []);
   const authorizationRequests = clone(state?.authorization_requests ?? []);
+  const capabilities = clone(state?.capabilities ?? []);
   const arrivalAuditRequests = clone(state?.arrival_audit_requests ?? []);
   const submapByEdge = new Map(submaps.map((item) => [item.parent_edge, item]));
   const predicates = blueprint.predicates.map((predicate) => ({
@@ -931,9 +934,11 @@ export function compileBoardModel({
       evidence: edgeEvidence,
       acceptance: edgeAcceptance,
       proof_gaps: proofGaps.filter((gap) => gap.at_edge === edge.id),
+      causal_gaps: (proof.causal_gaps ?? []).filter((gap) => gap.at_edge === edge.id),
       runs,
       decisions: decisions.filter((decision) => decision.edge === edge.id),
       authorization_requests: authorizationRequests.filter((request) => request.edge === edge.id),
+      capabilities: capabilities.filter((capability) => capability.edge === edge.id),
       submap: submap ? clone(submap) : null,
       goal_regression: goalRegression.steps
         .filter((step) => step.incoming_edges.some((candidate) => candidate.edge_id === edge.id))
@@ -963,8 +968,8 @@ export function compileBoardModel({
       ...clone(goalRegression.destination),
       status: "defined",
     },
-    confirmation_policy: "formal-blueprint-only",
-    confirmation_note: "只有已写入 Blueprint 并经首次 init 或已有地图 replan 登记的节点和工作边才进入正式图；回归候选不会自动改变拓扑。",
+    confirmation_policy: "destination-confirmed-then-formal-registration",
+    confirmation_note: "只有已写入 Blueprint、通过 validate/prove 并经 init 或 replan 登记的节点和工作边才进入正式图。",
     unconfirmed_candidates: clone(state?.regression_proposals ?? []),
   };
   const regressionStepLookup = new Map(enrichedGoalRegression.steps.map((step) => [step.target_node, step]));
@@ -985,6 +990,52 @@ export function compileBoardModel({
     const step = regressionStepLookup.get(node.id);
     if (step) node.goal_regression = clone(step);
   }
+  const readyEdges = edges.filter((edge) => edge.status === "ready" && edge.proven);
+  const independentPairs = [];
+  for (let leftIndex = 0; leftIndex < readyEdges.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < readyEdges.length; rightIndex += 1) {
+      const left = readyEdges[leftIndex];
+      const right = readyEdges[rightIndex];
+      const leftRequirements = new Set([
+        ...blueprint.nodes.find((node) => node.id === left.from).predicates,
+        ...left.preconditions,
+        ...left.applicable_invariants.flatMap((invariant) => invariant.requires),
+      ]);
+      const rightRequirements = new Set([
+        ...blueprint.nodes.find((node) => node.id === right.from).predicates,
+        ...right.preconditions,
+        ...right.applicable_invariants.flatMap((invariant) => invariant.requires),
+      ]);
+      const leftEffectFacts = new Set(left.effects.map((predicateId) => predicateMap.get(predicateId).fact));
+      const rightEffectFacts = new Set(right.effects.map((predicateId) => predicateMap.get(predicateId).fact));
+      const independent = !left.effects.some((predicateId) => rightRequirements.has(predicateId))
+        && !right.effects.some((predicateId) => leftRequirements.has(predicateId))
+        && ![...leftEffectFacts].some((factId) => rightEffectFacts.has(factId));
+      if (independent) independentPairs.push([left.id, right.id]);
+    }
+  }
+  const parallelReadyEdges = new Set(independentPairs.flat());
+  const destinationObserved = blueprint.destination.requires.every((predicateId) => predicateSatisfied(predicateId, facts, blueprint));
+  const acceptanceObserved = acceptance.length > 0 && acceptance.every((item) => item.status === "passed");
+  const evidenceLevels = {
+    ...clone(proof.evidence_levels ?? {}),
+    runtime_readiness: {
+      status: state?.active_run ? "active" : readyEdges.length > 0 ? "ready" : destinationObserved && acceptanceObserved ? "complete" : "blocked",
+      ready_edges: readyEdges.map((edge) => edge.id),
+      active_edge: state?.active_edge ?? null,
+      basis: "observed facts, current proof, loop budget, and active run state",
+    },
+    executed_derivation: {
+      status: destinationObserved && acceptanceObserved ? "complete" : verifiedEdges.size > 0 ? "partial" : "not-observed",
+      verified_edges: [...verifiedEdges],
+      basis: "trusted edge evidence has applied observed effects",
+    },
+    audited_arrival: {
+      status: actualArrival === "audited" ? "established" : "not-observed",
+      request: state?.arrival_audit?.request ?? null,
+      basis: "a designated human or Agent consumed the frozen arrival audit request",
+    },
+  };
   return {
     schema: 1,
     projection: {
@@ -1006,7 +1057,6 @@ export function compileBoardModel({
       destination_status: state?.destination_status ?? "draft",
       actual_arrival: actualArrival,
       runtime_status: state?.runtime_status ?? (state ? "idle" : "definition"),
-      current_route_approval: state?.current_route_approval ?? null,
     },
     summary: {
       structural: proof.structural,
@@ -1015,11 +1065,13 @@ export function compileBoardModel({
       satisfied_nodes: nodes.filter((node) => node.satisfied).length,
       edges: edges.length,
       verified_edges: edges.filter((edge) => edge.status === "verified").length,
+      ready_edges: readyEdges.map((edge) => edge.id),
+      parallel_ready_edges: parallelReadyEdges.size,
+      parallel_ready_groups: independentPairs,
       active_edge: state?.active_edge ?? null,
       active_run: state?.active_run ?? null,
-      route_approved: Boolean(state?.current_route_approval),
-      pending_route_approvals: routeApprovalRequests.filter((request) => request.status === "pending").length,
       pending_authorizations: authorizationRequests.filter((request) => request.status === "pending").length,
+      active_capabilities: capabilities.filter((capability) => capability.status === "active").length,
       pending_arrival_audits: arrivalAuditRequests.filter((request) => request.status === "pending").length,
       proof_gaps: proofGaps.length,
       acceptance_passed: acceptance.filter((item) => item.status === "passed").length,
@@ -1033,7 +1085,8 @@ export function compileBoardModel({
       goal_regression_edges: goalRegression.edge_ids.length,
       goal_regression_confirmed: enrichedGoalRegression.steps.reduce((total, step) => total + step.incoming_edges.filter((edge) => edge.confirmed).length, 0),
     },
-    proof: clone(proof),
+    proof: { ...clone(proof), evidence_levels: clone(evidenceLevels) },
+    evidence_levels: evidenceLevels,
     goal_regression: enrichedGoalRegression,
     acceptance,
     predicates,
@@ -1049,9 +1102,8 @@ export function compileBoardModel({
     evidence,
     edge_runs: edgeRuns,
     decisions,
-    route_approval_requests: routeApprovalRequests,
-    route_approvals: routeApprovals,
     authorization_requests: authorizationRequests,
+    capabilities,
     arrival_audit_requests: arrivalAuditRequests,
     proposals: clone(state?.proposals ?? []),
     work_events: clone(state?.work_events ?? []),
@@ -1132,6 +1184,7 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
 
   let latestContext = null;
   const childLastGood = new Map();
+  const childEvolutionReaders = new Map();
   // Evolution is runtime/sidecar truth. A definition-only --map view must not
   // discover adjacent journals and silently mix them into the projection.
   const evolutionDirectory = statePath ? path.dirname(path.resolve(statePath)) : null;
@@ -1219,6 +1272,103 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
     return { ...metadata, index, total };
   }
 
+  function evolutionReaderFor(bindingPath, childMapPath, childStatePath) {
+    const identity = `${childMapPath}\0${childStatePath}`;
+    const cached = childEvolutionReaders.get(bindingPath);
+    if (cached?.identity === identity) return cached.reader;
+    const reader = createBoardSnapshotReader({ mapPath: childMapPath, statePath: childStatePath });
+    childEvolutionReaders.set(bindingPath, { identity, reader });
+    return reader;
+  }
+
+  function unavailableHistoricalSubmap(binding, bindingPath, receipt, reason, { stale = false } = {}) {
+    return {
+      ...clone(binding),
+      path: bindingPath,
+      map_id: binding.expected_map_id,
+      phase: "unknown",
+      actual_arrival: "not-audited",
+      source_status: stale ? "stale" : "historical",
+      source_error: reason,
+      receipt_status: receipt ? "stale" : "missing",
+      receipt_id: receipt?.receipt_id ?? null,
+      fog_nodes: 0,
+      acceptance_passed: 0,
+      acceptance_total: 0,
+      revision: hash(`historical-submap:${bindingPath}:${receipt?.child?.state_revision ?? "unbound"}:${reason}`),
+      historical_frame: null,
+      historical_expandable: false,
+      independent_history: true,
+      history_path: `/api/submaps/${bindingPath}/evolution`,
+    };
+  }
+
+  function historicalSubmapSummary(parentMapPath, binding, parentState, bindingPath = binding.id) {
+    const receipt = [...(parentState?.map_receipts ?? [])].reverse().find((item) => item.binding_id === binding.id) ?? null;
+    if (!receipt) {
+      return unavailableHistoricalSubmap(
+        binding,
+        bindingPath,
+        null,
+        "父帧当时尚无 Map Receipt；可查看子地图独立历史，但不能把 child 当前态拼入父帧",
+      );
+    }
+    const invalidated = (parentState?.receipt_invalidations ?? []).some((item) => item.receipt_id === receipt.receipt_id);
+    if (invalidated) {
+      return unavailableHistoricalSubmap(binding, bindingPath, receipt, "父帧中的 Map Receipt 已失效", { stale: true });
+    }
+    const parentDirectory = path.dirname(parentMapPath);
+    const childMapPath = path.resolve(parentDirectory, binding.map_ref.replaceAll("/", path.sep));
+    const childStatePath = path.resolve(parentDirectory, binding.state_ref.replaceAll("/", path.sep));
+    try {
+      const childReader = evolutionReaderFor(bindingPath, childMapPath, childStatePath);
+      const catalog = childReader.readEvolutionCatalog().model;
+      if (catalog.recording_status === "stale") fail(catalog.error ?? "child evolution stream is stale");
+      const pinned = catalog.frames.find((candidate) => (
+        candidate.segment === "runtime" && candidate.digest === receipt.child.state_revision
+      ));
+      if (!pinned) fail(`receipt revision ${receipt.child.state_revision} is not present in the child runtime stream`);
+      const frame = childReader.readEvolutionFrame(pinned.id).model;
+      const child = frame.board;
+      const errors = [];
+      if (child.map.id !== binding.expected_map_id || child.map.id !== receipt.child.map_id) errors.push("child map identity does not match the binding receipt");
+      if (child.projection.map_digest !== binding.expected_map_digest || child.projection.map_digest !== receipt.child.map_digest) errors.push("child Blueprint digest does not match the binding receipt");
+      if (errors.length) fail(errors.join("; "));
+      return {
+        ...clone(binding),
+        path: bindingPath,
+        map_id: child.map.id,
+        phase: child.map.phase,
+        actual_arrival: child.map.actual_arrival,
+        source_status: "historical",
+        source_error: null,
+        receipt_status: "pinned",
+        receipt_id: receipt.receipt_id,
+        fog_nodes: child.nodes.filter((node) => ["fog", "conflict"].includes(node.status)).length,
+        acceptance_passed: child.summary.acceptance_passed,
+        acceptance_total: child.summary.acceptance_total,
+        revision: child.projection.revision,
+        historical_frame: pinned.id,
+        historical_expandable: true,
+        independent_history: true,
+        history_path: `/api/submaps/${bindingPath}/evolution`,
+        receipt_pin: {
+          parent_receipt: receipt.receipt_id,
+          child_revision: receipt.child.state_revision,
+          child_frame: pinned.id,
+        },
+      };
+    } catch (error) {
+      return unavailableHistoricalSubmap(
+        binding,
+        bindingPath,
+        receipt,
+        error instanceof Error ? error.message : String(error),
+        { stale: true },
+      );
+    }
+  }
+
   function compileEvolutionFrame(frame) {
     if (frame.segment === "wayfinding") {
       const snapshot = frame.raw.data.snapshot;
@@ -1231,13 +1381,17 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
     }
     const state = clone(frame.raw.data.projection);
     const blueprint = validateBlueprint(clone(state.blueprint_snapshot));
+    const resolvedMap = mapPath ? path.resolve(mapPath) : stateMapPath(statePath, state);
+    const submaps = resolvedMap ? blueprint.submaps.map((binding) => (
+      historicalSubmapSummary(resolvedMap, binding, state, binding.id)
+    )) : [];
     return compileBoardModel({
       blueprint,
       digest: state.map_digest,
       briefs: clone(state.brief_snapshots ?? {}),
       state,
       stateDigest: frame.digest,
-      submaps: [],
+      submaps,
     });
   }
 
@@ -1289,7 +1443,7 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
         acceptance_total: model.summary.acceptance_total,
         revision: model.projection.revision,
       };
-      const context = { resolvedMap: childMapPath, blueprint: loaded.blueprint, state: childState };
+      const context = { resolvedMap: childMapPath, resolvedState: childStatePath, blueprint: loaded.blueprint, state: childState };
       childLastGood.set(bindingPath, { model, summary, context });
       return { model, summary, context };
     } catch (error) {
@@ -1410,7 +1564,7 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
     }
   }
 
-  readSnapshot.readSubmap = function readSubmap(bindingPath) {
+  function resolveSubmap(bindingPath) {
     readSnapshot();
     const segments = String(bindingPath).split("/");
     if (!segments.length || segments.some((segment) => !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(segment))) {
@@ -1432,11 +1586,78 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
       if (!snapshot.model) fail(snapshot.summary.source_error ?? `submap unavailable: ${traversed.join("/")}`);
       context = snapshot.context;
     }
+    return { binding, bindingPath: segments.join("/"), context, segments, snapshot };
+  }
+
+  function qualifyHistoricalSubmapBoard(model, bindingPath, binding) {
+    model.projection.binding_id = binding.id;
+    model.projection.binding_path = bindingPath;
+    model.projection.parent_edge = binding.parent_edge;
+    model.projection.namespace = bindingPath.replaceAll("/", "::");
+    const qualify = (candidate) => ({
+      ...candidate,
+      path: `${bindingPath}/${candidate.path ?? candidate.id}`,
+      history_path: `/api/submaps/${bindingPath}/${candidate.path ?? candidate.id}/evolution`,
+    });
+    model.submaps = (model.submaps ?? []).map(qualify);
+    const qualifiedById = new Map(model.submaps.map((candidate) => [candidate.id, candidate]));
+    for (const edge of model.edges ?? []) {
+      if (edge.submap && qualifiedById.has(edge.submap.id)) edge.submap = clone(qualifiedById.get(edge.submap.id));
+    }
+    return model;
+  }
+
+  readSnapshot.readSubmap = function readSubmap(bindingPath) {
+    const { binding, segments, snapshot } = resolveSubmap(bindingPath);
     snapshot.model.projection.binding_id = binding.id;
     snapshot.model.projection.binding_path = segments.join("/");
     snapshot.model.projection.parent_edge = binding.parent_edge;
     snapshot.model.projection.namespace = segments.join("::");
     return { model: snapshot.model, etag: `"${snapshot.model.projection.revision}"` };
+  };
+
+  readSnapshot.readSubmapEvolutionCatalog = function readSubmapEvolutionCatalog(bindingPath) {
+    const resolved = resolveSubmap(bindingPath);
+    const childReader = evolutionReaderFor(
+      resolved.bindingPath,
+      resolved.context.resolvedMap,
+      resolved.context.resolvedState,
+    );
+    const result = childReader.readEvolutionCatalog();
+    result.model.binding = {
+      path: resolved.bindingPath,
+      id: resolved.binding.id,
+      parent_edge: resolved.binding.parent_edge,
+      map_id: resolved.context.blueprint.map_id,
+      breadcrumbs: resolved.segments,
+    };
+    return {
+      model: result.model,
+      etag: `"${hash(`${resolved.bindingPath}:${result.etag}`)}"`,
+    };
+  };
+
+  readSnapshot.readSubmapEvolutionFrame = function readSubmapEvolutionFrame(bindingPath, frameId) {
+    const resolved = resolveSubmap(bindingPath);
+    const childReader = evolutionReaderFor(
+      resolved.bindingPath,
+      resolved.context.resolvedMap,
+      resolved.context.resolvedState,
+    );
+    const result = childReader.readEvolutionFrame(frameId);
+    qualifyHistoricalSubmapBoard(result.model.board, resolved.bindingPath, resolved.binding);
+    result.model.binding = {
+      path: resolved.bindingPath,
+      id: resolved.binding.id,
+      parent_edge: resolved.binding.parent_edge,
+      map_id: resolved.context.blueprint.map_id,
+      breadcrumbs: resolved.segments,
+    };
+    result.model.stream_heads.binding_path = resolved.bindingPath;
+    return {
+      model: result.model,
+      etag: `"${hash(`${resolved.bindingPath}:${result.etag}`)}"`,
+    };
   };
 
   readSnapshot.readEvolutionCatalog = function readEvolutionCatalog() {
@@ -1492,6 +1713,13 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
     const previousModel = index > 0 ? compileEvolutionFrame(loaded.frames[index - 1]) : null;
     const diff = evolutionDiff(previousModel, model);
     markEvolutionChanges(model, diff);
+    const pinnedChildren = Object.fromEntries((model.submaps ?? [])
+      .filter((binding) => binding.receipt_pin)
+      .map((binding) => [binding.path, {
+        frame: binding.receipt_pin.child_frame,
+        digest: binding.receipt_pin.child_revision,
+        basis: { kind: "receipt-pin", parent_frame: frame.id, receipt: binding.receipt_pin.parent_receipt },
+      }]));
     model.evolution = {
       historical: true,
       frame: frame.id,
@@ -1500,8 +1728,8 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
       coverage: clone(loaded.coverage),
       submaps: {
         mode: "independent-streams",
-        historical_expansion: false,
-        reason: "父帧不会泄漏子地图当前态；请进入子地图的独立演化流或使用 receipt revision pin",
+        historical_expansion: (model.submaps ?? []).some((binding) => binding.historical_expandable),
+        reason: "有 receipt pin 时展开精确 child 帧；无回执时只进入子地图独立历史，绝不读取 child 当前态",
       },
     };
     return {
@@ -1522,7 +1750,7 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
         diff,
         stream_heads: {
           root: { segment: frame.segment, seq: frame.seq, digest: frame.digest },
-          children: {},
+          children: pinnedChildren,
         },
       },
       etag: `"${frame.digest}"`,

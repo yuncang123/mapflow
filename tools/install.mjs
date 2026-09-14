@@ -17,12 +17,6 @@ const CORE_SKILLS = [
   "edge-slicing",
   "edge-delivery",
 ];
-const OBSOLETE_GLOBAL_ENTRIES = [
-  "mapflow/skills/node-slicing",
-  "mapflow/skills/node-delivery",
-  "mapflow/references/blueprint.md",
-];
-
 class InstallError extends Error {}
 
 function fail(message) {
@@ -57,6 +51,7 @@ function globalSourceEntries() {
   const entries = [
     ["tools/mapflow.mjs", "mapflow/runtime/mapflow.mjs"],
     ["tools/mapflow-core.mjs", "mapflow/runtime/mapflow-core.mjs"],
+    ["tools/mapflow-proof.mjs", "mapflow/runtime/mapflow-proof.mjs"],
     ["tools/mapflow-workspace.mjs", "mapflow/runtime/mapflow-workspace.mjs"],
     ["tools/mapflow-wayfinding.mjs", "mapflow/runtime/mapflow-wayfinding.mjs"],
     ["tools/mapflow-evolution.mjs", "mapflow/runtime/mapflow-evolution.mjs"],
@@ -70,6 +65,7 @@ function globalSourceEntries() {
     ["docs/workflow.md", "mapflow/references/workflow.md"],
     ["docs/skill-routing.md", "mapflow/references/skill-routing.md"],
     ["docs/blueprint/map-model.md", "mapflow/references/blueprint/map-model.md"],
+    ["docs/integration/enterprise-handoffs.md", "mapflow/references/integration/enterprise-handoffs.md"],
     ["templates", "mapflow/templates"],
     ["examples/community-workshop", "mapflow/examples/community-workshop"],
     ["examples/library-system-evolution", "mapflow/examples/library-system-evolution"],
@@ -103,6 +99,67 @@ function installableContent(relativeSource) {
   return content;
 }
 
+function writeGlobalPackage(writeRoot, entries, manifest) {
+  for (const [relativeSource, relativeTarget] of entries) {
+    const source = path.join(SOURCE_ROOT, relativeSource);
+    const target = path.join(writeRoot, relativeTarget);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    if (fs.statSync(source).isDirectory()) {
+      fs.cpSync(source, target, { recursive: true });
+      if (relativeSource === "examples/community-workshop") {
+        fs.writeFileSync(
+          path.join(target, "README.md"),
+          installableContent("examples/community-workshop/README.md"),
+          "utf8",
+        );
+      }
+    } else if (["skills/mapflow/SKILL.md", "docs/blueprint/map-model.md"].includes(relativeSource)) {
+      fs.writeFileSync(target, installableContent(relativeSource), "utf8");
+    } else {
+      fs.copyFileSync(source, target);
+    }
+  }
+  const manifestPath = path.join(writeRoot, "mapflow", "install-manifest.json");
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+}
+
+function replaceGlobalPackage(targetRoot, entries, manifest) {
+  const packageTarget = path.resolve(targetRoot, "mapflow");
+  const relativePackage = path.relative(path.resolve(targetRoot), packageTarget);
+  if (relativePackage !== "mapflow") fail("global package target is outside the skills directory");
+
+  const stagingRoot = fs.mkdtempSync(path.join(targetRoot, ".mapflow-install-"));
+  const stagedPackage = path.join(stagingRoot, "mapflow");
+  const backupTarget = path.join(targetRoot, `.mapflow-backup-${process.pid}-${Date.now()}`);
+  let existingMoved = false;
+  try {
+    writeGlobalPackage(stagingRoot, entries, manifest);
+    if (fs.existsSync(packageTarget)) {
+      fs.renameSync(packageTarget, backupTarget);
+      existingMoved = true;
+    }
+    try {
+      fs.renameSync(stagedPackage, packageTarget);
+    } catch (error) {
+      if (existingMoved && !fs.existsSync(packageTarget) && fs.existsSync(backupTarget)) {
+        fs.renameSync(backupTarget, packageTarget);
+        existingMoved = false;
+      }
+      throw error;
+    }
+    if (existingMoved) {
+      fs.rmSync(backupTarget, { recursive: true, force: true });
+      existingMoved = false;
+    }
+  } finally {
+    fs.rmSync(stagingRoot, { recursive: true, force: true });
+    if (existingMoved && !fs.existsSync(packageTarget) && fs.existsSync(backupTarget)) {
+      fs.renameSync(backupTarget, packageTarget);
+    }
+  }
+}
+
 function installGlobal(targetRoot, options) {
   if (!fs.existsSync(targetRoot)) fs.mkdirSync(targetRoot, { recursive: true });
   if (!fs.statSync(targetRoot).isDirectory()) fail(`global skills directory is not a directory: ${targetRoot}`);
@@ -126,42 +183,13 @@ function installGlobal(targetRoot, options) {
     return;
   }
 
-  if (options.has("force")) {
-    for (const relativeTarget of OBSOLETE_GLOBAL_ENTRIES) {
-      const target = path.resolve(targetRoot, relativeTarget);
-      const relative = path.relative(path.resolve(targetRoot), target);
-      if (relative.startsWith("..") || path.isAbsolute(relative)) fail(`obsolete path escapes target: ${relativeTarget}`);
-      fs.rmSync(target, { recursive: true, force: true });
-    }
-  }
-
-  for (const [relativeSource, relativeTarget] of entries) {
-    const source = path.join(SOURCE_ROOT, relativeSource);
-    const target = path.join(targetRoot, relativeTarget);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    if (fs.statSync(source).isDirectory()) {
-      fs.cpSync(source, target, { recursive: true });
-      if (relativeSource === "examples/community-workshop") {
-        fs.writeFileSync(
-          path.join(target, "README.md"),
-          installableContent("examples/community-workshop/README.md"),
-          "utf8",
-        );
-      }
-    } else if (["skills/mapflow/SKILL.md", "docs/blueprint/map-model.md"].includes(relativeSource)) {
-      fs.writeFileSync(target, installableContent(relativeSource), "utf8");
-    } else {
-      fs.copyFileSync(source, target);
-    }
-  }
-
   const manifest = {
     package: PACKAGE.name,
     version: VERSION,
     profile,
     installed_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
     skills: CORE_SKILLS,
-    blueprint_schema: 2,
+    blueprint_schema: 3,
     workspace_schema: "mapflow.workspace/v1",
     event_schema: "mapflow.event/v1",
     wayfinding_event_schema: "mapflow.wayfinding-event/v1",
@@ -174,15 +202,19 @@ function installGlobal(targetRoot, options) {
       "submap-receipts",
       "multiresolution-board",
       "workspace-sidecar",
+      "causal-contracts",
+      "derivation-graph",
+      "proof-certificates",
+      "enterprise-handoff-contract",
+      "progressive-context-disclosure",
+      "direct-edge-start",
       "wayfinding-draft",
-      "auto-enable",
+      "explicit-enable",
       "evolution-playback",
     ],
     runtime: "mapflow/runtime/mapflow.mjs",
   };
-  const manifestPath = path.join(targetRoot, generatedEntry[1]);
-  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  replaceGlobalPackage(targetRoot, entries, manifest);
   process.stdout.write(`installed mapflow ${VERSION} (${profile}) into ${targetRoot}\n`);
   process.stdout.write(`entry skill: ${path.join(targetRoot, "mapflow/SKILL.md")}\n`);
   process.stdout.write(`runtime: ${path.join(targetRoot, "mapflow/runtime/mapflow.mjs")}\n`);

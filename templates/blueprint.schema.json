@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/mapflow/blueprint.schema.json",
-  "title": "Mapflow Blueprint v0.6 (schema 2 compatible extension)",
+  "title": "Mapflow Blueprint v0.8 (schema 3)",
   "type": "object",
   "required": ["schema_version", "map_id", "destination", "predicates", "initial_state", "assumptions", "invariants", "boundaries", "nodes", "edges", "loops"],
   "properties": {
-    "schema_version": { "const": 2 },
+    "schema_version": { "const": 3 },
     "map_id": { "$ref": "#/$defs/id" },
     "intent": {
       "type": "object",
@@ -129,7 +129,7 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "from", "to", "brief_ref", "preconditions", "effects", "invariants", "certainty", "evidence_contract", "on_failure"],
+        "required": ["id", "from", "to", "brief_ref", "preconditions", "effects", "invariants", "certainty", "causal_contract", "evidence_contract", "on_failure"],
         "properties": {
           "id": { "$ref": "#/$defs/id" },
           "from": { "$ref": "#/$defs/id" },
@@ -139,6 +139,7 @@
           "effects": { "$ref": "#/$defs/nonEmptyIdList" },
           "invariants": { "$ref": "#/$defs/idList" },
           "certainty": { "enum": ["expected", "conditional"] },
+          "causal_contract": { "$ref": "#/$defs/causalContract" },
           "evidence_contract": {
             "type": "array",
             "items": {
@@ -271,6 +272,29 @@
           "type": "array",
           "items": { "$ref": "#/$defs/evidenceRef" }
         }
+      },
+      "additionalProperties": false
+    },
+    "causalContract": {
+      "type": "object",
+      "required": ["rule_id", "premises", "conclusions", "proof_mode", "rule_basis", "required_witnesses"],
+      "properties": {
+        "rule_id": { "$ref": "#/$defs/id" },
+        "premises": { "$ref": "#/$defs/idList" },
+        "conclusions": { "$ref": "#/$defs/nonEmptyIdList" },
+        "proof_mode": { "enum": ["logical", "executed-verifier", "external-readback", "submap-receipt"] },
+        "rule_basis": {
+          "type": "object",
+          "required": ["kind", "ref"],
+          "properties": {
+            "kind": { "enum": ["formal-rule", "verifier", "external-contract", "submap"] },
+            "ref": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "required_witnesses": { "$ref": "#/$defs/stringList" },
+        "non_interference": { "$ref": "#/$defs/idList" },
+        "max_age_seconds": { "type": "integer", "minimum": 1 }
       },
       "additionalProperties": false
     }

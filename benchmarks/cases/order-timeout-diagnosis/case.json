@@ -14,5 +14,5 @@
   "primary_risks": ["未复现先修复", "把超时症状当根因", "丢弃失败证据", "逻辑可达冒充恢复完成"],
   "fixture": "subject/fixture",
   "operator_mainline": "operator/mainline.md",
-  "required_checkpoints": ["prepared", "surveyed", "destination-shaped", "route-approved", "cause-proven", "repaired", "arrived"]
+  "required_checkpoints": ["prepared", "surveyed", "destination-shaped", "map-proven", "cause-proven", "repaired", "arrived"]
 }

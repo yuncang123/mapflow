@@ -1,0 +1,126 @@
+schema_version: 1
+phase: regression
+intent:
+  statement: 让 Mapflow 只服务于从目的地反向演化可推导地图并沿可信工作边实际抵达
+  status: shaped
+  open_questions: []
+origin:
+  id: causal-kernel-with-legacy-detours
+  kind: state
+  label: 因果内核已建立，默认产品仍有旧流程岔路
+  facts:
+    - id: causal-kernel-present
+      value: "true"
+      evidence: [{ kind: command, ref: node --test tests/test_proof.mjs, strength: observed }]
+    - id: default-product-core-only
+      value: "false"
+      evidence: [{ kind: command, ref: rg activity sdlc route-approval, strength: observed }]
+    - id: full-regression-passes
+      value: "false"
+      evidence: [{ kind: command, ref: npm test 127-of-132, strength: observed }]
+    - id: test-package-route-passes
+      value: unknown
+      evidence: []
+destination:
+  id: destination-derived-mapflow
+  kind: destination
+  label: Mapflow 只保留可推导地图与可信抵达闭环
+  statement: Mapflow 能从目的地反推因果闭合的地图，从当前事实正向证明路线，并让人或 Agent 沿可信工作边留下证据直至审计抵达
+  status: confirmed
+  requires: [default-product-core-only, full-regression-passes, test-package-route-passes]
+  invariants: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+  acceptance:
+    - { id: core-surface-audit, proves: [default-product-core-only], proof: 默认 CLI、看板、安装包、文档和 Skills 只表达 Mapflow 主链 }
+    - { id: deterministic-regression, proves: [full-regression-passes], proof: npm test 全部通过 }
+    - { id: evolution-package-proof, proves: [test-package-route-passes], proof: 测试包沿工作边完成 audited Arrival }
+boundaries:
+  in_scope: [证明内核、runtime、看板、模板、Skills、行为真源、测试包和安装清单]
+  out_of_scope: [发布、推送、全局安装和外部部署, 用软件工程生命周期或 Agent 编排替代通用地图]
+  authorization: [不执行发布、推送、全局安装或外部写入]
+nodes:
+  - id: core-surface-aligned
+    kind: state
+    label: 默认产品表面只表达 Mapflow 主链
+    purpose: 清除偏航机制并统一五层证据语义
+    status: confirmed
+    non_goals: [不删除旧状态的兼容读取]
+    acceptance: [{ id: core-surface-audit, proves: [default-product-core-only], proof: 核心表面审计通过 }]
+    proof: { status: candidate, summary: 可由静态契约测试观察, missing: [等待执行], evidence_refs: [] }
+  - id: regression-green
+    kind: state
+    label: 确定性回归全部通过
+    purpose: 证明精简没有破坏推导、执行、回放和证据边界
+    status: confirmed
+    non_goals: [不把本地回归称为发布或生产验收]
+    acceptance: [{ id: deterministic-regression, proves: [full-regression-passes], proof: npm test 退出码为零 }]
+    proof: { status: candidate, summary: 核心表面对齐后运行完整回归, missing: [等待执行], evidence_refs: [] }
+edges:
+  - id: align-core-surface
+    from: causal-kernel-with-legacy-detours
+    to: core-surface-aligned
+    label: 收敛默认产品到唯一主链
+    purpose: 删除偏航机制并补齐五层证明语义
+    status: confirmed
+    question_refs: [confirm-destination-derived-mapflow]
+    brief_ref: briefs/align-core-surface.md
+    preconditions: [causal-kernel-present]
+    effects: [default-product-core-only]
+    invariants: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+    evidence_contract: [{ id: core-surface-audit, proves: [default-product-core-only], required: true, proof: 核心表面测试 }]
+    causal_contract: { rule_id: align-core-surface-rule, premises: [causal-kernel-present], conclusions: [default-product-core-only] }
+    acceptance: [{ id: core-surface-audit, proves: [default-product-core-only], proof: 核心表面测试通过 }]
+    non_goals: [不删除旧状态兼容读取, 不发布或全局安装]
+    certainty: expected
+    on_failure: { action: replan, scope: subgraph:causal-kernel-with-legacy-detours:core-surface-aligned }
+    proof: { status: candidate, summary: 删除 Activity、固定 SDLC 与默认 Route Approval, missing: [等待执行], evidence_refs: [] }
+  - id: run-deterministic-regression
+    from: core-surface-aligned
+    to: regression-green
+    label: 运行完整确定性回归
+    purpose: 证明精简后的因果地图运行时仍保持闭环
+    status: confirmed
+    question_refs: [confirm-destination-derived-mapflow]
+    brief_ref: briefs/run-deterministic-regression.md
+    preconditions: [default-product-core-only]
+    effects: [full-regression-passes]
+    invariants: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+    evidence_contract: [{ id: deterministic-regression, proves: [full-regression-passes], required: true, proof: npm test 退出码为零 }]
+    causal_contract: { rule_id: deterministic-regression-rule, premises: [default-product-core-only], conclusions: [full-regression-passes] }
+    acceptance: [{ id: deterministic-regression, proves: [full-regression-passes], proof: 完整测试通过 }]
+    non_goals: [不等同于发布验收]
+    certainty: expected
+    on_failure: { action: replan, scope: subgraph:core-surface-aligned:regression-green }
+    proof: { status: candidate, summary: 真实测试执行产生运行证据, missing: [等待执行], evidence_refs: [] }
+  - id: prove-test-package-route
+    from: regression-green
+    to: destination-derived-mapflow
+    label: 在测试包中走通完整演化路线
+    purpose: 证明地图能指导执行者逐边抵达
+    status: confirmed
+    question_refs: [confirm-destination-derived-mapflow]
+    brief_ref: briefs/prove-test-package-route.md
+    preconditions: [default-product-core-only, full-regression-passes]
+    effects: [test-package-route-passes]
+    invariants: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+    evidence_contract: [{ id: evolution-package-proof, proves: [test-package-route-passes], required: true, proof: 演化 demo 形成 audited Arrival }]
+    causal_contract: { rule_id: test-package-route-rule, premises: [full-regression-passes], conclusions: [test-package-route-passes] }
+    acceptance: [{ id: evolution-package-proof, proves: [test-package-route-passes], proof: 测试包完整路线通过 }]
+    non_goals: [不把 fixture 结果称为真实用户采用]
+    certainty: expected
+    on_failure: { action: replan, scope: subgraph:regression-green:destination-derived-mapflow }
+    proof: { status: candidate, summary: 测试包沿可证明边生成 Evidence 并审计到达, missing: [等待执行], evidence_refs: [] }
+questions:
+  - id: establish-starting-state
+    prompt: 当前工作区已经成立、尚未确认或相互冲突的事实分别是什么？
+    target: { kind: node, id: causal-kernel-with-legacy-detours, label: 因果内核已建立，默认产品仍有旧流程岔路, purpose: 固定四值起始事实 }
+    status: answered
+    answer: 'true: schema 3 proof core exists; true: focused proof tests pass; true: legacy default surfaces remain; unknown: full regression after cleanup.'
+    evidence_refs: [{ kind: command, ref: npm-test-2026-09-13 }]
+    answer_updates: [wayfinding.intent.open_questions]
+  - id: confirm-destination-derived-mapflow
+    prompt: 是否确认以目的地反推、正向证明、逐边执行和到达审计作为 Mapflow 的唯一产品主线？
+    target: { kind: destination, id: destination-derived-mapflow, label: Mapflow 只保留可推导地图与可信抵达闭环, purpose: 冻结目标 Predicate、验收和非目标 }
+    status: answered
+    answer: 是这样的，以这个标准再次审视mapflow，不为了这个目标服务的东西不留，要实现这个目标缺少的东西给我补上。你可以用mapflow自举进行这项任务。
+    evidence_refs: [{ kind: note, ref: conversation-user-2026-09-13 }]
+    answer_updates: [wayfinding.intent.status, wayfinding.intent.open_questions, wayfinding.destination.status]

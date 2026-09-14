@@ -1,0 +1,152 @@
+schema_version: 3
+map_id: refocus-mapflow-on-destination-derivation
+intent:
+  statement: 让 Mapflow 只服务于从目的地反向演化可推导地图并沿可信工作边实际抵达
+  status: shaped
+  open_questions: []
+destination:
+  statement: Mapflow 的默认产品只保留目的地反推、正向证明、逐边执行、证据更新和到达审计闭环
+  requires: [default-product-core-only, enterprise-handoffs-usable, context-loading-bounded, full-regression-passes, test-package-route-passes, current-worktree-regression-passes]
+  invariants: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+  acceptance:
+    - { id: core-surface-audit, proves: [default-product-core-only], proof: 核心表面契约测试通过 }
+    - { id: enterprise-handoff-contract, proves: [enterprise-handoffs-usable], proof: Task Brief 能以小型合同对接真实企业岗位 }
+    - { id: bounded-context-contract, proves: [context-loading-bounded], proof: 入口和看板按层披露并限制默认上下文 }
+    - { id: deterministic-regression, proves: [full-regression-passes], proof: npm test 退出码为零 }
+    - { id: evolution-package-proof, proves: [test-package-route-passes], proof: 演化测试包完成 audited Arrival }
+    - { id: final-worktree-regression, proves: [current-worktree-regression-passes], proof: 终态证据投影与修图证书反例加入后完整回归通过 }
+predicates:
+  - { id: causal-kernel-present, fact: causal-kernel-present, equals: "true", kind: state }
+  - { id: default-product-core-only, fact: default-product-core-only, equals: "true", kind: state }
+  - { id: enterprise-handoffs-usable, fact: enterprise-handoffs-usable, equals: "true", kind: state }
+  - { id: context-loading-bounded, fact: context-loading-bounded, equals: "true", kind: resource }
+  - { id: full-regression-passes, fact: full-regression-passes, equals: "true", kind: state }
+  - { id: test-package-route-passes, fact: test-package-route-passes, equals: "true", kind: state }
+  - { id: current-worktree-regression-passes, fact: current-worktree-regression-passes, equals: "true", kind: state }
+  - { id: evidence-never-overclaims, fact: evidence-never-overclaims, equals: "true", kind: resource }
+  - { id: target-workspaces-remain-unmodified, fact: target-workspaces-remain-unmodified, equals: "true", kind: resource }
+initial_state:
+  facts:
+    - id: causal-kernel-present
+      value: "true"
+      evidence: [{ kind: command, ref: node --test tests/test_proof.mjs, strength: observed }]
+    - { id: default-product-core-only, value: "false", evidence: [{ kind: observation, ref: pre-cleanup surface audit, strength: observed }] }
+    - { id: enterprise-handoffs-usable, value: "false", evidence: [{ kind: observation, ref: role handoff contract absent, strength: observed }] }
+    - { id: context-loading-bounded, value: "false", evidence: [{ kind: observation, ref: context budget not declared, strength: observed }] }
+    - { id: full-regression-passes, value: "false", evidence: [{ kind: command, ref: npm test 127-of-132, strength: observed }] }
+    - { id: test-package-route-passes, value: unknown, evidence: [] }
+    - { id: current-worktree-regression-passes, value: "false", evidence: [{ kind: observation, ref: terminal counterexamples added after prior regression, strength: observed }] }
+    - { id: evidence-never-overclaims, value: "true", evidence: [{ kind: note, ref: user evidence boundary, strength: corroborated }] }
+    - { id: target-workspaces-remain-unmodified, value: "true", evidence: [{ kind: command, ref: workspace sidecar boundary, strength: observed }] }
+assumptions: []
+invariants:
+  - id: evidence-never-overclaims
+    applies_to: [align-core-surface, run-deterministic-regression, prove-test-package-route]
+    requires: [evidence-never-overclaims]
+  - id: target-workspaces-remain-unmodified
+    applies_to: [align-core-surface, run-deterministic-regression, prove-test-package-route]
+    requires: [target-workspaces-remain-unmodified]
+boundaries:
+  in_scope: [runtime、证明、看板、模板、Skills、文档、测试和安装清单]
+  out_of_scope: [发布、推送、全局安装、外部部署、Agent 编排]
+  authorization: [不执行发布、推送、全局安装或外部写入]
+nodes:
+  - id: causal-kernel-with-legacy-detours
+    kind: state
+    label: 因果内核已建立，默认产品仍有旧流程岔路
+    predicates: [causal-kernel-present, evidence-never-overclaims, target-workspaces-remain-unmodified]
+  - id: core-surface-aligned
+    kind: state
+    label: 默认产品表面只表达 Mapflow 主链
+    predicates: [causal-kernel-present, default-product-core-only, enterprise-handoffs-usable, context-loading-bounded, evidence-never-overclaims, target-workspaces-remain-unmodified]
+  - id: regression-green
+    kind: state
+    label: 确定性回归全部通过
+    predicates: [default-product-core-only, enterprise-handoffs-usable, context-loading-bounded, full-regression-passes, evidence-never-overclaims, target-workspaces-remain-unmodified]
+  - id: destination-derived-mapflow
+    kind: destination
+    label: Mapflow 可从目的地推导并沿可信边抵达
+    predicates: [default-product-core-only, enterprise-handoffs-usable, context-loading-bounded, full-regression-passes, test-package-route-passes]
+  - id: auditable-mapflow-worktree
+    kind: destination
+    label: 反例修复后的当前工作树可进入到达审计
+    predicates: [default-product-core-only, enterprise-handoffs-usable, context-loading-bounded, full-regression-passes, test-package-route-passes, current-worktree-regression-passes]
+edges:
+  - id: align-core-surface
+    from: causal-kernel-with-legacy-detours
+    to: core-surface-aligned
+    brief_ref: briefs/align-core-surface.md
+    preconditions: [causal-kernel-present]
+    effects: [default-product-core-only, enterprise-handoffs-usable, context-loading-bounded]
+    invariants: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+    certainty: expected
+    causal_contract:
+      rule_id: align-core-surface-rule
+      premises: [causal-kernel-present, evidence-never-overclaims, target-workspaces-remain-unmodified]
+      conclusions: [default-product-core-only, enterprise-handoffs-usable, context-loading-bounded]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: core-surface-check }
+      required_witnesses: [core-surface-audit, enterprise-handoff-contract, bounded-context-contract]
+      non_interference: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+    evidence_contract:
+      - { id: core-surface-audit, proves: [default-product-core-only], required: true }
+      - { id: enterprise-handoff-contract, proves: [enterprise-handoffs-usable], required: true }
+      - { id: bounded-context-contract, proves: [context-loading-bounded], required: true }
+    on_failure: { action: replan }
+  - id: run-deterministic-regression
+    from: core-surface-aligned
+    to: regression-green
+    brief_ref: briefs/run-deterministic-regression.md
+    preconditions: [default-product-core-only]
+    effects: [full-regression-passes]
+    invariants: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+    certainty: expected
+    causal_contract:
+      rule_id: deterministic-regression-rule
+      premises: [causal-kernel-present, default-product-core-only, enterprise-handoffs-usable, context-loading-bounded, evidence-never-overclaims, target-workspaces-remain-unmodified]
+      conclusions: [full-regression-passes]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: full-regression-check }
+      required_witnesses: [deterministic-regression]
+      non_interference: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+    evidence_contract: [{ id: deterministic-regression, proves: [full-regression-passes], required: true }]
+    on_failure: { action: replan }
+  - id: prove-test-package-route
+    from: regression-green
+    to: destination-derived-mapflow
+    brief_ref: briefs/prove-test-package-route.md
+    preconditions: [default-product-core-only, full-regression-passes]
+    effects: [test-package-route-passes]
+    invariants: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+    certainty: expected
+    causal_contract:
+      rule_id: test-package-route-rule
+      premises: [default-product-core-only, enterprise-handoffs-usable, context-loading-bounded, full-regression-passes, evidence-never-overclaims, target-workspaces-remain-unmodified]
+      conclusions: [test-package-route-passes]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: evolution-route-check }
+      required_witnesses: [evolution-package-proof]
+      non_interference: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+    evidence_contract: [{ id: evolution-package-proof, proves: [test-package-route-passes], required: true }]
+    on_failure: { action: replan }
+  - id: recheck-after-counterexamples
+    from: destination-derived-mapflow
+    to: auditable-mapflow-worktree
+    brief_ref: briefs/recheck-after-counterexamples.md
+    preconditions: [default-product-core-only, enterprise-handoffs-usable, context-loading-bounded, full-regression-passes, test-package-route-passes]
+    effects: [current-worktree-regression-passes]
+    invariants: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+    certainty: expected
+    causal_contract:
+      rule_id: recheck-after-counterexamples-rule
+      premises: [default-product-core-only, enterprise-handoffs-usable, context-loading-bounded, full-regression-passes, test-package-route-passes, evidence-never-overclaims, target-workspaces-remain-unmodified]
+      conclusions: [current-worktree-regression-passes]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: final-worktree-regression-check }
+      required_witnesses: [final-worktree-regression]
+      non_interference: [evidence-never-overclaims, target-workspaces-remain-unmodified]
+    evidence_contract: [{ id: final-worktree-regression, proves: [current-worktree-regression-passes], required: true }]
+    on_failure: { action: replan }
+loops: []
+submaps: []
+extensions: { x-owner: mapflow-maintainer }

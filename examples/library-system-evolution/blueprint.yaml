@@ -1,4 +1,4 @@
-schema_version: 2
+schema_version: 3
 map_id: library-system-mvp
 
 intent:
@@ -7,24 +7,38 @@ intent:
   open_questions: []
 
 destination:
-  statement: 个人图书管理系统 MVP 已通过自动检查和核心旅程演示
-  requires: [mvp-built, tests-pass, demo-accepted]
-  invariants: []
+  statement: 个人图书管理系统 MVP 已通过分支检查、集成检查和核心旅程演示
+  requires: [engineering-design-reviewed, catalog-slice-ready, circulation-slice-ready, integration-tests-pass, demo-accepted]
+  invariants: [no-external-release]
   acceptance:
-    - id: library-tests-pass
-      proves: [mvp-built, tests-pass]
-      proof: 自动检查覆盖新增、搜索、借出和归还
+    - id: catalog-slice-accepted
+      proves: [catalog-slice-ready]
+      proof: 新增与搜索拥有独立自动检查
+    - id: engineering-design-accepted
+      proves: [engineering-design-reviewed]
+      proof: 领域模型与 API / 持久化契约已经分别评审并汇合
+    - id: circulation-slice-accepted
+      proves: [circulation-slice-ready]
+      proof: 借出与归还拥有独立自动检查
+    - id: library-integration-accepted
+      proves: [integration-tests-pass]
+      proof: 两个切片汇合后通过跨切片检查
     - id: library-demo-accepted
       proves: [demo-accepted]
-      proof: Owner 按核心旅程完成回读
+      proof: Owner 按完整核心旅程完成回读
 
 predicates:
   - { id: repository-present, fact: repository-present, equals: "true", kind: state }
   - { id: core-journey-unknown, fact: core-journey-known, equals: unknown, kind: state }
   - { id: core-journey-known, fact: core-journey-known, equals: "true", kind: state }
-  - { id: mvp-built, fact: mvp-built, equals: "true", kind: state }
-  - { id: tests-pass, fact: tests-pass, equals: "true", kind: state }
+  - { id: domain-model-ready, fact: domain-model-ready, equals: "true", kind: state }
+  - { id: api-contract-ready, fact: api-contract-ready, equals: "true", kind: state }
+  - { id: engineering-design-reviewed, fact: engineering-design-reviewed, equals: "true", kind: state }
+  - { id: catalog-slice-ready, fact: catalog-slice-ready, equals: "true", kind: state }
+  - { id: circulation-slice-ready, fact: circulation-slice-ready, equals: "true", kind: state }
+  - { id: integration-tests-pass, fact: integration-tests-pass, equals: "true", kind: state }
   - { id: demo-accepted, fact: demo-accepted, equals: "true", kind: state }
+  - { id: external-release-not-authorized, fact: external-release-authorized, equals: "false", kind: authorization }
 
 initial_state:
   facts:
@@ -32,17 +46,25 @@ initial_state:
       value: "true"
       evidence: [{ kind: git, ref: "demo workspace initialized" }]
     - { id: core-journey-known, value: unknown, evidence: [] }
-    - { id: mvp-built, value: "false", evidence: [{ kind: observation, ref: "no implementation exists" }] }
-    - { id: tests-pass, value: "false", evidence: [{ kind: observation, ref: "tests have not run" }] }
+    - { id: domain-model-ready, value: "false", evidence: [{ kind: observation, ref: "domain model document does not exist" }] }
+    - { id: api-contract-ready, value: "false", evidence: [{ kind: observation, ref: "API and persistence contract does not exist" }] }
+    - { id: engineering-design-reviewed, value: "false", evidence: [{ kind: observation, ref: "engineering design review has not happened" }] }
+    - { id: catalog-slice-ready, value: "false", evidence: [{ kind: observation, ref: "catalog slice does not exist" }] }
+    - { id: circulation-slice-ready, value: "false", evidence: [{ kind: observation, ref: "circulation slice does not exist" }] }
+    - { id: integration-tests-pass, value: "false", evidence: [{ kind: observation, ref: "integration tests have not run" }] }
     - { id: demo-accepted, value: "false", evidence: [{ kind: observation, ref: "demo has not been audited" }] }
+    - { id: external-release-authorized, value: "false", evidence: [{ kind: note, ref: "demo scope excludes production deployment" }] }
 
 assumptions: []
-invariants: []
+invariants:
+  - id: no-external-release
+    applies_to: [confirm-core-journey, design-domain-model, design-api-contract, review-engineering-design, build-catalog-slice, build-circulation-slice, integrate-library-slices, accept-library-mvp]
+    requires: [external-release-not-authorized]
 
 boundaries:
-  in_scope: [新增、搜索、借出、归还的本地单用户核心旅程]
-  out_of_scope: [多用户权限、云同步、推荐算法、生产部署]
-  authorization: [每条工作边单独获得 Owner 授权]
+  in_scope: [新增与搜索切片, 借出与归还切片, 本地集成与人工演示]
+  out_of_scope: [多用户权限, 云同步, 推荐算法, 生产部署]
+  authorization: [只有旅程决定和最终演示需要 Owner 明确回答]
 
 nodes:
   - id: workspace-origin-fog
@@ -53,14 +75,26 @@ nodes:
     kind: state
     label: 核心用户旅程已确认
     predicates: [repository-present, core-journey-known]
-  - id: mvp-implemented
+  - id: engineering-design-ready
+    kind: join
+    label: 领域模型与 API / 持久化契约均已形成
+    predicates: [domain-model-ready, api-contract-ready]
+  - id: engineering-design-reviewed
     kind: state
-    label: MVP 已实现并通过自动检查
-    predicates: [mvp-built, tests-pass]
+    label: 工程设计文档已评审并冻结为实施输入
+    predicates: [domain-model-ready, api-contract-ready, engineering-design-reviewed]
+  - id: independent-slices-ready
+    kind: join
+    label: 目录与借还两个独立切片均就绪
+    predicates: [engineering-design-reviewed, catalog-slice-ready, circulation-slice-ready]
+  - id: mvp-integrated
+    kind: state
+    label: 两个切片已集成并通过自动检查
+    predicates: [engineering-design-reviewed, catalog-slice-ready, circulation-slice-ready, integration-tests-pass]
   - id: workspace-destination-fog
     kind: destination
-    label: MVP 已通过核心旅程验收
-    predicates: [mvp-built, tests-pass, demo-accepted]
+    label: MVP 已通过完整核心旅程验收
+    predicates: [engineering-design-reviewed, catalog-slice-ready, circulation-slice-ready, integration-tests-pass, demo-accepted]
 
 edges:
   - id: confirm-core-journey
@@ -69,34 +103,153 @@ edges:
     brief_ref: briefs/confirm-core-journey.md
     preconditions: [repository-present, core-journey-unknown]
     effects: [core-journey-known]
-    invariants: []
+    invariants: [no-external-release]
     certainty: expected
     evidence_contract:
       - { id: core-journey-record, proves: [core-journey-known], required: true }
+    causal_contract:
+      rule_id: confirm-core-journey-rule
+      premises: [repository-present, core-journey-unknown, external-release-not-authorized]
+      conclusions: [core-journey-known]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: confirm-core-journey-check }
+      required_witnesses: [core-journey-record]
+      non_interference: [external-release-not-authorized]
     on_failure: { action: replan }
-  - id: implement-library-mvp
+  - id: design-domain-model
     from: core-journey-confirmed
-    to: mvp-implemented
-    brief_ref: briefs/implement-library-mvp.md
+    to: engineering-design-ready
+    brief_ref: briefs/design-domain-model.md
     preconditions: [repository-present, core-journey-known]
-    effects: [mvp-built, tests-pass]
-    invariants: []
+    effects: [domain-model-ready]
+    invariants: [no-external-release]
     certainty: expected
     evidence_contract:
-      - { id: implementation-and-tests, proves: [mvp-built, tests-pass], required: true }
+      - { id: domain-model-document, proves: [domain-model-ready], required: true }
+    causal_contract:
+      rule_id: design-domain-model-rule
+      premises: [repository-present, core-journey-known, external-release-not-authorized]
+      conclusions: [domain-model-ready]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: design-domain-model-check }
+      required_witnesses: [domain-model-document]
+      non_interference: [external-release-not-authorized]
+    on_failure: { action: replan }
+  - id: design-api-contract
+    from: core-journey-confirmed
+    to: engineering-design-ready
+    brief_ref: briefs/design-api-contract.md
+    preconditions: [repository-present, core-journey-known]
+    effects: [api-contract-ready]
+    invariants: [no-external-release]
+    certainty: expected
+    evidence_contract:
+      - { id: api-contract-document, proves: [api-contract-ready], required: true }
+    causal_contract:
+      rule_id: design-api-contract-rule
+      premises: [repository-present, core-journey-known, external-release-not-authorized]
+      conclusions: [api-contract-ready]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: design-api-contract-check }
+      required_witnesses: [api-contract-document]
+      non_interference: [external-release-not-authorized]
+    on_failure: { action: replan }
+  - id: review-engineering-design
+    from: engineering-design-ready
+    to: engineering-design-reviewed
+    brief_ref: briefs/review-engineering-design.md
+    preconditions: [domain-model-ready, api-contract-ready]
+    effects: [engineering-design-reviewed]
+    invariants: [no-external-release]
+    certainty: expected
+    evidence_contract:
+      - { id: engineering-design-review, proves: [engineering-design-reviewed], required: true }
+    causal_contract:
+      rule_id: review-engineering-design-rule
+      premises: [domain-model-ready, api-contract-ready, external-release-not-authorized]
+      conclusions: [engineering-design-reviewed]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: review-engineering-design-check }
+      required_witnesses: [engineering-design-review]
+      non_interference: [external-release-not-authorized]
+    on_failure: { action: replan }
+  - id: build-catalog-slice
+    from: engineering-design-reviewed
+    to: independent-slices-ready
+    brief_ref: briefs/build-catalog-slice.md
+    preconditions: [repository-present, core-journey-known, engineering-design-reviewed]
+    effects: [catalog-slice-ready]
+    invariants: [no-external-release]
+    certainty: expected
+    evidence_contract:
+      - { id: catalog-slice-check, proves: [catalog-slice-ready], required: true }
+    causal_contract:
+      rule_id: build-catalog-slice-rule
+      premises: [domain-model-ready, api-contract-ready, engineering-design-reviewed, repository-present, core-journey-known, external-release-not-authorized]
+      conclusions: [catalog-slice-ready]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: build-catalog-slice-check }
+      required_witnesses: [catalog-slice-check]
+      non_interference: [external-release-not-authorized]
+    on_failure: { action: replan }
+  - id: build-circulation-slice
+    from: engineering-design-reviewed
+    to: independent-slices-ready
+    brief_ref: briefs/build-circulation-slice.md
+    preconditions: [repository-present, core-journey-known, engineering-design-reviewed]
+    effects: [circulation-slice-ready]
+    invariants: [no-external-release]
+    certainty: expected
+    evidence_contract:
+      - { id: circulation-slice-check, proves: [circulation-slice-ready], required: true }
+    causal_contract:
+      rule_id: build-circulation-slice-rule
+      premises: [domain-model-ready, api-contract-ready, engineering-design-reviewed, repository-present, core-journey-known, external-release-not-authorized]
+      conclusions: [circulation-slice-ready]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: build-circulation-slice-check }
+      required_witnesses: [circulation-slice-check]
+      non_interference: [external-release-not-authorized]
+    on_failure: { action: replan }
+  - id: integrate-library-slices
+    from: independent-slices-ready
+    to: mvp-integrated
+    brief_ref: briefs/integrate-library-slices.md
+    preconditions: [catalog-slice-ready, circulation-slice-ready]
+    effects: [integration-tests-pass]
+    invariants: [no-external-release]
+    certainty: expected
+    evidence_contract:
+      - { id: integration-check, proves: [integration-tests-pass], required: true }
+    causal_contract:
+      rule_id: integrate-library-slices-rule
+      premises: [engineering-design-reviewed, catalog-slice-ready, circulation-slice-ready, external-release-not-authorized]
+      conclusions: [integration-tests-pass]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: integrate-library-slices-check }
+      required_witnesses: [integration-check]
+      non_interference: [external-release-not-authorized]
     on_failure: { action: replan }
   - id: accept-library-mvp
-    from: mvp-implemented
+    from: mvp-integrated
     to: workspace-destination-fog
     brief_ref: briefs/accept-library-mvp.md
-    preconditions: [mvp-built, tests-pass]
+    preconditions: [catalog-slice-ready, circulation-slice-ready, integration-tests-pass]
     effects: [demo-accepted]
-    invariants: []
+    invariants: [no-external-release]
     certainty: expected
     evidence_contract:
       - { id: owner-demo-record, proves: [demo-accepted], required: true }
+    causal_contract:
+      rule_id: accept-library-mvp-rule
+      premises: [engineering-design-reviewed, catalog-slice-ready, circulation-slice-ready, integration-tests-pass, external-release-not-authorized]
+      conclusions: [demo-accepted]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: accept-library-mvp-check }
+      required_witnesses: [owner-demo-record]
+      non_interference: [external-release-not-authorized]
     on_failure: { action: replan }
 
 loops: []
 submaps: []
-extensions: { x-purpose: evolution-demo }
+extensions: { x-purpose: evolution-demo-with-parallel-join }

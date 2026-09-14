@@ -6,6 +6,8 @@
 
 自动测试证明机制，基准旅程证明体验。二者不能互相替代。
 
+`library-system-greenfield` 的 `implementation-verified` 冻结包包含升级前的 Route Approval 历史事件，只用于证明新版运行时可把它们作为历史回放并继续 Arrival Audit；它不定义当前流程，也不允许恢复旧审批门。活动行为始终以 `docs/workflow.md` 和当前 Oracle 为准。
+
 ## 运行入口
 
 ### 日常开发：先选最小回归层
@@ -23,7 +25,7 @@ npm run benchmark:plan
 | 层 | 证明什么 | 目标耗时 | 默认入口 |
 | --- | --- | --- | --- |
 | Oracle | 解析、断言、快照完整性、报告逻辑和案例包 | 约 1 分钟 | `npm run test:oracle` |
-| Runtime | 状态转换、事件、Sidecar 和看板模型；与 Oracle 合并并行运行 | 1–2 分钟 | `npm run test:regression` |
+| Runtime | 状态转换、事件、Sidecar、看板、确定性 `next-actions`、一次性能力和真实 verifier；与 Oracle 合并并行运行 | 1–2 分钟 | `npm run test:regression` |
 | Agent segment | 陌生 Codex 能否从合法 checkpoint 完成受影响阶段 | 10–20 分钟 | `segment-prepare` → `segment-turn` → `check` → `segment-report` |
 | Release | 人能否完成整个产品体验旅程 | 先单条完整旅程，再完整矩阵 | 只有 `--level release` 显式选择 |
 
@@ -178,11 +180,11 @@ node tools/benchmark.mjs suite-report --runs <run-a>,<run-b>,<run-c> --output <s
 
 | 案例 | 等级 | 主要问题 |
 | --- | --- | --- |
-| `library-system-greenfield` | core | 地图能否从一个模糊系统愿望自然长出并最终交付 |
+| `library-system-greenfield` | core | 地图能否从模糊愿望长出代码前的设计文档网络、独立实现分支、AND 汇合并最终交付 |
 | `library-reservation-brownfield` | core | 能否尊重既有代码、兼容性和回归面增加功能 |
 | `order-timeout-diagnosis` | core | 能否保留迷雾、用探针找根因并按反例修图 |
 | `scope-change-control` | core | 需求中途变化时能否受控改道并保留历史证据 |
-| `library-system-submaps` | extended | 大目标能否拆成可收缩、可独立验收的子地图 |
+| `library-system-submaps` | extended | 大目标能否拆成可收缩、可独立验收且可按 Receipt 回放历史的子地图 |
 | `community-workshop-noncode` | extended | 非编码工作是否同样支持证据、授权和到达审计 |
 | `cross-session-resume` | extended | 新会话能否从 Sidecar 恢复真实当前位置而不重问已决事项 |
 

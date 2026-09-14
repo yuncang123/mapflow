@@ -1,357 +1,191 @@
 schema_version: 2
-map_id: shelfwise-v1
+map_id: library-system-mvp
 
 intent:
-  statement: 从零开发 Shelfwise，供小型社区图书室管理员在本机完成日常借阅管理
+  statement: 为个人藏书建立可搜索、可借还、可验收的本地 MVP
   status: shaped
   open_questions: []
 
 destination:
-  statement: Shelfwise v1 已在本机提供可持久化、可验证的单管理员图书借阅闭环
-  requires:
-    - startup-and-page-verified
-    - registration-workflows-verified
-    - loan-lifecycle-verified
-    - restart-persistence-verified
-    - required-api-contract-verified
-    - production-dependency-policy-verified
-  invariants:
-    - production-dependencies-remain-empty
-    - configured-data-file-is-authoritative
-    - no-external-release
+  statement: 个人图书管理系统 MVP 已通过分支检查、集成检查和核心旅程演示
+  requires: [engineering-design-reviewed, catalog-slice-ready, circulation-slice-ready, integration-tests-pass, demo-accepted]
+  invariants: [no-external-release]
   acceptance:
-    - id: a1-startup-page
-      proves:
-        - startup-and-page-verified
-      proof: 临时 PORT 和 LIBRARY_DATA_FILE 下 npm start 成功，GET / 返回可操作页面
-    - id: a2-registration
-      proves:
-        - registration-workflows-verified
-      proof: 页面和 API 可登记单册图书与读者并返回稳定 ID
-    - id: a3-a4-loan-lifecycle
-      proves:
-        - loan-lifecycle-verified
-      proof: 借阅、有效查询、归还和非法重复操作符合合同且不产生脏数据
-    - id: a5-restart-persistence
-      proves:
-        - restart-persistence-verified
-      proof: 使用同一数据文件重启后，图书、读者与借阅状态完全一致
-    - id: a6-api-contract
-      proves:
-        - required-api-contract-verified
-      proof: 自动化测试逐一调用页面入口和五个指定 API
-    - id: a6-production-dependencies
-      proves:
-        - production-dependency-policy-verified
-      proof: package.json 的生产 dependencies 为空且服务不依赖第三方包
+    - id: catalog-slice-accepted
+      proves: [catalog-slice-ready]
+      proof: 新增与搜索拥有独立自动检查
+    - id: engineering-design-accepted
+      proves: [engineering-design-reviewed]
+      proof: 领域模型与 API / 持久化契约已经分别评审并汇合
+    - id: circulation-slice-accepted
+      proves: [circulation-slice-ready]
+      proof: 借出与归还拥有独立自动检查
+    - id: library-integration-accepted
+      proves: [integration-tests-pass]
+      proof: 两个切片汇合后通过跨切片检查
+    - id: library-demo-accepted
+      proves: [demo-accepted]
+      proof: Owner 按完整核心旅程完成回读
 
 predicates:
-  - id: git-repository-exists
-    fact: git-repository-exists
-    equals: "true"
-    kind: resource
-  - id: local-node-runtime-available
-    fact: local-node-runtime-available
-    equals: "true"
-    kind: resource
-  - id: node-sqlite-available
-    fact: node-sqlite-available
-    equals: "true"
-    kind: resource
-  - id: destination-contract-confirmed
-    fact: destination-contract-confirmed
-    equals: "true"
-    kind: authorization
-  - id: production-dependencies-forbidden
-    fact: production-dependencies-allowed
-    equals: "false"
-    kind: authorization
-  - id: configured-data-file-required
-    fact: configured-data-file-required
-    equals: "true"
-    kind: state
-  - id: external-release-not-authorized
-    fact: external-deployment-authorized
-    equals: "false"
-    kind: authorization
-  - id: persistent-library-api-ready
-    fact: persistent-library-api-ready
-    equals: "true"
-    kind: state
-  - id: admin-browser-workflows-ready
-    fact: admin-browser-workflows-ready
-    equals: "true"
-    kind: state
-  - id: startup-and-page-verified
-    fact: startup-and-page-verified
-    equals: "true"
-    kind: state
-  - id: registration-workflows-verified
-    fact: registration-workflows-verified
-    equals: "true"
-    kind: state
-  - id: loan-lifecycle-verified
-    fact: loan-lifecycle-verified
-    equals: "true"
-    kind: state
-  - id: restart-persistence-verified
-    fact: restart-persistence-verified
-    equals: "true"
-    kind: state
-  - id: required-api-contract-verified
-    fact: required-api-contract-verified
-    equals: "true"
-    kind: state
-  - id: production-dependency-policy-verified
-    fact: production-dependency-policy-verified
-    equals: "true"
-    kind: state
+  - { id: repository-present, fact: repository-present, equals: "true", kind: state }
+  - { id: core-journey-unknown, fact: core-journey-known, equals: unknown, kind: state }
+  - { id: core-journey-known, fact: core-journey-known, equals: "true", kind: state }
+  - { id: domain-model-ready, fact: domain-model-ready, equals: "true", kind: state }
+  - { id: api-contract-ready, fact: api-contract-ready, equals: "true", kind: state }
+  - { id: engineering-design-reviewed, fact: engineering-design-reviewed, equals: "true", kind: state }
+  - { id: catalog-slice-ready, fact: catalog-slice-ready, equals: "true", kind: state }
+  - { id: circulation-slice-ready, fact: circulation-slice-ready, equals: "true", kind: state }
+  - { id: integration-tests-pass, fact: integration-tests-pass, equals: "true", kind: state }
+  - { id: demo-accepted, fact: demo-accepted, equals: "true", kind: state }
+  - { id: external-release-not-authorized, fact: external-release-authorized, equals: "false", kind: authorization }
 
 initial_state:
   facts:
-    - id: git-repository-exists
+    - id: repository-present
       value: "true"
-      evidence:
-        - kind: git
-          ref: commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
-          strength: observed
-    - id: local-node-runtime-available
-      value: "true"
-      evidence:
-        - kind: command
-          ref: node --version => v24.18.0
-          strength: observed
-    - id: node-sqlite-available
-      value: "true"
-      evidence:
-        - kind: command
-          ref: node:sqlite in-memory probe => SQLite 3.53.1
-          strength: observed
-    - id: destination-contract-confirmed
-      value: "true"
-      evidence:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-destination-confirmation
-          strength: asserted
-    - id: production-dependencies-allowed
-      value: "false"
-      evidence:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-v1-scope
-          strength: asserted
-    - id: configured-data-file-required
-      value: "true"
-      evidence:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-v1-scope
-          strength: asserted
-    - id: external-deployment-authorized
-      value: "false"
-      evidence:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-v1-scope
-          strength: asserted
-    - id: persistent-library-api-ready
-      value: "false"
-      evidence:
-        - kind: observation
-          ref: repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
-          strength: observed
-    - id: admin-browser-workflows-ready
-      value: "false"
-      evidence:
-        - kind: observation
-          ref: repository inspection at commit ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
-          strength: observed
-    - id: startup-and-page-verified
-      value: "false"
-      evidence:
-        - kind: observation
-          ref: no implementation or acceptance evidence exists in the initial repository
-          strength: observed
-    - id: registration-workflows-verified
-      value: "false"
-      evidence:
-        - kind: observation
-          ref: no implementation or acceptance evidence exists in the initial repository
-          strength: observed
-    - id: loan-lifecycle-verified
-      value: "false"
-      evidence:
-        - kind: observation
-          ref: no implementation or acceptance evidence exists in the initial repository
-          strength: observed
-    - id: restart-persistence-verified
-      value: "false"
-      evidence:
-        - kind: observation
-          ref: no implementation or acceptance evidence exists in the initial repository
-          strength: observed
-    - id: required-api-contract-verified
-      value: "false"
-      evidence:
-        - kind: observation
-          ref: no implementation or acceptance evidence exists in the initial repository
-          strength: observed
-    - id: production-dependency-policy-verified
-      value: "false"
-      evidence:
-        - kind: observation
-          ref: no package manifest or implementation exists in the initial repository
-          strength: observed
+      evidence: [{ kind: git, ref: "demo workspace initialized" }]
+    - { id: core-journey-known, value: unknown, evidence: [] }
+    - { id: domain-model-ready, value: "false", evidence: [{ kind: observation, ref: "domain model document does not exist" }] }
+    - { id: api-contract-ready, value: "false", evidence: [{ kind: observation, ref: "API and persistence contract does not exist" }] }
+    - { id: engineering-design-reviewed, value: "false", evidence: [{ kind: observation, ref: "engineering design review has not happened" }] }
+    - { id: catalog-slice-ready, value: "false", evidence: [{ kind: observation, ref: "catalog slice does not exist" }] }
+    - { id: circulation-slice-ready, value: "false", evidence: [{ kind: observation, ref: "circulation slice does not exist" }] }
+    - { id: integration-tests-pass, value: "false", evidence: [{ kind: observation, ref: "integration tests have not run" }] }
+    - { id: demo-accepted, value: "false", evidence: [{ kind: observation, ref: "demo has not been audited" }] }
+    - { id: external-release-authorized, value: "false", evidence: [{ kind: note, ref: "demo scope excludes production deployment" }] }
 
 assumptions: []
-
 invariants:
-  - id: production-dependencies-remain-empty
-    applies_to:
-      - build-persistent-library-api
-      - build-admin-browser-interface
-      - verify-shelfwise-v1
-    requires:
-      - production-dependencies-forbidden
-  - id: configured-data-file-is-authoritative
-    applies_to:
-      - build-persistent-library-api
-      - build-admin-browser-interface
-      - verify-shelfwise-v1
-    requires:
-      - configured-data-file-required
   - id: no-external-release
-    applies_to:
-      - build-persistent-library-api
-      - build-admin-browser-interface
-      - verify-shelfwise-v1
-    requires:
-      - external-release-not-authorized
+    applies_to: [confirm-core-journey, design-domain-model, design-api-contract, review-engineering-design, build-catalog-slice, build-circulation-slice, integrate-library-slices, accept-library-mvp]
+    requires: [external-release-not-authorized]
 
 boundaries:
-  in_scope:
-    - 单管理员使用的图书、读者、借阅、归还和有效借阅查询
-    - 本地浏览器管理页面、SQLite 文件持久化和对应自动化验证
-  out_of_scope:
-    - 会员收费、电子书、推荐、预约和多人权限
-    - 外部部署、发布和外部系统写入
-  authorization:
-    - 每条工作边都需要独立人工施工授权
-    - 仅允许本仓库写入、本机临时端口、临时数据文件和本机浏览器验证
+  in_scope: [新增与搜索切片, 借出与归还切片, 本地集成与人工演示]
+  out_of_scope: [多用户权限, 云同步, 推荐算法, 生产部署]
+  authorization: [每条工作边单独获得 Owner 授权]
 
 nodes:
-  - id: shelfwise-empty-repository
+  - id: workspace-origin-fog
+    kind: fog
+    label: 仓库存在，核心旅程尚未确认
+    predicates: [repository-present, core-journey-unknown]
+  - id: core-journey-confirmed
     kind: state
-    label: Shelfwise 已定边界的空白仓库
-    predicates:
-      - git-repository-exists
-      - local-node-runtime-available
-      - node-sqlite-available
-      - destination-contract-confirmed
-      - production-dependencies-forbidden
-      - configured-data-file-required
-      - external-release-not-authorized
-    realization_refs:
-      - kind: git
-        ref: commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
-        strength: observed
-  - id: library-api-ready
-    kind: state
-    label: 持久化图书借阅 API 已就绪
-    predicates:
-      - persistent-library-api-ready
-  - id: admin-app-ready
+    label: 核心用户旅程已确认
+    predicates: [repository-present, core-journey-known]
+  - id: engineering-design-ready
     kind: join
-    label: 管理员浏览器工作流已就绪
-    predicates:
-      - persistent-library-api-ready
-      - admin-browser-workflows-ready
-  - id: shelfwise-v1-ready
+    label: 领域模型与 API / 持久化契约均已形成
+    predicates: [domain-model-ready, api-contract-ready]
+  - id: engineering-design-reviewed
+    kind: state
+    label: 工程设计文档已评审并冻结为实施输入
+    predicates: [domain-model-ready, api-contract-ready, engineering-design-reviewed]
+  - id: independent-slices-ready
+    kind: join
+    label: 目录与借还两个独立切片均就绪
+    predicates: [engineering-design-reviewed, catalog-slice-ready, circulation-slice-ready]
+  - id: mvp-integrated
+    kind: state
+    label: 两个切片已集成并通过自动检查
+    predicates: [engineering-design-reviewed, catalog-slice-ready, circulation-slice-ready, integration-tests-pass]
+  - id: workspace-destination-fog
     kind: destination
-    label: Shelfwise v1 合同已验证
-    predicates:
-      - startup-and-page-verified
-      - registration-workflows-verified
-      - loan-lifecycle-verified
-      - restart-persistence-verified
-      - required-api-contract-verified
-      - production-dependency-policy-verified
+    label: MVP 已通过完整核心旅程验收
+    predicates: [engineering-design-reviewed, catalog-slice-ready, circulation-slice-ready, integration-tests-pass, demo-accepted]
 
 edges:
-  - id: build-persistent-library-api
-    from: shelfwise-empty-repository
-    to: library-api-ready
-    brief_ref: briefs/build-persistent-library-api.md
-    preconditions:
-      - git-repository-exists
-      - local-node-runtime-available
-      - node-sqlite-available
-      - destination-contract-confirmed
-    effects:
-      - persistent-library-api-ready
-    invariants:
-      - production-dependencies-remain-empty
-      - configured-data-file-is-authoritative
-      - no-external-release
+  - id: confirm-core-journey
+    from: workspace-origin-fog
+    to: core-journey-confirmed
+    brief_ref: briefs/confirm-core-journey.md
+    preconditions: [repository-present, core-journey-unknown]
+    effects: [core-journey-known]
+    invariants: [no-external-release]
     certainty: expected
     evidence_contract:
-      - id: persistent-api-test-record
-        proves:
-          - persistent-library-api-ready
-        required: true
-    on_failure:
-      action: replan
-  - id: build-admin-browser-interface
-    from: library-api-ready
-    to: admin-app-ready
-    brief_ref: briefs/build-admin-browser-interface.md
-    preconditions:
-      - persistent-library-api-ready
-    effects:
-      - admin-browser-workflows-ready
-    invariants:
-      - production-dependencies-remain-empty
-      - configured-data-file-is-authoritative
-      - no-external-release
+      - { id: core-journey-record, proves: [core-journey-known], required: true }
+    on_failure: { action: replan }
+  - id: design-domain-model
+    from: core-journey-confirmed
+    to: engineering-design-ready
+    brief_ref: briefs/design-domain-model.md
+    preconditions: [repository-present, core-journey-known]
+    effects: [domain-model-ready]
+    invariants: [no-external-release]
     certainty: expected
     evidence_contract:
-      - id: admin-browser-workflow-record
-        proves:
-          - admin-browser-workflows-ready
-        required: true
-    on_failure:
-      action: replan
-  - id: verify-shelfwise-v1
-    from: admin-app-ready
-    to: shelfwise-v1-ready
-    brief_ref: briefs/verify-shelfwise-v1.md
-    preconditions:
-      - persistent-library-api-ready
-      - admin-browser-workflows-ready
-    effects:
-      - startup-and-page-verified
-      - registration-workflows-verified
-      - loan-lifecycle-verified
-      - restart-persistence-verified
-      - required-api-contract-verified
-      - production-dependency-policy-verified
-    invariants:
-      - production-dependencies-remain-empty
-      - configured-data-file-is-authoritative
-      - no-external-release
+      - { id: domain-model-document, proves: [domain-model-ready], required: true }
+    on_failure: { action: replan }
+  - id: design-api-contract
+    from: core-journey-confirmed
+    to: engineering-design-ready
+    brief_ref: briefs/design-api-contract.md
+    preconditions: [repository-present, core-journey-known]
+    effects: [api-contract-ready]
+    invariants: [no-external-release]
     certainty: expected
     evidence_contract:
-      - id: shelfwise-v1-acceptance-record
-        proves:
-          - startup-and-page-verified
-          - registration-workflows-verified
-          - loan-lifecycle-verified
-          - restart-persistence-verified
-          - required-api-contract-verified
-          - production-dependency-policy-verified
-        required: true
-    on_failure:
-      action: replan
+      - { id: api-contract-document, proves: [api-contract-ready], required: true }
+    on_failure: { action: replan }
+  - id: review-engineering-design
+    from: engineering-design-ready
+    to: engineering-design-reviewed
+    brief_ref: briefs/review-engineering-design.md
+    preconditions: [domain-model-ready, api-contract-ready]
+    effects: [engineering-design-reviewed]
+    invariants: [no-external-release]
+    certainty: expected
+    evidence_contract:
+      - { id: engineering-design-review, proves: [engineering-design-reviewed], required: true }
+    on_failure: { action: replan }
+  - id: build-catalog-slice
+    from: engineering-design-reviewed
+    to: independent-slices-ready
+    brief_ref: briefs/build-catalog-slice.md
+    preconditions: [repository-present, core-journey-known, engineering-design-reviewed]
+    effects: [catalog-slice-ready]
+    invariants: [no-external-release]
+    certainty: expected
+    evidence_contract:
+      - { id: catalog-slice-check, proves: [catalog-slice-ready], required: true }
+    on_failure: { action: replan }
+  - id: build-circulation-slice
+    from: engineering-design-reviewed
+    to: independent-slices-ready
+    brief_ref: briefs/build-circulation-slice.md
+    preconditions: [repository-present, core-journey-known, engineering-design-reviewed]
+    effects: [circulation-slice-ready]
+    invariants: [no-external-release]
+    certainty: expected
+    evidence_contract:
+      - { id: circulation-slice-check, proves: [circulation-slice-ready], required: true }
+    on_failure: { action: replan }
+  - id: integrate-library-slices
+    from: independent-slices-ready
+    to: mvp-integrated
+    brief_ref: briefs/integrate-library-slices.md
+    preconditions: [catalog-slice-ready, circulation-slice-ready]
+    effects: [integration-tests-pass]
+    invariants: [no-external-release]
+    certainty: expected
+    evidence_contract:
+      - { id: integration-check, proves: [integration-tests-pass], required: true }
+    on_failure: { action: replan }
+  - id: accept-library-mvp
+    from: mvp-integrated
+    to: workspace-destination-fog
+    brief_ref: briefs/accept-library-mvp.md
+    preconditions: [catalog-slice-ready, circulation-slice-ready, integration-tests-pass]
+    effects: [demo-accepted]
+    invariants: [no-external-release]
+    certainty: expected
+    evidence_contract:
+      - { id: owner-demo-record, proves: [demo-accepted], required: true }
+    on_failure: { action: replan }
 
 loops: []
 submaps: []
-
-extensions:
-  x-prior-art: research/prior-art.md
+extensions: { x-purpose: evolution-demo-with-parallel-join }

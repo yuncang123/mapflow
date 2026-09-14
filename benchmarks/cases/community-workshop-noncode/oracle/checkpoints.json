@@ -13,13 +13,12 @@
     { "id": "destination-shaped", "description": "方案包目的地经确认并与活动举办结果分离", "assertions": [
       { "path": "wayfinding.destination_confirmed", "equals": true }, { "path": "wayfinding.open_questions", "max": 1 }, { "path": "summary.edges", "equals": 0 }
     ] },
-    { "id": "route-approved", "description": "内容、预算、风险和审批边成为可达正式路线", "assertions": [
+    { "id": "map-proven", "description": "内容、预算、风险和审批边成为可达正式地图", "assertions": [
       { "path": "workspace.map_exists", "equals": true }, { "path": "workspace.briefs_count", "min": 3 },
       { "path": "contract.destination_acceptance", "min": 4 }, { "path": "contract.destination_invariants", "min": 1 },
       { "path": "contract.out_of_scope", "min": 3 }, { "path": "contract.authorization_rules", "min": 1 }, { "path": "contract.edge_contracts_complete", "equals": true },
       { "path": "proof.structural", "equals": "complete" }, { "path": "proof.reachability", "one_of": ["logical", "conditional"] },
-      { "path": "runtime.destination_status", "equals": "approved" }, { "path": "runtime.current_route_approval", "nonempty": true },
-      { "path": "runtime.route_approvals_count", "min": 1 }, { "path": "runtime.active_edge", "equals": null },
+      { "path": "runtime.destination_status", "one_of": ["draft", "confirmed"] }, { "path": "runtime.active_edge", "equals": null },
       { "path": "runtime.active_run", "equals": null }, { "path": "runtime.edge_runs_count", "equals": 0 },
       { "path": "runtime.decisions_count", "equals": 0 }, { "path": "repo.dirty_paths", "empty": true }
     ] },

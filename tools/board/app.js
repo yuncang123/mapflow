@@ -15,10 +15,15 @@ const STATUS_LABELS = {
   "destination-fog": "目的地迷雾",
   fog: "迷雾",
   failed: "失败",
+  established: "已建立",
+  "not-observed": "尚未观察",
+  "not-started": "尚未开始",
   granted: "已批准",
   answered: "已回答",
   deferred: "已延期",
   pending: "待确认",
+  pinned: "历史固定",
+  historical: "历史快照",
   rejected: "已拒绝",
   ready: "前置已满足",
   shaped: "已定形",
@@ -27,6 +32,7 @@ const STATUS_LABELS = {
   verified: "已验证",
   waiting: "等待中",
   stale: "已失效",
+  unobserved: "未记录",
   audited: "已审计到达",
   missing: "缺失",
 };
@@ -90,6 +96,14 @@ const STRUCTURAL_LABELS = {
   incomplete: "结构不完整",
 };
 
+const EVIDENCE_LEVEL_LABELS = {
+  structural_soundness: "结构可靠",
+  declared_model_derivability: "声明模型可推导",
+  runtime_readiness: "运行时就绪",
+  executed_derivation: "已执行推导",
+  audited_arrival: "已审计抵达",
+};
+
 const EVENT_LABELS = {
   arrival_audit_requested: "等待人工到达审计",
   arrival_audited: "到达审计完成",
@@ -114,9 +128,7 @@ const EVENT_LABELS = {
   proposal_rejected: "Proposal 已拒绝",
   proposal_stale: "Proposal 已过期",
   decision_recorded: "路线决策已记录",
-  destination_approved: "完整路线已批准",
-  route_approval_requested: "等待人工确认完整路线",
-  route_approval_declined: "完整路线未获批准",
+  implementation_entered: "开始沿地图推进",
   edge_authorization_requested: "施工授权已请求",
   edge_authorized: "施工授权已确认",
   edge_authorization_declined: "施工授权已拒绝",
@@ -139,6 +151,7 @@ const dom = typeof document === "undefined" ? {} : {
   destinationContext: document.querySelector("#destination-context"),
   elementList: document.querySelector("#element-list"),
   evolutionCounter: document.querySelector("#evolution-counter"),
+  evolutionBreadcrumb: document.querySelector("#evolution-breadcrumb"),
   evolutionCoverage: document.querySelector("#evolution-coverage"),
   evolutionDiff: document.querySelector("#evolution-diff"),
   evolutionFirst: document.querySelector("#evolution-first"),
@@ -149,6 +162,7 @@ const dom = typeof document === "undefined" ? {} : {
   evolutionPlay: document.querySelector("#evolution-play"),
   evolutionPlayer: document.querySelector("#evolution-player"),
   evolutionPrevious: document.querySelector("#evolution-previous"),
+  evolutionParent: document.querySelector("#evolution-parent"),
   evolutionSlider: document.querySelector("#evolution-slider"),
   evolutionSpeed: document.querySelector("#evolution-speed"),
   evolutionSummary: document.querySelector("#evolution-summary"),
@@ -191,12 +205,14 @@ const runtime = {
   trailOffset: 0,
   positionLedger: new Map(),
   evolution: {
+    bindingPath: null,
     catalog: null,
     etag: null,
     frame: null,
     index: null,
     pendingLive: false,
     playing: false,
+    stack: [],
     timer: null,
   },
 };
@@ -233,13 +249,14 @@ function evidenceRefs(records) {
 
 function evidenceRecord(record) {
   const checks = (record.checks ?? []).map((check) => (
-    `${check.result ?? "unknown"}: ${check.command ?? "未记录检查"} → ${check.observed ?? "未记录观察"}`
+    `${check.mode ?? "legacy"} · ${check.result ?? "unknown"}: ${check.command ?? "未记录检查"} → ${check.observed ?? "未记录观察"}${Number.isInteger(check.exit_code) ? ` · exit ${check.exit_code}` : ""}`
   ));
   const limitations = Object.entries(record.limits ?? {})
     .filter(([, values]) => values?.length)
     .map(([kind, values]) => `${kind}: ${values.join(" · ")}`);
   return [
     `执行者：${record.executor ?? "未记录"}`,
+    `可信度：${record.trust === "verified" ? "Runtime 已验证" : record.trust === "reported" ? "调用方自报，不改变事实" : "历史/回读证据"}`,
     `时间：${formatTimestamp(record.recorded_at)}`,
     `证明：${asText(record.proves)}`,
     `验收：${asText(record.acceptance_ids)}`,
@@ -289,32 +306,11 @@ function pendingHumanRequests(model) {
   return [
     ...(model.arrival_audit_requests ?? []).filter((request) => request.status === "pending").map((request) => ({ request, kind: "到达审计" })),
     ...(model.authorization_requests ?? []).filter((request) => request.status === "pending").map((request) => ({ request, kind: "施工授权" })),
-    ...(model.route_approval_requests ?? []).filter((request) => request.status === "pending").map((request) => ({ request, kind: "路线确认" })),
   ];
 }
 
-export function routeApprovalView(model) {
-  const currentId = model.map?.current_route_approval ?? null;
-  const approvals = model.route_approvals ?? [];
-  const pending = (model.route_approval_requests ?? []).find((request) => request.status === "pending");
-  if (currentId) {
-    const record = approvals.find((approval) => approval.id === currentId);
-    return record
-      ? { status: "current", label: currentId, tone: "good" }
-      : { status: "inconsistent", label: `${currentId}（缺少对应批准记录）`, tone: "bad" };
-  }
-  if (pending) return { status: "pending", label: `等待人工确认 · ${pending.id}`, tone: "warn" };
-  if (model.map?.phase === "arrived") {
-    return {
-      status: "legacy-unlinked",
-      label: "历史到达记录；旧版未保存当前路线批准 ID",
-      tone: "warn",
-    };
-  }
-  if (model.map?.destination_status === "approved") {
-    return { status: "inconsistent", label: "目标标记为已批准，但当前路线批准记录缺失", tone: "bad" };
-  }
-  return { status: "not-approved", label: "尚未批准", tone: "warn" };
+function requiresEdgeAuthorization(edge) {
+  return (edge.brief?.metadata?.contract?.authorization?.required ?? []).length > 0;
 }
 
 export function edgeExecutionLabel(edge, model) {
@@ -322,11 +318,7 @@ export function edgeExecutionLabel(edge, model) {
   if (model.projection?.mode === "definition") return "前置已满足，仅为定义态";
   const pendingAuthorization = (edge.authorization_requests ?? []).find((request) => request.status === "pending");
   if (pendingAuthorization) return "前置已满足，待授权确认";
-  if (!model.map?.current_route_approval) {
-    const routePending = (model.route_approval_requests ?? []).some((request) => request.status === "pending");
-    return routePending ? "前置已满足，待路线批准" : "前置已满足，路线尚未批准";
-  }
-  return "前置已满足，待发起授权";
+  return requiresEdgeAuthorization(edge) ? "前置已满足，需请求声明授权" : "前置已满足，可直接启动";
 }
 
 export function timelineEventLabel(entry) {
@@ -355,8 +347,8 @@ export function currentActionView(model) {
     if (question) {
       return result({
         state: "waiting-human",
-        state_label: "待人工确认",
-        title: `确认${TARGET_KIND_LABELS[question.target?.kind] ?? question.target?.kind ?? "建模对象"}：${question.target?.label ?? question.target?.id}`,
+      state_label: "待人工回答",
+      title: `回答${TARGET_KIND_LABELS[question.target?.kind] ?? question.target?.kind ?? "建模对象"}问题：${question.target?.label ?? question.target?.id}`,
         owner: decisionOwnerLabel(question),
         requested_by: question.requested_by ?? null,
         target_id: question.target?.id ?? question.id,
@@ -383,7 +375,7 @@ export function currentActionView(model) {
       owner: "当前会话 Agent",
       target_id: ownerless.request.id,
       question: `为待处理请求 ${ownerless.request.id} 登记一名可识别的人类责任人。`,
-      after: "恢复原人工门；只更新责任归属，不批准路线、不授权施工，也不登记到达。",
+      after: "恢复原人工门；只更新责任归属，不授权施工，也不登记到达。",
     });
   }
 
@@ -411,20 +403,7 @@ export function currentActionView(model) {
       requested_by: pendingAuthorization.requested_by,
       target_id: pendingAuthorization.edge,
       question: pendingAuthorization.question,
-      after: "只激活这条工作边的一次 Edge Run；其他工作边仍需分别授权。",
-    });
-  }
-  const pendingRoute = (model.route_approval_requests ?? []).find((request) => request.status === "pending");
-  if (pendingRoute) {
-    return result({
-      state: "waiting-human",
-      state_label: "待人工确认",
-      title: "确认完整路线",
-      owner: decisionOwnerLabel(pendingRoute),
-      requested_by: pendingRoute.requested_by,
-      target_id: pendingRoute.id,
-      question: pendingRoute.question,
-      after: "只登记完整路线批准，不启动工作边；随后再为第一条前置已满足的工作边单独请求施工授权。",
+      after: "只激活这条受保护工作边的一次 Edge Run；其他边仍按各自 Brief 决定是否需要授权。",
     });
   }
   const pendingProposal = (model.proposals ?? []).find((proposal) => proposal.status === "pending");
@@ -461,26 +440,55 @@ export function currentActionView(model) {
       after: "登记通过或失败证据，再决定到达审计、下一条授权或局部修图。",
     });
   }
-  if (!model.map?.current_route_approval && ["logical", "conditional"].includes(model.proof?.reachability)) {
+  if (model.projection?.mode === "definition") {
     return result({
       state: "agent-next",
       state_label: "Agent 下一步",
-      title: "发起完整路线批准请求",
+      title: "登记已证明的 Blueprint",
       owner: "当前会话 Agent",
-      question: "冻结当前 Blueprint 与正向证明，创建唯一的路线批准问题。",
-      after: "等待任务所有者在后续独立消息中确认；不会同时启动工作边。",
+      question: "当前只是定义态；首次使用 init 登记地图，已有地图变化使用 replan。",
+      after: "登记后从全部 proven/ready 工作边中选择；只有 Brief 声明受保护动作时才请求授权。",
     });
   }
-  const readyEdge = model.edges?.find((edge) => edge.status === "ready" && edge.proven);
-  if (model.map?.current_route_approval && readyEdge) {
+  const readyEdges = model.edges?.filter((edge) => edge.status === "ready" && edge.proven) ?? [];
+  if (readyEdges.length > 1) {
+    const parallelCount = model.summary?.parallel_ready_edges ?? 0;
+    return result({
+      state: "agent-next",
+      state_label: parallelCount > 1 ? "并行分支已就绪" : "需要选择路线",
+      title: parallelCount > 1 ? `${parallelCount} 条独立工作边可推进` : `${readyEdges.length} 条工作边等待选择`,
+      owner: "当前会话 Agent 与任务所有者",
+      target_id: readyEdges.map((edge) => edge.id).join(","),
+      question: `比较并选择下一条工作边：${readyEdges.map((edge) => edge.title).join("；")}`,
+      after: "为选中的普通边直接 start；只有声明受保护动作的边才请求授权。其余独立分支保持就绪。",
+    });
+  }
+  const readyEdge = readyEdges[0];
+  if (readyEdge) {
+    const protectedEdge = requiresEdgeAuthorization(readyEdge);
     return result({
       state: "agent-next",
       state_label: "Agent 下一步",
-      title: `为工作边发起施工授权：${readyEdge.title}`,
+      title: protectedEdge ? `为受保护工作边请求授权：${readyEdge.title}` : `启动工作边：${readyEdge.title}`,
       owner: "当前会话 Agent",
       target_id: readyEdge.id,
-      question: "创建只针对这条前置已满足工作边的施工授权问题。",
-      after: "等待任务所有者独立回答；批准后才创建一次 active Edge Run。",
+      question: protectedEdge ? "按 Task Brief 中声明的授权要求创建一次请求。" : "这条边前置已满足且不要求额外授权，可直接创建 active Edge Run。",
+      after: protectedEdge ? "责任人回答后只激活这一条边。" : "执行边合同并用可信 verifier/readback 证明 effects。",
+    });
+  }
+  const destinationObserved = (model.map?.destination?.requires ?? []).every((predicateId) => (
+    model.predicates?.some((predicate) => predicate.id === predicateId && predicate.satisfied)
+  ));
+  const acceptanceObserved = (model.acceptance?.length ?? 0) > 0
+    && model.acceptance.every((item) => item.status === "passed");
+  if (destinationObserved && acceptanceObserved) {
+    return result({
+      state: "agent-next",
+      state_label: "Agent 下一步",
+      title: "请求到达审计",
+      owner: "当前会话 Agent",
+      question: "冻结已观察的 Destination Predicate、Acceptance 证据、非目标和遗留风险，交给指定的人或 Agent 审计。",
+      after: "审计者在后续回答中消费一次性请求后，地图才记录实际 Arrival。",
     });
   }
   return result({
@@ -575,11 +583,14 @@ export function collapsedSubmapElements(binding, parentEdge, bindingPath, parent
     : binding.actual_arrival === "audited"
       ? "arrived"
       : "unsatisfied";
+  const historyHint = binding.source_status === "historical"
+    ? binding.historical_frame ? "双击回放固定帧" : "双击查看独立历史"
+    : "双击展开";
   const node = {
     id: containerId,
     original_id: binding.id,
     kind: "submap",
-    label: `${parentEdge.title ?? binding.map_id}\n子地图 · ${binding.actual_arrival === "audited" ? `已审计 ${binding.acceptance_passed ?? 0}/${binding.acceptance_total ?? 0}` : "尚未到达"}\n双击展开`,
+    label: `${parentEdge.title ?? binding.map_id}\n子地图 · ${binding.actual_arrival === "audited" ? `已审计 ${binding.acceptance_passed ?? 0}/${binding.acceptance_total ?? 0}` : "尚未到达"}\n${historyHint}`,
     status,
     predicates: [],
     proof_gaps: [],
@@ -743,9 +754,9 @@ function namespacedChildModel(binding, model, bindingPath, parentEdge, parentCon
         title: "子图到达回执",
         from: exit.id,
         to: parentEdge.to,
-        status: binding.receipt_status === "current" ? "verified" : binding.receipt_status === "stale" ? "stale" : "blocked",
+        status: ["current", "pinned"].includes(binding.receipt_status) ? "verified" : binding.receipt_status === "stale" ? "stale" : "blocked",
         candidate: true,
-        proven: binding.receipt_status === "current",
+        proven: ["current", "pinned"].includes(binding.receipt_status),
         ready: binding.actual_arrival === "audited",
         missing: [],
         preconditions: [],
@@ -834,7 +845,17 @@ async function fetchSubmap(bindingPath) {
   try {
     const etag = runtime.submapEtags.get(bindingPath);
     const encodedPath = bindingPath.split("/").map(encodeURIComponent).join("/");
-    const response = await fetch(`/api/submaps/${encodedPath}`, {
+    const binding = [runtime.rootModel, ...runtime.childModels.values()]
+      .flatMap((model) => model?.submaps ?? [])
+      .find((candidate) => (candidate.path ?? candidate.id) === bindingPath);
+    const historical = runtime.rootModel?.evolution?.historical === true;
+    if (historical && !binding?.historical_frame) {
+      throw new Error("这个父帧没有固定 child revision；请进入子地图独立历史");
+    }
+    const endpoint = historical
+      ? `/api/submaps/${encodedPath}/evolution/frames/${binding.historical_frame}`
+      : `/api/submaps/${encodedPath}`;
+    const response = await fetch(endpoint, {
       headers: etag ? { "If-None-Match": etag } : {},
       cache: "no-store",
       signal: controller.signal,
@@ -842,7 +863,7 @@ async function fetchSubmap(bindingPath) {
     if (response.status === 304) return false;
     const body = await response.json();
     if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
-    runtime.childModels.set(bindingPath, body);
+    runtime.childModels.set(bindingPath, historical ? body.board : body);
     runtime.submapEtags.set(bindingPath, response.headers.get("ETag"));
     return true;
   } finally {
@@ -872,6 +893,13 @@ async function toggleSubmap(bindingPath) {
     dom.announcer.textContent = `子地图 ${bindingPath} 已收缩`;
     return;
   }
+  const binding = [runtime.rootModel, ...runtime.childModels.values()]
+    .flatMap((model) => model?.submaps ?? [])
+    .find((candidate) => (candidate.path ?? candidate.id) === bindingPath);
+  if (runtime.rootModel?.evolution?.historical && !binding?.historical_frame) {
+    await enterSubmapHistory(bindingPath);
+    return;
+  }
   runtime.expandedSubmaps.add(bindingPath);
   persistExpandedSubmaps();
   try {
@@ -885,6 +913,13 @@ async function toggleSubmap(bindingPath) {
     persistExpandedSubmaps();
     showFetchError(`无法展开子地图：${error.message}`);
   }
+}
+
+function submapHistoryButton(bindingPath, pinnedFrame = null) {
+  const button = element("button", "submap-toggle", pinnedFrame ? "回放此回执固定的子地图" : "查看子地图独立历史");
+  button.type = "button";
+  button.addEventListener("click", () => enterSubmapHistory(bindingPath, pinnedFrame).catch((error) => showFetchError(`无法读取子地图历史：${error.message}`)));
+  return button;
 }
 
 export function topologySignature(model) {
@@ -1015,10 +1050,25 @@ function nodeClasses(node) {
   ].filter(Boolean).join(" ");
 }
 
-function edgeClasses(edge) {
+export function parallelEdgeLane(edge, model = runtime.model) {
+  const siblings = (model?.edges ?? [])
+    .filter((candidate) => candidate.from === edge.from && candidate.to === edge.to)
+    .sort((left, right) => left.id.localeCompare(right.id));
+  if (siblings.length < 2) return { className: "", offset: 0, labelOffset: 0 };
+  const index = siblings.findIndex((candidate) => candidate.id === edge.id);
+  const offset = (index - ((siblings.length - 1) / 2)) * 112;
+  return {
+    className: "parallel-lane",
+    offset,
+    labelOffset: offset < 0 ? -12 : 12,
+  };
+}
+
+function edgeClasses(edge, model = runtime.model) {
   const regression = edge.goal_regression?.[0];
   const reverseRegression = runtime.model?.projection.mode === "wayfinding"
     && runtime.model.wayfinding?.phase === "regression";
+  const lane = parallelEdgeLane(edge, model);
   return [
     "work-edge",
     `status-${classToken(edge.status)}`,
@@ -1031,6 +1081,7 @@ function edgeClasses(edge) {
     regression?.bridge_status ? `bridge-${classToken(regression.bridge_status)}` : "",
     regression?.human_confirmed ? "human-confirmed" : "",
     edge.evolution_status ? `evolution-${classToken(edge.evolution_status)}` : "",
+    lane.className,
   ].filter(Boolean).join(" ");
 }
 
@@ -1041,11 +1092,22 @@ function graphElements(model) {
       data: { id: node.id, label: node.label, kind: node.kind, status: node.status, ...(node.parent ? { parent: node.parent } : {}) },
       classes: nodeClasses(node),
     })),
-    ...model.edges.map((edge) => ({
-      group: "edges",
-      data: { id: edge.id, source: edge.from, target: edge.to, label: edge.title, status: edge.status },
-      classes: edgeClasses(edge),
-    })),
+    ...model.edges.map((edge) => {
+      const lane = parallelEdgeLane(edge, model);
+      return {
+        group: "edges",
+        data: {
+          id: edge.id,
+          source: edge.from,
+          target: edge.to,
+          label: edge.title,
+          status: edge.status,
+          parallelOffset: lane.offset,
+          parallelLabelOffset: lane.labelOffset,
+        },
+        classes: edgeClasses(edge, model),
+      };
+    }),
   ];
 }
 
@@ -1100,6 +1162,15 @@ function cytoscapeStyles() {
         "text-background-padding": 3,
         "text-margin-y": -8,
         width: 1.5,
+      },
+    },
+    {
+      selector: "edge.parallel-lane",
+      style: {
+        "control-point-distances": "data(parallelOffset)",
+        "control-point-weights": 0.5,
+        "curve-style": "unbundled-bezier",
+        "text-margin-y": "data(parallelLabelOffset)",
       },
     },
     { selector: "edge.is-proven", style: { "line-color": "#53636a", "target-arrow-color": "#53636a", width: 2 } },
@@ -1182,8 +1253,14 @@ function syncGraph(model, topologyChanged) {
         cy.add(graphElements({ nodes: [], edges: [edge] }));
         graphEdge = cy.getElementById(edge.id);
       }
-      graphEdge.data({ label: edge.title, status: edge.status });
-      graphEdge.classes(edgeClasses(edge));
+      const lane = parallelEdgeLane(edge, model);
+      graphEdge.data({
+        label: edge.title,
+        status: edge.status,
+        parallelOffset: lane.offset,
+        parallelLabelOffset: lane.labelOffset,
+      });
+      graphEdge.classes(edgeClasses(edge, model));
     }
   });
 }
@@ -1383,7 +1460,7 @@ function wayfindingPhaseTitle(model) {
 export function wayfindingNextAction(phase) {
   if (phase === "survey") return "先回答并记录当前始发问题；用四值事实更新草稿，再创建目的地问题。";
   if (phase === "shaping") return "先逐项收敛并确认目的地合同；确认前不创建工作边或 Blueprint。";
-  if (phase === "regression") return "逐个确认当前里程碑或工作边；候选链闭合且全部确认后，才写入 Blueprint 并登记变更。";
+  if (phase === "regression") return "审阅完整候选链并补齐每条边的合同；validate/prove 通过后写入 Blueprint 并登记。";
   return "先回答当前唯一问题，再根据真相刷新建模焦点。";
 }
 
@@ -1456,7 +1533,7 @@ function renderWayfindingChrome(model) {
   explanation.push(current ? `本轮目标：${TARGET_KIND_LABELS[current.kind] ?? current.kind} · ${current.label}（${current.id}）` : "本轮没有待确认的建模目标。");
   if (currentQuestion) explanation.push(questionUpdateLabel(currentQuestion));
   if (phase !== "regression" && (model.summary.draft_edges ?? 0) === 0) explanation.push("图中只有始发/目的地候选，没有任何路径边。");
-  if (phase === "regression" && (model.summary.draft_edges ?? 0) > 0) explanation.push("未确认候选留在‘全部候选’镜头；人确认后先显示为待登记，写入 Blueprint 并执行 replan 后才成为正式拓扑。");
+  if (phase === "regression" && (model.summary.draft_edges ?? 0) > 0) explanation.push("完整候选链留在‘全部候选’镜头供整体审阅；写入 Blueprint 并通过 validate/prove 与 init/replan 后才成为正式拓扑。");
   dom.canvasExplanation.replaceChildren(element("span", "canvas-explanation-text", explanation.join("\n")));
 }
 
@@ -1479,8 +1556,8 @@ function renderCounts(model) {
     const counts = [
       [model.summary.nodes, "正式节点"],
       [model.summary.edges, "正式工作边"],
-      [model.summary.pending_draft_nodes ?? model.summary.draft_nodes ?? 0, "待确认节点"],
-      [model.summary.pending_draft_edges ?? model.summary.draft_edges ?? 0, "待确认工作边"],
+      [model.summary.draft_nodes ?? 0, "候选节点"],
+      [model.summary.draft_edges ?? 0, "候选工作边"],
       [model.summary.open_questions ?? 0, "待收敛问题"],
       [WAYFINDING_PHASE_LABELS[phase] ?? "探路建模", "当前阶段"],
     ];
@@ -1491,13 +1568,13 @@ function renderCounts(model) {
     }));
     return;
   }
-  const pendingHuman = (model.summary.pending_route_approvals ?? 0)
-    + (model.summary.pending_authorizations ?? 0)
+  const pendingHuman = (model.summary.pending_authorizations ?? 0)
     + (model.summary.pending_arrival_audits ?? 0)
     + (model.summary.pending_proposals ?? 0);
   const counts = [
     [model.summary.satisfied_nodes, `满足节点 / ${model.summary.nodes}`],
     [model.summary.verified_edges, `已完成工作边 / ${model.summary.edges}`],
+    [`${model.summary.parallel_ready_edges ?? 0}/${model.summary.ready_edges?.length ?? 0}`, "可独立推进 / 前置就绪"],
     [model.summary.proof_gaps, "证明缺口"],
     [`${model.summary.acceptance_passed}/${model.summary.acceptance_total}`, "验收通过"],
     [pendingHuman, "待人工处理"],
@@ -1618,8 +1695,8 @@ function regressionStepItem(step) {
   const confirmationLabel = step.formal
     ? "已进入正式图"
     : step.human_confirmed
-      ? "人已确认，待登记"
-      : "待人确认";
+      ? "旧记录：已审阅"
+      : "候选链审阅";
   header.append(
     target,
     makeChip(REGRESSION_LABELS[step.bridge_status] ?? step.bridge_status, regressionTone(step.bridge_status)),
@@ -1634,7 +1711,7 @@ function regressionStepItem(step) {
     edgeButton.type = "button";
     edgeButton.addEventListener("click", () => selectMapElement(edge.edge_id, true));
     edgeItem.append(edgeButton);
-    const edgeConfirmation = edge.formal ? "已进入正式图" : edge.human_confirmed ? "人已确认，待登记" : "待人确认";
+    const edgeConfirmation = edge.formal ? "已进入正式图" : edge.human_confirmed ? "旧记录：已审阅" : "候选合同待整体审阅";
     edgeItem.append(element("span", "regression-edge-contract", `${edgeConfirmation} · 验收 ${edge.acceptance?.length ? edge.acceptance.map((item) => item.status === "passed" ? "通过" : "待验").join("/") : "待补合同"} · 非目标 ${asText(edge.non_goals)}`));
     edgeList.append(edgeItem);
   }
@@ -1694,13 +1771,12 @@ function renderOverview(model) {
     const destination = wayfindingDestinationView(model);
     const regressionReady = model.wayfinding?.phase === "regression"
       && model.goal_regression?.complete_chain
-      && (model.summary.pending_regression_candidates ?? 0) === 0
       && !model.wayfinding?.current_target;
     const content = [hero({
       eyebrow: "WAYFINDING DRAFT",
       title: wayfindingPhaseTitle(model),
       id: model.map.id,
-      chips: [makeChip(regressionReady ? "候选链已确认，待登记" : "待人确认", regressionReady ? "teal" : "amber"), makeChip("只读投影", "teal")],
+      chips: [makeChip(regressionReady ? "候选链闭合，待登记" : "候选链审阅中", regressionReady ? "teal" : "amber"), makeChip("只读投影", "teal")],
     })];
     content.push(ledgerSection("当前建模进度", [
       labeledValue("当前阶段", WAYFINDING_PHASE_LABELS[model.wayfinding?.phase ?? model.map.wayfinding_phase] ?? "探路建模", "warn"),
@@ -1730,10 +1806,10 @@ function renderOverview(model) {
       `${question.prompt}\n目标${TARGET_KIND_LABELS[question.target.kind] ?? question.target.kind}：${question.target.label}（${question.target.id}）\n目的：${question.target.purpose}\n${questionUpdateLabel(question)}`,
       question.status === "answered" ? "good" : "warn",
     )), "当前没有带建模目标的问题。"));
-    content.push(ledgerSection("确认门", [
+    content.push(ledgerSection("登记门", [
       labeledValue("候选状态", "始发节点、目的地候选和问题目标均未进入正式 Blueprint。"),
       labeledValue("路径规则", model.summary.draft_edges
-        ? "候选工作边必须补齐前置、效果、验收、非目标和授权后才能确认。"
+        ? "候选工作边必须补齐前置、效果、因果、验收、交接和上下文合同，再整体审阅并证明。"
         : "目的地尚未确认时不创建 origin → destination 直连边；确认后才进入反向目标回归。", "warn"),
       labeledValue("下一步", model.empty_state?.next_steps?.[0] ?? wayfindingNextAction(model.wayfinding?.phase ?? model.map.wayfinding_phase), "warn"),
     ]));
@@ -1760,24 +1836,28 @@ function renderOverview(model) {
     labeledValue("逻辑路线工作边（推演）", proof.proven_edges),
     labeledValue("使用的假设", proof.assumptions_used),
   ]));
+  content.push(ledgerSection("证据层级", Object.entries(model.evidence_levels ?? proof.evidence_levels ?? {}).map(([id, level]) => labeledValue(
+    EVIDENCE_LEVEL_LABELS[id] ?? id,
+    `${statusLabel(level.status)}${level.basis ? `\n${level.basis}` : ""}`,
+    ["established", "complete", "logical", "ready", "active"].includes(level.status) ? "good" : level.status === "failed" || level.status === "blocked" ? "bad" : "warn",
+  ))));
+  content.push(ledgerSection("当前可并行性", [
+    labeledValue("前置已满足", model.summary.ready_edges?.length ? model.summary.ready_edges : "无"),
+    labeledValue(
+      "独立可推进",
+      model.summary.parallel_ready_groups?.length
+        ? model.summary.parallel_ready_groups.map((group) => group.join(" ↔ ")).join("\n")
+        : "当前没有两条同时就绪且无产出依赖的工作边",
+      model.summary.parallel_ready_edges > 1 ? "good" : "",
+    ),
+    labeledValue("执行约束", "个人工作流仍保持一个 active Run；完成或挂起一条分支后，另一条独立分支仍保持就绪。"),
+  ]));
   content.push(regressionSection(model));
   content.push(ledgerSection("Intent 与确认门", [
     labeledValue(`Intent · ${model.map.intent.status}`, `${model.map.intent.statement}\n开放问题：${asText(model.map.intent.open_questions)}`, model.map.intent.status === "shaped" && model.map.intent.open_questions.length === 0 ? "good" : "warn"),
     labeledValue("待确认 Proposal", model.proposals.filter((proposal) => proposal.status === "pending").map((proposal) => `${proposal.id}: ${proposal.fact}=${proposal.value}`)),
   ]));
-  const routeApproval = routeApprovalView(model);
-  content.push(ledgerSection("路线、施工与到达审计", [
-    labeledValue("当前路线批准", routeApproval.label, routeApproval.tone),
-    ...(model.route_approval_requests ?? []).filter((request) => request.status === "pending").map((request) => labeledValue(
-      `${request.id} · 路线待回答`,
-      `问题：${request.question}\n责任人：${decisionOwnerLabel(request)}\n请求者：${request.requested_by}\n证明：${STRUCTURAL_LABELS[request.structural] ?? request.structural}/${REACHABILITY_LABELS[request.reachability] ?? request.reachability}`,
-      "warn",
-    )),
-    ...model.route_approvals.map((approval) => labeledValue(
-      approval.id,
-      `批准请求：${approval.request ?? "旧状态未记录"}\n批准人：${approval.actor}\n理由：${approval.reason}\n证明：${approval.structural}/${approval.reachability}\n时间：${formatTimestamp(approval.approved_at)}`,
-      approval.id === model.map.current_route_approval ? "good" : "",
-    )),
+  content.push(ledgerSection("工作边授权与到达审计", [
     ...model.authorization_requests.filter((request) => request.status === "pending").map((request) => labeledValue(
       `${request.id} · 待回答`,
       `工作边：${request.edge}\n问题：${request.question}\n责任人：${decisionOwnerLabel(request)}\n请求者：${request.requested_by}`,
@@ -1788,7 +1868,7 @@ function renderOverview(model) {
       `问题：${request.question}\n责任人：${decisionOwnerLabel(request)}\n冻结验收：${asText(request.acceptance)}\n请求者：${request.requested_by}\n回答：${request.answer ?? "尚未回答"}\n审计人：${request.audited_by ?? "尚未记录"}`,
       request.status === "granted" ? "good" : request.status === "pending" ? "warn" : request.status === "stale" ? "bad" : "",
     )),
-  ], "当前没有路线批准请求、路线批准、施工授权或到达审计请求。"));
+  ], "当前没有施工授权或到达审计请求。"));
   content.push(ledgerSection("子地图", (model.submaps ?? []).map((binding) => labeledValue(
     `${binding.id} · ${statusLabel(binding.source_status)}`,
     `${binding.map_id}\n阶段：${PHASE_LABELS[binding.phase] ?? binding.phase} · 到达：${ARRIVAL_LABELS[binding.actual_arrival] ?? binding.actual_arrival}\n验收：${binding.acceptance_passed}/${binding.acceptance_total} · 迷雾：${binding.fog_nodes}\n回执：${statusLabel(binding.receipt_status)}`,
@@ -1824,12 +1904,12 @@ function renderNodeInspector(node) {
     toggle.setAttribute("aria-expanded", String(expanded));
     toggle.setAttribute("aria-controls", submapContainerId(bindingPath));
     toggle.addEventListener("click", () => toggleSubmap(bindingPath));
-    content.push(toggle);
+    content.push(toggle, submapHistoryButton(bindingPath, binding.historical_frame));
     content.push(ledgerSection("父子合同", [
       labeledValue("父工作边", binding.parent_edge),
       labeledValue("子地图", `${binding.map_id}\n${binding.map_ref}`),
       labeledValue("到达与验收", `${ARRIVAL_LABELS[binding.actual_arrival] ?? binding.actual_arrival}\n${binding.acceptance_passed}/${binding.acceptance_total}`),
-      labeledValue("回执", `${statusLabel(binding.receipt_status)} · ${binding.receipt_id ?? "尚无"}`, binding.receipt_status === "current" ? "good" : "warn"),
+      labeledValue("回执", `${statusLabel(binding.receipt_status)} · ${binding.receipt_id ?? "尚无"}`, ["current", "pinned"].includes(binding.receipt_status) ? "good" : "warn"),
       labeledValue("来源", binding.source_error ?? statusLabel(binding.source_status), binding.source_status === "stale" ? "bad" : "good"),
     ]));
     dom.inspectorContent.replaceChildren(...content);
@@ -1850,7 +1930,7 @@ function renderNodeInspector(node) {
     const questions = (runtime.model.questions ?? []).filter((question) => question.target?.id === node.id);
     const humanConfirmed = node.goal_regression?.human_confirmed;
     content.push(ledgerSection("候选说明", [
-      labeledValue("正式状态", humanConfirmed ? "人已确认；尚未写入 Blueprint / init 或 replan" : "待人确认；尚未写入 Blueprint", "warn"),
+      labeledValue("正式状态", humanConfirmed ? "旧记录显示已审阅；仍须写入 Blueprint 并证明" : "候选链对象；尚未写入 Blueprint", "warn"),
       labeledValue("用途", node.purpose ?? "当前勘探候选"),
     ]));
     content.push(ledgerSection("收敛问题", questions.map((question) => labeledValue(
@@ -1902,7 +1982,7 @@ function renderEdgeInspector(edge) {
     const questions = (runtime.model.questions ?? []).filter((question) => question.target?.id === edge.id);
     const humanConfirmed = edge.goal_regression?.[0]?.human_confirmed;
     content.push(ledgerSection("候选说明", [
-      labeledValue("正式状态", humanConfirmed ? "人已确认；尚未写入 Blueprint / init 或 replan" : "待人确认；尚未写入 Blueprint", "warn"),
+      labeledValue("正式状态", humanConfirmed ? "旧记录显示已审阅；仍须写入 Blueprint 并证明" : "候选链对象；尚未写入 Blueprint", "warn"),
       labeledValue("用途", edge.purpose ?? "当前回归候选"),
     ]));
     content.push(ledgerSection("收敛问题", questions.map((question) => labeledValue(
@@ -1920,7 +2000,7 @@ function renderEdgeInspector(edge) {
     }
   }
   const readinessLabel = edge.draft
-    ? "仅候选；需人确认、写入 Blueprint，并通过首次 init 或已有地图 replan 后再评估"
+    ? "仅候选；整体审阅并补齐合同后写入 Blueprint，通过 validate/prove 与 init/replan 再评估"
     : edge.ready
       ? edgeExecutionLabel(edge, runtime.model)
       : `尚缺：${asText(edge.missing)}`;
@@ -1930,10 +2010,25 @@ function renderEdgeInspector(edge) {
     labeledValue("执行门", readinessLabel, edge.draft || edge.ready ? "warn" : "bad"),
     labeledValue("失败分支", edge.on_failure),
   ]));
+  const handoff = edge.brief?.metadata?.contract?.handoff;
+  if (handoff) content.push(ledgerSection("岗位交接", [
+    labeledValue("来自", handoff.from_roles),
+    labeledValue("交给", handoff.to_roles),
+    labeledValue("输入", handoff.inputs),
+    labeledValue("输出", handoff.outputs),
+    labeledValue("决策权", handoff.decision_rights),
+  ]));
+  const context = edge.brief?.metadata?.contract?.context;
+  if (context) content.push(ledgerSection("上下文披露", [
+    labeledValue("当前焦点", context.focus, "good"),
+    labeledValue("先加载", context.load_first),
+    labeledValue("按需加载", context.load_on_demand?.map((item) => `${item.when} → ${asText(item.refs)}`) ?? []),
+    labeledValue("注意力预算", `${context.budget.max_files} files / ${context.budget.max_chars} chars`),
+  ]));
   if (edge.goal_regression?.length) {
     content.push(ledgerSection("目标回归证明", edge.goal_regression.map((regression) => labeledValue(
       `第 ${regression.depth} 层 · ${regression.target_node}`,
-      `目标侧后缀：${REGRESSION_LABELS[regression.suffix_proof.status] ?? regression.suffix_proof.status}\n当前事实前缀：${REGRESSION_LABELS[regression.prefix_reachability.status] ?? regression.prefix_reachability.status}\n桥接：${REGRESSION_LABELS[regression.bridge_status] ?? regression.bridge_status}\n确认：${regression.formal ? "已写入正式 Blueprint" : regression.human_confirmed ? "人已确认，待登记" : "待人确认"}`,
+      `目标侧后缀：${REGRESSION_LABELS[regression.suffix_proof.status] ?? regression.suffix_proof.status}\n当前事实前缀：${REGRESSION_LABELS[regression.prefix_reachability.status] ?? regression.prefix_reachability.status}\n桥接：${REGRESSION_LABELS[regression.bridge_status] ?? regression.bridge_status}\n登记：${regression.formal ? "已写入正式 Blueprint" : "仍为整体候选链的一部分"}`,
       regressionTone(regression.bridge_status),
     ))));
   }
@@ -1962,9 +2057,14 @@ function renderEdgeInspector(edge) {
   )), "这条工作边尚无已登记实施凭据。"));
   content.push(ledgerSection("施工授权", (edge.authorization_requests ?? []).map((request) => labeledValue(
     `${request.id} · ${request.status}`,
-    `问题：${request.question}\n责任人：${decisionOwnerLabel(request)}\n请求者：${request.requested_by}\n路线批准：${request.route_approval}${request.answer ? `\n回答：${request.answer}` : ""}${request.authorized_by ? `\n授权人：${request.authorized_by}` : ""}`,
+    `问题：${request.question}\n责任人：${decisionOwnerLabel(request)}\n请求者：${request.requested_by}${request.answer ? `\n回答：${request.answer}` : ""}${request.authorized_by ? `\n授权人：${request.authorized_by}` : ""}`,
     request.status === "granted" ? "good" : request.status === "pending" ? "warn" : "bad",
   )), "这条工作边尚未提出施工授权请求。"));
+  content.push(ledgerSection("确定性能力", (edge.capabilities ?? []).map((capability) => labeledValue(
+    `${capability.id} · ${capability.status}`,
+    `Run：${capability.run}\nVerifier：${capability.verifier ?? "无"}\n允许动作：${asText(capability.allowed_actions)}\nBrief 边界：${asText(capability.brief_allowed_actions)}\n到期：${formatTimestamp(capability.expires_at)}\nToken：只保存 SHA-256，不在看板回显`,
+    capability.status === "consumed" ? "good" : capability.status === "active" ? "warn" : "bad",
+  )), "这条工作边尚未签发确定性能力。"));
   content.push(ledgerSection("Edge Run", (edge.runs ?? []).map((run) => labeledValue(
     `${run.id} · ${statusLabel(run.status)}`,
     `attempt ${run.attempt}\n施工授权：${run.authorization_request ?? "旧状态未记录"}\n开始：${formatTimestamp(run.started_at)}\n更新：${formatTimestamp(run.updated_at)}${run.blocking_reason ? `\n阻塞：${run.blocking_reason}` : ""}${run.waiting_reason ? `\n等待：${run.waiting_reason}` : ""}`,
@@ -1982,7 +2082,7 @@ function renderEdgeInspector(edge) {
     details.append(
       labeledValue("地图", `${edge.submap.map_id} · ${PHASE_LABELS[edge.submap.phase] ?? edge.submap.phase}`),
       labeledValue("到达", `${ARRIVAL_LABELS[edge.submap.actual_arrival] ?? edge.submap.actual_arrival} · 验收 ${edge.submap.acceptance_passed}/${edge.submap.acceptance_total}`),
-      labeledValue("回执", `${statusLabel(edge.submap.receipt_status)} · ${edge.submap.receipt_id ?? "尚无"}`, edge.submap.receipt_status === "current" ? "good" : "warn"),
+      labeledValue("回执", `${statusLabel(edge.submap.receipt_status)} · ${edge.submap.receipt_id ?? "尚无"}`, ["current", "pinned"].includes(edge.submap.receipt_status) ? "good" : "warn"),
       labeledValue("导出合同", edge.submap.exports),
       labeledValue("来源", edge.submap.source_error ?? statusLabel(edge.submap.source_status), edge.submap.source_status === "stale" ? "bad" : "good"),
     );
@@ -1993,7 +2093,7 @@ function renderEdgeInspector(edge) {
     toggle.setAttribute("aria-expanded", String(expanded));
     toggle.setAttribute("aria-controls", submapContainerId(bindingPath));
     toggle.addEventListener("click", () => toggleSubmap(bindingPath));
-    submapSection.append(details, toggle);
+    submapSection.append(details, toggle, submapHistoryButton(bindingPath, edge.submap.historical_frame));
     content.push(submapSection);
   }
   content.push(ledgerSection("关联验收", edge.acceptance.map((acceptance) => labeledValue(
@@ -2049,7 +2149,7 @@ function renderTimeline(model) {
     const eventName = timelineEventLabel(entry);
     const eventContext = entry.edge ?? entry.details?.edge;
     const eventTitle = eventContext ? `${eventName} · ${eventContext}` : eventName;
-    const button = element("button", `timeline-event${["evidence", "receipt"].includes(entry.kind) ? " is-evidence" : ""}`);
+    const button = element("button", "timeline-event" + (["evidence", "receipt"].includes(entry.kind) ? " is-evidence" : ""));
     button.type = "button";
     button.append(element("strong", "", eventTitle), element("span", "", `${formatTimestamp(entry.at)} · ${entry.kind === "evidence" ? "凭据" : "状态"}`));
     button.addEventListener("click", () => {
@@ -2204,6 +2304,86 @@ function stopEvolutionPlayback() {
   }
 }
 
+function evolutionApiBase() {
+  const bindingPath = runtime.evolution.bindingPath;
+  if (!bindingPath) return "/api/evolution";
+  const encoded = bindingPath.split("/").map(encodeURIComponent).join("/");
+  return `/api/submaps/${encoded}/evolution`;
+}
+
+async function enterSubmapHistory(bindingPath, pinnedFrame = null) {
+  stopEvolutionPlayback();
+  const state = runtime.evolution;
+  const parent = {
+    bindingPath: state.bindingPath,
+    catalog: state.catalog,
+    etag: state.etag,
+    frame: state.frame,
+    index: state.index,
+    pendingLive: state.pendingLive,
+    rootModel: runtime.rootModel,
+    childModels: new Map(runtime.childModels),
+    submapEtags: new Map(runtime.submapEtags),
+    expandedSubmaps: new Set(runtime.expandedSubmaps),
+  };
+  state.stack.push(parent);
+  state.bindingPath = bindingPath;
+  state.catalog = null;
+  state.etag = null;
+  state.frame = null;
+  state.index = null;
+  state.pendingLive = false;
+  runtime.childModels.clear();
+  runtime.submapEtags.clear();
+  runtime.expandedSubmaps.clear();
+  try {
+    await pollEvolutionCatalog();
+    const frames = state.catalog?.frames ?? [];
+    if (!frames.length) throw new Error("这张子地图尚无可信演化帧");
+    const pinnedIndex = pinnedFrame ? frames.findIndex((frame) => frame.id === pinnedFrame) : -1;
+    if (pinnedFrame && pinnedIndex < 0) throw new Error(`回执固定帧不存在：${pinnedFrame}`);
+    await showEvolutionFrame(pinnedIndex >= 0 ? pinnedIndex : frames.length - 1);
+  } catch (error) {
+    state.stack.pop();
+    Object.assign(state, {
+      bindingPath: parent.bindingPath,
+      catalog: parent.catalog,
+      etag: parent.etag,
+      frame: parent.frame,
+      index: parent.index,
+      pendingLive: parent.pendingLive,
+    });
+    runtime.rootModel = parent.rootModel;
+    runtime.childModels = parent.childModels;
+    runtime.submapEtags = parent.submapEtags;
+    runtime.expandedSubmaps = parent.expandedSubmaps;
+    renderCompositeModel(composeModel());
+    renderEvolutionPlayer();
+    throw error;
+  }
+}
+
+function returnToParentEvolution() {
+  stopEvolutionPlayback();
+  const parent = runtime.evolution.stack.pop();
+  if (!parent) return;
+  Object.assign(runtime.evolution, {
+    bindingPath: parent.bindingPath,
+    catalog: parent.catalog,
+    etag: parent.etag,
+    frame: parent.frame,
+    index: parent.index,
+    pendingLive: parent.pendingLive,
+  });
+  runtime.rootModel = parent.rootModel;
+  runtime.childModels = parent.childModels;
+  runtime.submapEtags = parent.submapEtags;
+  runtime.expandedSubmaps = parent.expandedSubmaps;
+  renderCompositeModel(composeModel());
+  renderEvolutionPlayer();
+  dom.announcer.textContent = runtime.evolution.bindingPath ? `已返回子地图 ${runtime.evolution.bindingPath}` : "已返回主地图";
+}
+
 function renderEvolutionPlayer() {
   const state = runtime.evolution;
   const catalog = state.catalog;
@@ -2211,6 +2391,9 @@ function renderEvolutionPlayer() {
   const historical = state.index !== null;
   const total = catalog?.frames?.length ?? 0;
   const frame = historical ? catalog?.frames?.[state.index] : null;
+  const streamSegments = state.bindingPath?.split("/") ?? [];
+  dom.evolutionBreadcrumb.textContent = ["主地图", ...streamSegments].join(" / ");
+  dom.evolutionParent.hidden = state.stack.length === 0;
   dom.evolutionPlayer.classList.toggle("is-historical", historical);
   dom.evolutionPlayer.classList.toggle("has-live-update", state.pendingLive);
   dom.evolutionMode.classList.toggle("is-live", !historical && !state.pendingLive);
@@ -2261,7 +2444,7 @@ function renderEvolutionPlayer() {
 
 async function pollEvolutionCatalog() {
   const headers = runtime.evolution.etag ? { "If-None-Match": runtime.evolution.etag } : {};
-  const response = await fetch("/api/evolution", { headers, cache: "no-store" });
+  const response = await fetch(evolutionApiBase(), { headers, cache: "no-store" });
   if (response.status === 304) {
     renderEvolutionPlayer();
     return;
@@ -2279,7 +2462,7 @@ async function showEvolutionFrame(index) {
   const frames = runtime.evolution.catalog?.frames ?? [];
   if (!frames.length) return;
   const bounded = Math.max(0, Math.min(index, frames.length - 1));
-  const response = await fetch(`/api/evolution/frames/${frames[bounded].id}`, { cache: "no-store" });
+  const response = await fetch(`${evolutionApiBase()}/frames/${frames[bounded].id}`, { cache: "no-store" });
   const frame = await response.json();
   if (!response.ok) throw new Error(frame.error ?? `HTTP ${response.status}`);
   runtime.evolution.index = bounded;
@@ -2295,6 +2478,10 @@ async function showEvolutionFrame(index) {
 
 function returnToLive() {
   stopEvolutionPlayback();
+  runtime.evolution.bindingPath = null;
+  runtime.evolution.stack = [];
+  runtime.evolution.catalog = null;
+  runtime.evolution.etag = null;
   runtime.evolution.index = null;
   runtime.evolution.frame = null;
   runtime.evolution.pendingLive = false;
@@ -2303,6 +2490,7 @@ function returnToLive() {
   restoreExpandedSubmaps();
   if (runtime.liveModel) renderModel(runtime.liveModel);
   renderEvolutionPlayer();
+  pollEvolutionCatalog().catch((error) => showFetchError(error.message));
   dom.announcer.textContent = "已回到实时地图";
 }
 
@@ -2359,7 +2547,7 @@ async function pollBoard() {
       if (runtime.evolution.index === null) {
         renderModel(body);
         dom.announcer.textContent = `地图已刷新，版本 ${body.projection.revision.slice(0, 8)}`;
-      } else if (runtime.rootModel?.projection.revision !== body.projection.revision) {
+      } else if (!runtime.evolution.bindingPath && runtime.rootModel?.projection.revision !== body.projection.revision) {
         runtime.evolution.pendingLive = true;
       }
     }
@@ -2389,6 +2577,7 @@ function bindControls() {
     if (runtime.evolution.index === null) return;
     showEvolutionFrame(runtime.evolution.index + 1).catch((error) => showFetchError(error.message));
   });
+  dom.evolutionParent.addEventListener("click", returnToParentEvolution);
   dom.evolutionLive.addEventListener("click", returnToLive);
   dom.evolutionPlay.addEventListener("click", () => {
     if (runtime.evolution.playing) stopEvolutionPlayback();

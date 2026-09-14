@@ -1,0 +1,3 @@
+# These two event-backed fixture Briefs retain byte-exact content pinned by historical receipts.
+examples/community-workshop/briefs/complete-workshop-preparation.md whitespace=-blank-at-eof
+examples/community-workshop/preparation/briefs/confirm-venue.md whitespace=-blank-at-eof

@@ -1,18 +1,18 @@
 {
   "schema": "mapflow.benchmark-case/v1",
   "id": "library-system-submaps",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "tier": "extended",
   "title": "用可收缩子地图交付模块化图书系统",
   "target_user": "面对大目标、需要在总览和细节之间切换的个人开发者",
-  "core_job": "把大目标分成独立可验收子地图，以 Arrival Receipt 汇总到父图并保持收缩可读",
-  "critical_journey": ["父图目标回归", "人确认子地图边界", "绑定两个以上子地图", "子图独立到达", "父图验收回执和收缩投影"],
+  "core_job": "把大目标分成独立可验收子地图，以 Arrival Receipt 汇总到父图，并保持收缩与历史回放可读",
+  "critical_journey": ["父图目标回归", "人确认子地图边界", "绑定两个以上子地图", "子图独立到达", "父图验收回执和收缩投影", "父历史帧按 Receipt 固定 child revision"],
   "expected_first_value": "父图在子图展开前就能显示范围、状态、验收和下一阻塞点",
   "budget": { "max_turns": 20, "max_minutes": 180 },
   "allowed_writes": ["目标仓库中的产品代码和测试", "目标仓库外的父子 Mapflow Sidecar"],
   "human_only_unknowns": ["大规模真实地图的长期认知负担", "团队协作体验"],
-  "primary_risks": ["子地图只是视觉分组", "父边提前完成", "receipt 漂移不 stale", "收缩后丢失状态摘要"],
+  "primary_risks": ["子地图只是视觉分组", "父边提前完成", "receipt 漂移不 stale", "收缩后丢失状态摘要", "父历史帧泄漏 child 当前态"],
   "fixture": "subject/fixture",
   "operator_mainline": "operator/mainline.md",
-  "required_checkpoints": ["prepared", "parent-route-approved", "children-bound", "first-child-received", "all-children-received", "collapsed-readable", "arrived"]
+  "required_checkpoints": ["prepared", "parent-map-proven", "children-bound", "first-child-received", "all-children-received", "collapsed-readable", "arrived"]
 }

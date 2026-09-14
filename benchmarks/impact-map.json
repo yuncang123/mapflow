@@ -9,7 +9,7 @@
     },
     {
       "id": "runtime-state-machine",
-      "paths": ["tools/mapflow.mjs", "tools/mapflow-core.mjs", "tools/mapflow-workspace.mjs", "templates/**", "tests/test_mapflow.mjs", "tests/test_workspace.mjs"],
+      "paths": ["tools/mapflow.mjs", "tools/mapflow-core.mjs", "tools/mapflow-workspace.mjs", "templates/**", "examples/ai-native-sdlc/**", "tests/test_mapflow.mjs", "tests/test_workspace.mjs", "tests/test_sdlc.mjs"],
       "layers": ["runtime"]
     },
     {

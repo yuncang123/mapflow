@@ -10,7 +10,8 @@
       { "path": "workspace.map_exists", "equals": true }, { "path": "workspace.state_exists", "equals": true },
       { "path": "contract.destination_acceptance", "min": 3 }, { "path": "contract.out_of_scope", "min": 2 }, { "path": "contract.edge_contracts_complete", "equals": true },
       { "path": "runtime.evidence_count", "min": 1 }, { "path": "runtime.decisions_count", "min": 1 },
-      { "path": "runtime.human_decisions", "equals": true }, { "path": "runtime.evidence_traceable", "equals": true },
+      { "path": "runtime.decisions_attributed", "equals": true }, { "path": "runtime.runs_follow_authorization_contract", "equals": true },
+      { "path": "runtime.evidence_traceable", "equals": true },
       { "path": "summary.nodes", "min": 2 }, { "path": "summary.edges", "min": 2 }
     ] },
     { "id": "resumed", "description": "会话 B 的只读恢复没有重建、丢失或推进地图", "assertions": [

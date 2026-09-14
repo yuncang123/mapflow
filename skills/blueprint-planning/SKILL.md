@@ -9,22 +9,18 @@ description: "把目的地契约和四值起始事实收敛为状态节点、独
 
 ## 步骤
 
-1. **反向闭包**：从每个 Destination Predicate 反问“哪条独立 Work Edge 能产生它，执行前哪些 Predicate 必须成立”。完成条件：每个目标已在起始事实成立，或至少有一条产生边。
-2. **状态建图**：State Node 只包含 Predicate；AND 使用多 Predicate 的 State/Join Node，OR 使用多条替代边，必要事实未知时使用 Fog Node，真实路线取舍才使用 Decision Node。完成条件：边 B 依赖边 A 的效果时已经插入中间状态，不存在同源边隐藏耦合。
-3. **边合同**：每条 Work Edge 关联语义化 `brief_ref`、前置 Predicate、expected effects、不变量、certainty、失败分支和 Evidence Contract。完成条件：每个 effect 被必需证据覆盖，Task Brief 可独立施工。
-   当一条边本身仍是一张多步地图时，在父 Blueprint 建立单向 Submap Binding，固定 child identity/digest、arrival、关闭策略和 acceptance export。完成条件：child 保持独立，exports 覆盖父边 effects。
-4. **正向证明**：运行 `mapflow prove --map <blueprint.yaml>`，从有证据的起始事实搜索彼此隔离的事实世界；同一 Fact 在一个世界中只有一个值，OR 备选只需一条完整路线。完成条件：同时得到 `structural`、`reachability`、反向回归的 `candidate_edges` 和至少位于一条抵达路线上的 `proven_edges`，并明确 expected effect 不是 observed fact。
-5. **局部修图**：对每个 proof gap 记录 `type/at_edge/missing/caused_by/repair_scope`，只替换受影响子图。完成条件：已验证 Fact、Work Edge 和 Evidence Record 得到保留，修图后重新执行反向闭包与正向证明。
-
-反向回归得到的里程碑和 Work Edge 必须先作为候选交给人确认。完整候选链可以先投影，但确认问题必须按单个节点或单条边串行创建，`wayfinding.yaml` 同时最多有一个 `pending` 问题；当前回答留痕并更新草稿后才能移动到下一候选，不得用一个问题捆绑多个候选。候选链补齐语义、Task Brief、验收、非目标和授权并逐项确认后，才一次生成正式 Blueprint、执行正向证明并进入看板正式拓扑；空白 Sidecar 用 `init` 首次登记，已有正式地图的局部修订才用 `replan`。投影不得替人确认结构。
-
-目标回归之前先回读 `wayfinding.yaml`。确认每个问题都指向一个具体节点、边或 Predicate，且最多一个问题为 `pending`；没有目标的提问不能被当成回归输入。草稿中的始发节点、目的地候选和候选边可以在看板用虚线显示，但它们与正式拓扑分开计数，不能被路线批准或请求施工授权。
+1. **反向闭包**：从每个 Destination Predicate 反问产生它的 Work Edge、premises 和 witness。完成条件：每个目标已在起始 Fact 成立，或至少有一条产生边。
+2. **状态建图**：State Node 只包含 Predicate；AND 用多 Predicate State/Join，OR 用替代边，未知用 Fog，真实取舍才用 Decision。完成条件：边 B 依赖边 A 的 effect 时已有中间状态，同源边没有隐藏产出依赖。
+3. **因果合同**：为每条边声明完整结构 premises、与 effects 完全一致的 conclusions、rule basis、required witnesses 和 non-interference。完成条件：不存在“可实现”式模糊边，每个 conclusion 有可回读 witness。
+4. **边合同**：绑定语义化 Brief、范围、失败分支、授权、handoff 与 context；复杂边用单向 Submap Binding。完成条件：执行者与接收岗位不需要猜输入、输出、决策权或加载范围。
+5. **完整投影**：把闭合候选链一次展示给人审阅；Destination 的人工确认不能替代路线审阅，但候选节点/边不逐项设置审批门。完成条件：审阅反馈已吸收，候选链完整且没有孤立终点。
+6. **正向证明**：运行 `mapflow prove --map <blueprint.yaml>`，检查结构、五层证据边界、完整 derivation graph 和 digest。完成条件：至少一条 Destination-reaching 路线成立，或每个当前 frontier 缺口都有精确 repair scope。
+7. **局部修图**：只替换受缺口影响的最小子图，再重跑反向闭包和正向证明。完成条件：已验证 Fact、Work Edge 和 Evidence 保留。
 
 ## 停止条件
 
-- 结构完整，且路线为 `logical` 或 `conditional`；
-- 决策、迷雾、授权、外部依赖和循环预算均已显式化；
-- 每项验收能追溯到目标 Predicate 和产生它的 Work Edge；
-- 剩余未知拥有可执行探针或不阻塞完整路线；当前 ready 边仍需另行请求施工授权。
-
-只允许表述：“在当前事实、约束和显式假设下，该路线通过正向可达性证明。”逻辑可达不表示现实已经到达。
+- Destination 已被人确认；
+- 候选链闭合并作为整体完成审阅；
+- schema 3 因果合同和 Evidence Contract 完整；
+- 路线为 `logical`/`conditional`，或缺口具有可执行探针；
+- `logical` 只表述模型可达，不表述现实已到达。

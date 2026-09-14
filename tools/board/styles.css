@@ -340,6 +340,18 @@ h3 { font-size: 15px; }
 .evolution-reading { display: flex; align-items: center; }
 .evolution-heading { justify-content: space-between; gap: 16px; }
 .evolution-heading h2 { font-size: 16px; }
+.evolution-stream-line { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.evolution-breadcrumb { color: #4f4a69; font: 650 10px/1.35 var(--mono); overflow-wrap: anywhere; }
+.stream-back {
+  padding: 3px 7px;
+  border: 1px solid #6f5c9a;
+  border-radius: 3px;
+  color: #4f4a69;
+  background: transparent;
+  font: 650 9px var(--mono);
+  cursor: pointer;
+}
+.stream-back:hover { color: #fff; background: #6f5c9a; }
 .evolution-status-line { flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .evolution-mode,
 .evolution-coverage {

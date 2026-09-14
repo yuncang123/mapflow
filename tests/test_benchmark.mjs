@@ -28,7 +28,17 @@ function runNode(script, args, { cwd = ROOT, mapflowHome, benchmarkHome, env = {
 }
 
 function json(result) {
-  assert.equal(result.status, 0, result.stderr);
+  let detail = result.stderr || result.stdout;
+  if (result.status !== 0 && result.stdout.trim()) {
+    try {
+      const output = JSON.parse(result.stdout);
+      const stderrPath = output.artifacts?.stderr;
+      if (stderrPath && fs.existsSync(stderrPath)) detail = fs.readFileSync(stderrPath, "utf8") || detail;
+    } catch {
+      // Keep the original process output when the failed command did not emit JSON.
+    }
+  }
+  assert.equal(result.status, 0, detail);
   return JSON.parse(result.stdout);
 }
 
@@ -128,9 +138,10 @@ test("a frozen checkpoint restores an isolated segment and cannot become full-jo
     assert.equal(prepared.from_checkpoint, "implementation-verified");
     assert.equal(prepared.to_checkpoint, "arrived");
     const runManifest = JSON.parse(fs.readFileSync(path.join(prepared.run_directory, "run.json"), "utf8"));
+    const sourceCheckpointManifest = JSON.parse(fs.readFileSync(path.join(ROOT, "benchmarks", "cases", "library-system-greenfield", "checkpoints", "implementation-verified", "checkpoint.json"), "utf8"));
     assert.equal(runManifest.run_mode, "segment");
     assert.equal(runManifest.segment.id, "arrival-audit");
-    assert.equal(runManifest.segment.source_event_revision, 17);
+    assert.equal(runManifest.segment.source_event_revision, sourceCheckpointManifest.event_stream.last_seq);
     assert.equal(fs.existsSync(path.join(prepared.run_directory, "segment-attempt.json")), false);
     assert.equal(fs.existsSync(path.join(target, ".mapflow")), false);
     assert.equal(spawnSync("git", ["rev-list", "--count", "HEAD"], { cwd: target, encoding: "utf8", windowsHide: true }).stdout.trim(), "1");
@@ -150,11 +161,7 @@ test("a frozen checkpoint restores an isolated segment and cannot become full-jo
     ], { mapflowHome, benchmarkHome }));
     assert.equal(saved.manifest.schema, "mapflow.benchmark-checkpoint/v1");
     assert.ok(Object.values(saved.manifest.digests).every((digest) => /^[a-f0-9]{64}$/.test(digest)));
-    assert.deepEqual(saved.manifest.event_stream, {
-      path: "events.jsonl",
-      last_seq: 17,
-      head_digest: "03faad83d563e6c25a909406676cd64d03fe058d18af9c332e06976272448631",
-    });
+    assert.deepEqual(saved.manifest.event_stream, sourceCheckpointManifest.event_stream);
 
     const infrastructure = json(runNode(BENCHMARK, [
       "segment-report", "--run", prepared.run_id,
@@ -179,11 +186,12 @@ const statusResult = spawnSync(process.execPath, [runtime, "status", "--root", p
 if (statusResult.status !== 0) throw new Error(statusResult.stderr);
 const state = JSON.parse(statusResult.stdout);
 const request = state.arrival_audit_requests.find((entry) => entry.status === "pending");
+const actor = request.decision_owner ?? "human:segment-user";
 if (!request.decision_owner) {
-  const assigned = spawnSync(process.execPath, [runtime, "assign-decision-owner", "--root", process.cwd(), "--request", request.id, "--decision-owner", "human:segment-user", "--actor", "agent:codex"], { encoding: "utf8", env: process.env });
+  const assigned = spawnSync(process.execPath, [runtime, "assign-decision-owner", "--root", process.cwd(), "--request", request.id, "--decision-owner", actor, "--actor", "agent:codex"], { encoding: "utf8", env: process.env });
   if (assigned.status !== 0) throw new Error(assigned.stderr);
 }
-const arrived = spawnSync(process.execPath, [runtime, "arrive", "--root", process.cwd(), "--request", request.id, "--answer", input, "--actor", "human:segment-user", "--non-goals", "未授权外部发布", "--risks", "真实长期使用仍未验证"], { encoding: "utf8", env: process.env });
+const arrived = spawnSync(process.execPath, [runtime, "arrive", "--root", process.cwd(), "--request", request.id, "--answer", input, "--actor", actor, "--non-goals", "未授权外部发布", "--risks", "真实长期使用仍未验证"], { encoding: "utf8", env: process.env });
 if (arrived.status !== 0) throw new Error(arrived.stderr);
 const outputIndex = args.indexOf("--output-last-message");
 if (outputIndex >= 0) fs.writeFileSync(args[outputIndex + 1], "已按当前请求完成到达审计。", "utf8");
@@ -218,19 +226,19 @@ process.stdout.write(JSON.stringify({ type: "item.completed", item: { type: "com
     assert.equal(report.gate, "segment-passed");
     assert.equal(report.agent_turn_observed, true);
     assert.deepEqual(report.event_sequence, {
-      source_revision: 17,
-      expected: ["mapflow.decision.owner.assigned.v1", "mapflow.arrival.audited.v1"],
-      actual: ["mapflow.decision.owner.assigned.v1", "mapflow.arrival.audited.v1"],
+      source_revision: sourceCheckpointManifest.event_stream.last_seq,
+      expected: ["mapflow.arrival.audited.v1"],
+      actual: ["mapflow.arrival.audited.v1"],
       passed: true,
     });
     assert.match(report.boundary, /not a complete journey/i);
 
-    fs.appendFileSync(workspace.eventsPath, `${JSON.stringify({ seq: 20, type: "mapflow.unexpected.v1" })}\n`, "utf8");
+    fs.appendFileSync(workspace.eventsPath, `${JSON.stringify({ seq: sourceCheckpointManifest.event_stream.last_seq + 1, type: "mapflow.unexpected.v1" })}\n`, "utf8");
     const unexpectedEvent = json(runNode(BENCHMARK, [
       "segment-report", "--run", prepared.run_id, "--no-fail",
     ], { mapflowHome, benchmarkHome }));
     assert.equal(unexpectedEvent.gate, "segment-repair-and-retest");
-    assert.deepEqual(unexpectedEvent.event_sequence.actual, ["mapflow.decision.owner.assigned.v1", "mapflow.arrival.audited.v1", "mapflow.unexpected.v1"]);
+    assert.deepEqual(unexpectedEvent.event_sequence.actual, ["mapflow.arrival.audited.v1", "mapflow.unexpected.v1"]);
     assert.equal(unexpectedEvent.event_sequence.passed, false);
     const invalidInfrastructureOverride = runNode(BENCHMARK, [
       "segment-report", "--run", prepared.run_id,
@@ -555,10 +563,35 @@ test("probe detects a transient regression checkpoint without writing check evid
         label: "foundation accepted",
         purpose: "an observable intermediate milestone",
         status: "confirmed",
+        facts: [{ id: "foundation-observed", value: "true", evidence: [{ kind: "observation", ref: "fixture" }] }],
+      }, {
+        id: "design-docs-ready",
+        kind: "join",
+        label: "design documents ready",
+        purpose: "two independent pre-code documents",
+        status: "confirmed",
+        facts: [
+          { id: "domain-model-ready", value: "true", evidence: [{ kind: "document", ref: "domain" }] },
+          { id: "api-contract-ready", value: "true", evidence: [{ kind: "document", ref: "api" }] },
+        ],
+      }, {
+        id: "design-reviewed",
+        kind: "state",
+        label: "design reviewed",
+        purpose: "freeze implementation inputs",
+        status: "confirmed",
+        facts: [
+          { id: "domain-model-ready", value: "true", evidence: [{ kind: "document", ref: "domain" }] },
+          { id: "api-contract-ready", value: "true", evidence: [{ kind: "document", ref: "api" }] },
+          { id: "engineering-design-reviewed", value: "true", evidence: [{ kind: "meeting", ref: "review" }] },
+        ],
       }],
       edges: [
         candidateEdge("establish-foundation", "origin-fog", "foundation-ready", "repository-ready", "foundation-observed"),
-        candidateEdge("deliver-workflow", "foundation-ready", "destination-fog", "foundation-observed", "system-observed"),
+        candidateEdge("design-domain-model", "foundation-ready", "design-docs-ready", "foundation-observed", "domain-model-ready"),
+        candidateEdge("design-api-contract", "foundation-ready", "design-docs-ready", "foundation-observed", "api-contract-ready"),
+        candidateEdge("review-engineering-design", "design-docs-ready", "design-reviewed", "domain-model-ready", "engineering-design-reviewed"),
+        candidateEdge("build-workflow", "design-reviewed", "destination-fog", "engineering-design-reviewed", "system-observed"),
       ],
       questions: [],
     }, null, 2)}\n`, "utf8");
@@ -578,7 +611,7 @@ test("probe detects a transient regression checkpoint without writing check evid
   }
 });
 
-test("diagnosis route checkpoint requires a clean approved route with a probe before repair", () => {
+test("diagnosis map checkpoint requires a clean proven map with a probe before repair", () => {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), "mf-diagnosis-route-test-"));
   const target = path.join(parent, "workspace");
   const mapflowHome = path.join(parent, "state");
@@ -592,12 +625,10 @@ test("diagnosis route checkpoint requires a clean approved route with a probe be
     blueprint.boundaries.out_of_scope = ["Do not add a cache", "Do not change caller interfaces"];
     fs.writeFileSync(enabled.paths.map, `${JSON.stringify(blueprint, null, 2)}\n`, "utf8");
     assert.equal(runNode(MAPFLOW, ["init", "--root", target], { mapflowHome, benchmarkHome }).status, 0);
-    const routeRequest = json(runNode(MAPFLOW, ["request-route-approval", "--root", target, "--question", "Do you approve this diagnosis-first route?", "--json"], { mapflowHome, benchmarkHome }));
-    assert.equal(runNode(MAPFLOW, ["approve", "--root", target, "--request", routeRequest.request_id, "--answer", "The complete diagnosis-first route is accepted", "--actor", "human:owner"], { mapflowHome, benchmarkHome }).status, 0);
     json(runNode(BENCHMARK, ["record", "--run", prepared.run_id, "--turn", "opening", "--input", "启用 mapflow", "--response", "已启用并开始勘探"], { mapflowHome, benchmarkHome }));
-    json(runNode(BENCHMARK, ["record", "--run", prepared.run_id, "--turn", "route-confirmation", "--input", "我确认这条完整路线", "--response", "路线已批准，尚未请求施工授权"], { mapflowHome, benchmarkHome }));
+    json(runNode(BENCHMARK, ["record", "--run", prepared.run_id, "--turn", "destination-confirmation", "--input", "我确认之前展示的目的地合同", "--response", "完整候选链已整体审阅，正式地图已证明"], { mapflowHome, benchmarkHome }));
 
-    const checked = json(runNode(BENCHMARK, ["check", "--run", prepared.run_id, "--checkpoint", "route-approved", "--json"], { mapflowHome, benchmarkHome }));
+    const checked = json(runNode(BENCHMARK, ["check", "--run", prepared.run_id, "--checkpoint", "map-proven", "--json"], { mapflowHome, benchmarkHome }));
     assert.equal(checked.passed, true);
     assert.equal(checked.observation.runtime.active_edge, null);
     assert.equal(checked.observation.runtime.edge_runs_count, 0);
@@ -609,7 +640,7 @@ test("diagnosis route checkpoint requires a clean approved route with a probe be
   }
 });
 
-test("greenfield route-proven checkpoint requires a pending post-proof human approval", () => {
+test("greenfield map-proven checkpoint accepts a reviewed proof without route approval", () => {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), "mf-route-proof-gate-test-"));
   const target = path.join(parent, "workspace");
   const mapflowHome = path.join(parent, "state");
@@ -617,24 +648,19 @@ test("greenfield route-proven checkpoint requires a pending post-proof human app
   try {
     const prepared = json(runNode(BENCHMARK, ["prepare", "--case", "library-system-greenfield", "--target", target], { mapflowHome, benchmarkHome }));
     const enabled = json(runNode(MAPFLOW, ["enable", "--root", target, "--json"], { mapflowHome, benchmarkHome }));
-    for (const entry of fs.readdirSync(path.join(ROOT, "templates", "briefs"))) {
-      fs.copyFileSync(path.join(ROOT, "templates", "briefs", entry), path.join(enabled.paths.briefs, entry));
+    const example = path.join(ROOT, "examples", "library-system-evolution");
+    for (const entry of fs.readdirSync(path.join(example, "briefs"))) {
+      fs.copyFileSync(path.join(example, "briefs", entry), path.join(enabled.paths.briefs, entry));
     }
-    fs.copyFileSync(path.join(ROOT, "templates", "blueprint.yaml"), enabled.paths.map);
+    fs.copyFileSync(path.join(example, "blueprint.yaml"), enabled.paths.map);
     assert.equal(runNode(MAPFLOW, ["init", "--root", target], { mapflowHome, benchmarkHome }).status, 0);
-    const routeRequest = json(runNode(MAPFLOW, [
-      "request-route-approval", "--root", target,
-      "--question", "Do you approve this proven complete route?", "--json",
-    ], { mapflowHome, benchmarkHome }));
-    assert.ok(routeRequest.request_id);
     json(runNode(BENCHMARK, ["record", "--run", prepared.run_id, "--turn", "opening", "--input", "启用 mapflow", "--response", "已展示目的地候选"], { mapflowHome, benchmarkHome }));
-    json(runNode(BENCHMARK, ["record", "--run", prepared.run_id, "--turn", "destination-confirmation", "--input", "我确认刚才展示的目的地合同", "--response", "已进入目标回归"], { mapflowHome, benchmarkHome }));
+    json(runNode(BENCHMARK, ["record", "--run", prepared.run_id, "--turn", "destination-confirmation", "--input", "我确认刚才展示的目的地合同", "--response", "候选链已整体审阅并登记证明"], { mapflowHome, benchmarkHome }));
 
-    const checked = json(runNode(BENCHMARK, ["check", "--run", prepared.run_id, "--checkpoint", "route-proven", "--json"], { mapflowHome, benchmarkHome }));
+    const checked = json(runNode(BENCHMARK, ["check", "--run", prepared.run_id, "--checkpoint", "map-proven", "--json"], { mapflowHome, benchmarkHome }));
     assert.equal(checked.passed, true);
-    assert.equal(checked.observation.runtime.current_route_approval, null);
-    assert.equal(checked.observation.runtime.route_approvals_count, 0);
-    assert.equal(checked.observation.runtime.pending_route_approvals, 1);
+    assert.equal(checked.observation.proof.causal_soundness, "explicit");
+    assert.deepEqual(checked.observation.topology.ready_edges, ["confirm-core-journey"]);
     assert.equal(checked.observation.runtime.pending_authorizations, 0);
   } finally {
     fs.rmSync(parent, { recursive: true, force: true });

@@ -1,5 +1,5 @@
-# Mapflow v0.6 Blueprint 示例。Blueprint 是定义真源；实际使用时由用户级 runtime 保存到仓库外 Workspace Sidecar。
-schema_version: 2
+# Mapflow v0.8 Blueprint 示例。Blueprint 是定义真源；实际使用时由用户级 runtime 保存到仓库外 Workspace Sidecar。
+schema_version: 3
 map_id: publish-article
 
 intent:
@@ -140,6 +140,14 @@ edges:
       - id: audience-decision-record
         proves: [audience-known]
         required: true
+    causal_contract:
+      rule_id: settle-audience-rule
+      premises: [source-exists, audience-unknown]
+      conclusions: [audience-known]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: audience-record-check }
+      required_witnesses: [audience-decision-record]
+      non_interference: []
     on_failure:
       action: replan
   - id: write-candidate
@@ -154,6 +162,14 @@ edges:
       - id: candidate-and-review-record
         proves: [article-drafted, sensitive-content-checked]
         required: true
+    causal_contract:
+      rule_id: write-candidate-rule
+      premises: [source-exists, audience-known]
+      conclusions: [article-drafted, sensitive-content-checked]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: candidate-review-check }
+      required_witnesses: [candidate-and-review-record]
+      non_interference: []
     on_failure:
       action: replan
   - id: obtain-owner-approval
@@ -168,6 +184,14 @@ edges:
       - id: owner-approval-receipt
         proves: [owner-approved]
         required: true
+    causal_contract:
+      rule_id: obtain-owner-approval-rule
+      premises: [article-drafted, sensitive-content-checked]
+      conclusions: [owner-approved]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: owner-approval-readback }
+      required_witnesses: [owner-approval-receipt]
+      non_interference: []
     on_failure:
       action: stop
   - id: publish-article
@@ -182,6 +206,14 @@ edges:
       - id: publication-readback
         proves: [article-published, public-url-exists]
         required: true
+    causal_contract:
+      rule_id: publish-article-rule
+      premises: [article-drafted, sensitive-content-checked, owner-approved]
+      conclusions: [article-published, public-url-exists]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: publication-readback }
+      required_witnesses: [publication-readback]
+      non_interference: [sensitive-content-checked, owner-approved]
     on_failure:
       action: replan
 

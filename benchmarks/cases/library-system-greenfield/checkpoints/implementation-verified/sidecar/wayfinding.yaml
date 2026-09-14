@@ -1,395 +1,617 @@
 schema_version: 1
 phase: regression
 intent:
-  statement: 从零开发 Shelfwise，供小型社区图书室管理员在本机完成日常借阅管理
+  statement: 为个人藏书开发一个可验收的本地管理系统
   status: shaped
   open_questions: []
 origin:
-  id: shelfwise-empty-repository
-  kind: state
-  label: Shelfwise 已定边界的空白仓库
+  id: workspace-origin-fog
+  kind: fog
+  label: 仓库存在，核心旅程和实现仍在迷雾中
   facts:
-    - id: git-repository-exists
+    - id: repository-present
       value: 'true'
       evidence:
         - kind: git
-          ref: commit:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
-          strength: observed
-    - id: community-library-intent-recorded
-      value: 'true'
-      evidence:
-        - kind: document
-          ref: README.md
-          strength: observed
-    - id: application-implementation-exists
+          ref: empty demo repository
+    - id: core-journey-known
+      value: unknown
+      evidence: []
+    - id: implementation-present
       value: 'false'
       evidence:
-        - kind: repository
-          ref: git-tree:ab18d7bb31694a11c2874d2fb6a3d6600e3007f1
-          strength: observed
-    - id: local-node-runtime-available
-      value: 'true'
-      evidence:
-        - kind: command
-          ref: node --version => v24.18.0
-          strength: observed
-    - id: node-sqlite-available
-      value: 'true'
-      evidence:
-        - kind: command
-          ref: node:sqlite in-memory probe => SQLite 3.53.1
-          strength: observed
-    - id: technology-stack-selected
-      value: 'true'
-      evidence:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-v1-scope
-          strength: asserted
-    - id: v1-product-boundary-known
-      value: 'true'
-      evidence:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-v1-scope
-          strength: asserted
-    - id: destination-contract-confirmed
-      value: 'true'
-      evidence:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-destination-confirmation
-          strength: asserted
-    - id: external-deployment-authorized
-      value: 'false'
-      evidence:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-v1-scope
-          strength: asserted
+        - kind: observation
+          ref: workspace contains README only
 destination:
-  id: shelfwise-v1
+  id: workspace-destination-fog
   kind: destination
-  label: Shelfwise v1 可用的本地图书借阅闭环
-  statement: |-
-    使用者：小型社区图书室管理员。
-    目标 Predicate：管理员能在浏览器页面登记单册图书、登记读者、创建借阅、办理归还并查询当前有效借阅；借阅引用有效图书和读者，同一单册同一时刻至多一笔有效借阅；成功写入的数据经进程重启后仍从 LIBRARY_DATA_FILE 恢复；应用由当前本地 Node.js 运行，以 npm start 启动，监听 PORT，页面入口为 /；HTTP 合同包含 POST /api/books、POST /api/readers、POST /api/loans、POST /api/returns 和 GET /api/loans?status=active。
-    验收：A1 使用临时 PORT 和 LIBRARY_DATA_FILE 执行 npm start 后，GET / 返回可操作页面；A2 经页面和 API 登记一本单册图书与一名读者并获得稳定 ID；A3 创建借阅后 active 查询返回关联图书和读者，重复借出同一单册或引用不存在记录时返回 4xx 且不产生脏数据；A4 归还后该借阅不再出现在 active 查询，重复或无效归还返回 4xx；A5 停止并以同一数据文件重启后，图书、读者及借阅状态保持一致；A6 自动化测试和代码检查证明上述 HTTP 合同且 package.json 没有第三方生产依赖。
-    不变量：只在本机运行；使用 Node.js 内置能力实现生产路径；持久化文件由 LIBRARY_DATA_FILE 指定；失败请求不改变已确认数据；实现和验证不得发布或写入外部环境。
-    范围内：单管理员使用的图书、读者、借阅、归还、有效借阅查询、浏览器管理页面、本地文件持久化和对应自动化验证。
-    范围外：会员收费、电子书、推荐、预约、多人权限、外部部署与发布。
-    授权边界：允许在本仓库实现并在本机使用临时端口和临时数据文件验证；不允许外部发布、生产部署或外部系统写入。
+  label: MVP 已通过完整核心旅程验收
+  statement: 个人能够管理自己的藏书
   status: confirmed
+  requires:
+    - engineering-design-reviewed
+    - catalog-slice-ready
+    - circulation-slice-ready
+    - integration-tests-pass
+    - demo-accepted
+  invariants:
+    - no-external-release
+  acceptance:
+    - id: catalog-slice-accepted
+      proves:
+        - catalog-slice-ready
+      proof: 新增与搜索拥有独立自动检查
+    - id: engineering-design-accepted
+      proves:
+        - engineering-design-reviewed
+      proof: 领域模型与 API / 持久化契约已经分别评审并汇合
+    - id: circulation-slice-accepted
+      proves:
+        - circulation-slice-ready
+      proof: 借出与归还拥有独立自动检查
+    - id: library-integration-accepted
+      proves:
+        - integration-tests-pass
+      proof: 两个切片汇合后通过跨切片检查
+    - id: library-demo-accepted
+      proves:
+        - demo-accepted
+      proof: Owner 按完整核心旅程完成回读
+boundaries:
+  in_scope:
+    - 新增与搜索切片
+    - 借出与归还切片
+    - 本地集成与人工演示
+  out_of_scope:
+    - 多用户权限
+    - 云同步
+    - 推荐算法
+    - 生产部署
+  authorization:
+    - 每条工作边单独获得 Owner 授权
 nodes:
-  - id: library-api-ready
+  - id: mvp-integrated
     kind: state
-    label: 持久化图书借阅 API 已就绪
-    purpose: 提供经过自动化验证的领域规则、文件持久化和指定 HTTP 合同
+    label: 两个切片已集成并通过自动检查
+    purpose: 固定人工演示之前的集成出口
     status: confirmed
-    facts:
-      - id: persistent-library-api-ready
-        value: 'true'
-        evidence: []
-    question_refs:
-      - confirm-library-api-ready-node
-    non_goals:
-      - 不包含浏览器交互界面
-    proof:
-      status: confirmed-suffix
-      summary: 人工已确认该状态；它可通过已确认的浏览器界面边与整体验收边抵达目的地
-      evidence_refs:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-library-api-node-confirmation
-          strength: asserted
-  - id: admin-app-ready
+  - id: independent-slices-ready
     kind: join
-    label: 管理员浏览器工作流已就绪
-    purpose: 在已验证 API 之上提供完整的单管理员浏览器操作闭环
+    label: 目录与借还两个独立切片均就绪
+    purpose: 只有两个分支 Predicate 都成立时才允许集成
     status: confirmed
-    facts:
-      - id: persistent-library-api-ready
-        value: 'true'
-        evidence: []
-      - id: admin-browser-workflows-ready
-        value: 'true'
-        evidence: []
-    question_refs:
-      - confirm-admin-app-ready-node
-    non_goals:
-      - 不在此状态宣称完整目的地验收已经通过
-    proof:
-      status: confirmed-suffix
-      summary: 人工已确认该状态；执行已确认的整体验收边即可产生全部目的地 Predicate
-      evidence_refs:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-admin-app-node-confirmation
-          strength: asserted
+  - id: engineering-design-reviewed
+    kind: state
+    label: 工程设计文档已评审并冻结为实施输入
+    purpose: 只有设计合同评审通过后才开放编码
+    status: confirmed
+  - id: engineering-design-ready
+    kind: join
+    label: 领域模型与 API / 持久化契约均已形成
+    purpose: 两个独立设计子目的地的 AND 汇合
+    status: confirmed
+  - id: core-journey-confirmed
+    kind: state
+    label: 核心用户旅程已确认
+    purpose: 防止实现范围漂移
+    status: confirmed
 edges:
-  - id: build-persistent-library-api
-    from: shelfwise-empty-repository
-    to: library-api-ready
-    label: 构建持久化图书借阅 API
-    purpose: 用 Node.js 内置能力建立项目、领域规则、SQLite 文件存储和指定 HTTP API
+  - id: accept-library-mvp
+    from: mvp-integrated
+    to: workspace-destination-fog
+    label: 按核心旅程演示并验收
+    purpose: 建立里程碑“按核心旅程演示并验收”并留下可回读出口
     status: confirmed
-    question_refs:
-      - confirm-build-persistent-library-api-edge
-    brief_ref: briefs/build-persistent-library-api.md
+    brief_ref: briefs/accept-library-mvp.md
     preconditions:
-      - git-repository-exists
-      - local-node-runtime-available
-      - node-sqlite-available
-      - destination-contract-confirmed
+      - catalog-slice-ready
+      - circulation-slice-ready
+      - integration-tests-pass
     effects:
-      - persistent-library-api-ready
+      - demo-accepted
     invariants:
-      - production-dependencies-remain-empty
-      - configured-data-file-is-authoritative
-      - no-external-release
+      - scope-preserved
     evidence_contract:
-      - id: persistent-api-test-record
+      - id: accept-library-mvp-record
         proves:
-          - persistent-library-api-ready
+          - demo-accepted
         required: true
-        proof: Node 内置测试覆盖 node:sqlite 启动探针、登记、借阅、归还、有效借阅查询、事务回滚和重启恢复
+        proof: 检查和结果可回读
     acceptance:
-      - id: persistent-api-ready-evidence
+      - id: library-demo-accepted
         proves:
-          - persistent-library-api-ready
-        proof: node:sqlite 探针和 API 集成测试通过，使用临时 LIBRARY_DATA_FILE 重启后回读一致，package.json 无生产依赖
-        status: pending
+          - demo-accepted
+        proof: 阶段出口可回读
     non_goals:
-      - 不实现浏览器页面和视觉设计
-      - 不实现目的地明确排除的功能
+      - 不扩大到已声明非目标
     certainty: expected
     on_failure:
       action: replan
-      scope: subgraph:shelfwise-empty-repository:library-api-ready
+      scope: edge:accept-library-mvp
     proof:
-      status: confirmed-prefix
-      summary: 人工已确认该边；起始事实满足其前置，预期效果建立 API 里程碑
-      evidence_refs:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-persistent-api-edge-confirmation
-          strength: asserted
-  - id: build-admin-browser-interface
-    from: library-api-ready
-    to: admin-app-ready
-    label: 构建管理员浏览器界面
-    purpose: 在根页面提供图书、读者、借阅、归还和有效借阅查询工作流
+      status: logical
+      summary: 在当前显式条件下目标后缀可达
+      missing: []
+      evidence_refs: []
+  - id: integrate-library-slices
+    from: independent-slices-ready
+    to: mvp-integrated
+    label: 集成并自动验证两个切片
+    purpose: 建立里程碑“集成并自动验证两个切片”并留下可回读出口
     status: confirmed
-    question_refs:
-      - confirm-build-admin-browser-interface-edge
-    brief_ref: briefs/build-admin-browser-interface.md
+    brief_ref: briefs/integrate-library-slices.md
     preconditions:
-      - persistent-library-api-ready
+      - catalog-slice-ready
+      - circulation-slice-ready
     effects:
-      - admin-browser-workflows-ready
+      - integration-tests-pass
     invariants:
-      - production-dependencies-remain-empty
-      - configured-data-file-is-authoritative
-      - no-external-release
+      - scope-preserved
     evidence_contract:
-      - id: admin-browser-workflow-record
+      - id: integrate-library-slices-record
         proves:
-          - admin-browser-workflows-ready
+          - integration-tests-pass
         required: true
-        proof: 本地浏览器逐项完成登记、借阅、查询和归还，并保留页面与 HTTP 回读证据
+        proof: 检查和结果可回读
     acceptance:
-      - id: admin-workflows-ready-evidence
+      - id: library-integration-accepted
         proves:
-          - admin-browser-workflows-ready
-        proof: GET / 返回可操作页面，五条管理员工作流均通过 UI 调用本地 API 完成
-        status: pending
+          - integration-tests-pass
+        proof: 阶段出口可回读
     non_goals:
-      - 不改变后端 API 合同或持久化模型
-      - 不增加多人权限、预约、推荐或收费流程
+      - 不扩大到已声明非目标
     certainty: expected
     on_failure:
       action: replan
-      scope: subgraph:library-api-ready:admin-app-ready
+      scope: edge:integrate-library-slices
     proof:
-      status: confirmed-suffix
-      summary: 人工已确认该边；它把已验证 API 提升为可供管理员操作的浏览器应用
-      evidence_refs:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-admin-browser-edge-confirmation
-          strength: asserted
-  - id: verify-shelfwise-v1
-    from: admin-app-ready
-    to: shelfwise-v1
-    label: 验证 Shelfwise v1 完整合同
-    purpose: 对启动、页面、API、领域规则、重启持久化和依赖边界执行最终验收
+      status: logical
+      summary: 在当前显式条件下目标后缀可达
+      missing: []
+      evidence_refs: []
+  - id: design-domain-model
+    from: core-journey-confirmed
+    to: engineering-design-ready
+    label: 形成领域模型设计
+    purpose: 建立里程碑“形成领域模型设计”并留下可回读出口
     status: confirmed
-    question_refs:
-      - confirm-verify-shelfwise-v1-edge
-    brief_ref: briefs/verify-shelfwise-v1.md
+    brief_ref: briefs/design-domain-model.md
     preconditions:
-      - persistent-library-api-ready
-      - admin-browser-workflows-ready
+      - repository-present
+      - core-journey-known
     effects:
-      - startup-and-page-verified
-      - registration-workflows-verified
-      - loan-lifecycle-verified
-      - restart-persistence-verified
-      - required-api-contract-verified
-      - production-dependency-policy-verified
+      - domain-model-ready
     invariants:
-      - production-dependencies-remain-empty
-      - configured-data-file-is-authoritative
-      - no-external-release
+      - scope-preserved
     evidence_contract:
-      - id: shelfwise-v1-acceptance-record
+      - id: design-domain-model-record
         proves:
-          - startup-and-page-verified
-          - registration-workflows-verified
-          - loan-lifecycle-verified
-          - restart-persistence-verified
-          - required-api-contract-verified
-          - production-dependency-policy-verified
+          - domain-model-ready
         required: true
-        proof: 自动化测试、真实 npm start 进程回读和本机浏览器检查共同覆盖 A1 至 A6
+        proof: 检查和结果可回读
     acceptance:
-      - id: a1-startup-page
+      - id: domain-model-accepted
         proves:
-          - startup-and-page-verified
-        proof: 临时 PORT 和 LIBRARY_DATA_FILE 下 npm start 成功，GET / 返回可操作页面
-        status: pending
-      - id: a2-registration
-        proves:
-          - registration-workflows-verified
-        proof: 页面和 API 可登记单册图书与读者并返回稳定 ID
-        status: pending
-      - id: a3-a4-loan-lifecycle
-        proves:
-          - loan-lifecycle-verified
-        proof: 借阅、有效查询、归还和全部非法重复操作的结果符合合同且无脏数据
-        status: pending
-      - id: a5-restart-persistence
-        proves:
-          - restart-persistence-verified
-        proof: 使用同一数据文件重启后图书、读者与借阅状态完全一致
-        status: pending
-      - id: a6-api-contract
-        proves:
-          - required-api-contract-verified
-        proof: 自动化测试逐一调用五个指定 API 与页面入口
-        status: pending
-      - id: a6-production-dependencies
-        proves:
-          - production-dependency-policy-verified
-        proof: package.json 的生产 dependencies 为空且服务运行不依赖第三方包
-        status: pending
+          - domain-model-ready
+        proof: 阶段出口可回读
     non_goals:
-      - 不在验收边新增目的地之外的产品能力
-      - 不发布、部署或写入外部环境
+      - 不扩大到已声明非目标
     certainty: expected
     on_failure:
       action: replan
-      scope: subgraph:admin-app-ready:shelfwise-v1
+      scope: edge:design-domain-model
     proof:
-      status: confirmed-suffix
-      summary: 人工已确认该边；当前置实现状态成立时，六项证据效果完整覆盖目的地合同
-      evidence_refs:
-        - kind: note
-          ref: conversation-user-message-2026-09-07-verify-edge-confirmation
-          strength: asserted
+      status: logical
+      summary: 在当前显式条件下目标后缀可达
+      missing: []
+      evidence_refs: []
+  - id: design-api-contract
+    from: core-journey-confirmed
+    to: engineering-design-ready
+    label: 形成 API 与持久化契约
+    purpose: 建立里程碑“形成 API 与持久化契约”并留下可回读出口
+    status: confirmed
+    brief_ref: briefs/design-api-contract.md
+    preconditions:
+      - repository-present
+      - core-journey-known
+    effects:
+      - api-contract-ready
+    invariants:
+      - scope-preserved
+    evidence_contract:
+      - id: design-api-contract-record
+        proves:
+          - api-contract-ready
+        required: true
+        proof: 检查和结果可回读
+    acceptance:
+      - id: api-contract-accepted
+        proves:
+          - api-contract-ready
+        proof: 阶段出口可回读
+    non_goals:
+      - 不扩大到已声明非目标
+    certainty: expected
+    on_failure:
+      action: replan
+      scope: edge:design-api-contract
+    proof:
+      status: logical
+      summary: 在当前显式条件下目标后缀可达
+      missing: []
+      evidence_refs: []
+  - id: review-engineering-design
+    from: engineering-design-ready
+    to: engineering-design-reviewed
+    label: 评审并冻结工程设计文档
+    purpose: 建立里程碑“评审并冻结工程设计文档”并留下可回读出口
+    status: confirmed
+    brief_ref: briefs/review-engineering-design.md
+    preconditions:
+      - domain-model-ready
+      - api-contract-ready
+    effects:
+      - engineering-design-reviewed
+    invariants:
+      - scope-preserved
+    evidence_contract:
+      - id: review-engineering-design-record
+        proves:
+          - engineering-design-reviewed
+        required: true
+        proof: 检查和结果可回读
+    acceptance:
+      - id: engineering-design-accepted
+        proves:
+          - engineering-design-reviewed
+        proof: 阶段出口可回读
+    non_goals:
+      - 不扩大到已声明非目标
+    certainty: expected
+    on_failure:
+      action: replan
+      scope: edge:review-engineering-design
+    proof:
+      status: logical
+      summary: 在当前显式条件下目标后缀可达
+      missing: []
+      evidence_refs: []
+  - id: build-catalog-slice
+    from: engineering-design-reviewed
+    to: independent-slices-ready
+    label: 构建目录与搜索切片
+    purpose: 建立里程碑“构建目录与搜索切片”并留下可回读出口
+    status: confirmed
+    brief_ref: briefs/build-catalog-slice.md
+    preconditions:
+      - repository-present
+      - core-journey-known
+      - engineering-design-reviewed
+    effects:
+      - catalog-slice-ready
+    invariants:
+      - scope-preserved
+    evidence_contract:
+      - id: build-catalog-slice-record
+        proves:
+          - catalog-slice-ready
+        required: true
+        proof: 检查和结果可回读
+    acceptance:
+      - id: catalog-slice-accepted
+        proves:
+          - catalog-slice-ready
+        proof: 阶段出口可回读
+    non_goals:
+      - 不扩大到已声明非目标
+    certainty: expected
+    on_failure:
+      action: replan
+      scope: edge:build-catalog-slice
+    proof:
+      status: logical
+      summary: 在当前显式条件下目标后缀可达
+      missing: []
+      evidence_refs: []
+  - id: build-circulation-slice
+    from: engineering-design-reviewed
+    to: independent-slices-ready
+    label: 构建借还生命周期切片
+    purpose: 建立里程碑“构建借还生命周期切片”并留下可回读出口
+    status: confirmed
+    brief_ref: briefs/build-circulation-slice.md
+    preconditions:
+      - repository-present
+      - core-journey-known
+      - engineering-design-reviewed
+    effects:
+      - circulation-slice-ready
+    invariants:
+      - scope-preserved
+    evidence_contract:
+      - id: build-circulation-slice-record
+        proves:
+          - circulation-slice-ready
+        required: true
+        proof: 检查和结果可回读
+    acceptance:
+      - id: circulation-slice-accepted
+        proves:
+          - circulation-slice-ready
+        proof: 阶段出口可回读
+    non_goals:
+      - 不扩大到已声明非目标
+    certainty: expected
+    on_failure:
+      action: replan
+      scope: edge:build-circulation-slice
+    proof:
+      status: logical
+      summary: 在当前显式条件下目标后缀可达
+      missing: []
+      evidence_refs: []
+  - id: confirm-core-journey
+    from: workspace-origin-fog
+    to: core-journey-confirmed
+    label: 确认核心用户旅程
+    purpose: 建立里程碑“确认核心用户旅程”并留下可回读出口
+    status: confirmed
+    brief_ref: briefs/confirm-core-journey.md
+    preconditions:
+      - repository-present
+      - core-journey-unknown
+    effects:
+      - core-journey-known
+    invariants:
+      - scope-preserved
+    evidence_contract:
+      - id: confirm-core-journey-record
+        proves:
+          - core-journey-known
+        required: true
+        proof: 检查和结果可回读
+    acceptance:
+      - id: core-journey-decision-accepted
+        proves:
+          - core-journey-known
+        proof: 阶段出口可回读
+    non_goals:
+      - 不扩大到已声明非目标
+    certainty: expected
+    on_failure:
+      action: replan
+      scope: edge:confirm-core-journey
+    proof:
+      status: logical
+      summary: 在当前显式条件下目标后缀可达
+      missing: []
+      evidence_refs: []
 questions:
-  - id: choose-v1-operating-scope
-    prompt: 请选择 Shelfwise 首版的产品边界和主要使用者
+  - id: establish-starting-state
+    prompt: 当前工作区已经成立、尚未确认或相互冲突的事实分别是什么？
     target:
-      kind: destination
-      id: shelfwise-v1
-      label: Shelfwise 首版目的地
-      purpose: 确定首版必须闭环的角色、业务能力和验收范围
+      kind: node
+      id: workspace-origin-fog
+      label: 始发地仍在迷雾中
+      purpose: 以四值事实和来源证据固定当前起始状态
     status: answered
-    answer: 使用者是小型社区图书室的管理员。首版需要登记图书、登记读者、借书、还书和查询当前借阅状态；在本机浏览器中使用，数据重启后仍保留。使用当前本地 Node.js，不引入第三方生产依赖，npm start 启动且尊重 PORT 和 LIBRARY_DATA_FILE。API 需要有 POST /api/books、POST /api/readers、POST /api/loans、POST /api/returns，以及 GET /api/loans?status=active，页面入口是 /。暂不做会员收费、电子书、推荐、预约和多人权限；也不授权发布到外部环境。
-    evidence_refs:
-      - kind: note
-        ref: conversation-user-message-2026-09-07-v1-scope
     answer_updates:
       - wayfinding.intent.open_questions
-      - wayfinding.destination.statement
-      - wayfinding.origin.facts.v1-product-boundary-known
-  - id: confirm-shelfwise-v1-destination
-    prompt: 是否明确确认刚展示的 Shelfwise v1 目的地合同（包括目标、验收、不变量、范围和授权边界）
-    target:
-      kind: destination
-      id: shelfwise-v1
-      label: Shelfwise v1 可用的本地图书借阅闭环
-      purpose: 取得对完整目的地合同的独立人工确认，允许随后进入目标回归
-    status: answered
-    answer: 你刚才总结的使用者、最终结果、验收方式、限制和不做事项都准确，我确认。
+    answer: 已勘探：仓库存在，但没有实现、测试或已确认的核心用户旅程
     evidence_refs:
       - kind: note
-        ref: conversation-user-message-2026-09-07-destination-confirmation
+        ref: demo-establish-starting-state
+  - id: shape-library-destination
+    prompt: 第一版必须完成哪些可观察结果，明确排除什么？
+    target:
+      kind: destination
+      id: workspace-destination-fog
+      label: 图书管理 MVP 目的地尚未定形
+      purpose: 收敛目标 Predicate、验收、非目标和授权边界
+    status: answered
+    answer_updates:
+      - wayfinding.destination
+      - wayfinding.boundaries
+    answer: 必须完成新增、搜索、借出、归还并通过自动检查和人工演示；排除多用户、云同步、推荐和部署
+    evidence_refs:
+      - kind: note
+        ref: demo-shape-library-destination
+  - id: confirm-library-destination
+    prompt: 是否明确确认这份目的地 Predicate、验收和非目标合同？
+    target:
+      kind: destination
+      id: workspace-destination-fog
+      label: 图书管理 MVP 目的地尚未定形
+      purpose: 由人确认目的地，允许开始反向目标回归
+    status: answered
     answer_updates:
       - wayfinding.intent.status
-      - wayfinding.intent.open_questions
       - wayfinding.destination.status
-  - id: confirm-verify-shelfwise-v1-edge
-    prompt: 是否确认候选工作边 verify-shelfwise-v1 的语义、范围、非目标、授权和证据合同
-    target:
-      kind: edge
-      id: verify-shelfwise-v1
-      label: 验证 Shelfwise v1 完整合同
-      purpose: 确认最靠近目的地的验收边，建立目标回归的首段已确认后缀
-    status: answered
-    answer_updates:
-      - wayfinding.edges.verify-shelfwise-v1.status
-    answer: 我确认“工作边 verify-shelfwise-v1”以及它的验收方式、范围和失败处理。请继续。
+    answer: 我确认并批准这份图书管理 MVP 目的地合同
     evidence_refs:
       - kind: note
-        ref: conversation-user-message-2026-09-07-verify-edge-confirmation
-  - id: confirm-admin-app-ready-node
-    prompt: 是否确认候选状态节点 admin-app-ready 的 Predicate、语义和非目标
+        ref: demo-confirm-library-destination
+  - id: confirm-mvp-integrated-node
+    prompt: 是否确认“两个切片已集成并通过自动检查”是目的地之前独立可验收的里程碑？
     target:
       kind: node
-      id: admin-app-ready
-      label: 管理员浏览器工作流已就绪
-      purpose: 确认整体验收边所需的直接来源状态，继续向始发地回归
+      id: mvp-integrated
+      label: 两个切片已集成并通过自动检查
+      purpose: 确认最近的反向里程碑
     status: answered
     answer_updates:
-      - wayfinding.nodes.admin-app-ready.status
-    answer: 我确认“状态节点 admin-app-ready”以及它的验收方式、范围和失败处理。请继续。
+      - wayfinding.nodes.mvp-integrated.status
+    answer: 我确认这个里程碑独立、必要且可验收
     evidence_refs:
       - kind: note
-        ref: conversation-user-message-2026-09-07-admin-app-node-confirmation
-  - id: confirm-build-admin-browser-interface-edge
-    prompt: 是否确认候选工作边 build-admin-browser-interface 的语义、范围、非目标、授权和证据合同
+        ref: demo-confirm-mvp-integrated-node
+  - id: confirm-accept-library-edge
+    prompt: 是否确认这条演示验收边的范围、非目标和证据合同？
     target:
       kind: edge
-      id: build-admin-browser-interface
-      label: 构建管理员浏览器界面
-      purpose: 确认产生管理员浏览器工作流就绪状态的工作边，继续向 API 里程碑回归
+      id: accept-library-mvp
+      label: 按核心旅程演示并验收
+      purpose: 确认到达目的地的最后一条独立工作边
     status: answered
     answer_updates:
-      - wayfinding.edges.build-admin-browser-interface.status
-    answer: 我确认“工作边 build-admin-browser-interface”以及它的验收方式、范围和失败处理。请继续。
+      - wayfinding.edges.accept-library-mvp.status
+    answer: 我确认这条边独立、边界明确且可回读验收
     evidence_refs:
       - kind: note
-        ref: conversation-user-message-2026-09-07-admin-browser-edge-confirmation
-  - id: confirm-library-api-ready-node
-    prompt: 是否确认候选状态节点 library-api-ready 的 Predicate、语义和非目标
+        ref: demo-confirm-accept-library-edge
+  - id: confirm-independent-slices-join
+    prompt: 是否确认目录与借还必须作为两条互不消费对方输出的分支，并在 AND 状态汇合？
     target:
       kind: node
-      id: library-api-ready
-      label: 持久化图书借阅 API 已就绪
-      purpose: 确认浏览器界面边所需的直接来源状态，继续向始发地回归
+      id: independent-slices-ready
+      label: 目录与借还两个独立切片均就绪
+      purpose: 确认并行分支的 AND 汇合语义
     status: answered
     answer_updates:
-      - wayfinding.nodes.library-api-ready.status
-    answer: 我确认“状态节点 library-api-ready”以及它的验收方式、范围和失败处理。请继续。
+      - wayfinding.nodes.independent-slices-ready.status
+    answer: 我确认两个切片必须独立完成，缺一不可，且彼此没有隐藏产出依赖
     evidence_refs:
       - kind: note
-        ref: conversation-user-message-2026-09-07-library-api-node-confirmation
-  - id: confirm-build-persistent-library-api-edge
-    prompt: 是否确认候选工作边 build-persistent-library-api 的语义、范围、非目标、授权和证据合同
+        ref: demo-confirm-independent-slices-join
+  - id: confirm-integrate-library-edge
+    prompt: 是否确认集成边只消费两个切片的可验收出口，不回写或扩大分支合同？
     target:
       kind: edge
-      id: build-persistent-library-api
-      label: 构建持久化图书借阅 API
-      purpose: 确认从已知始发事实产生 API 就绪状态的工作边，闭合完整候选链
+      id: integrate-library-slices
+      label: 集成并自动验证两个切片
+      purpose: 确认 AND Join 之后的集成工作边
     status: answered
     answer_updates:
-      - wayfinding.edges.build-persistent-library-api.status
-    answer: 我确认“工作边 build-persistent-library-api”以及它的验收方式、范围和失败处理。请继续。
+      - wayfinding.edges.integrate-library-slices.status
+    answer: 我确认集成边只在两条分支都完成后执行
     evidence_refs:
       - kind: note
-        ref: conversation-user-message-2026-09-07-persistent-api-edge-confirmation
-updated_at: '2026-09-07T11:19:27Z'
+        ref: demo-confirm-integrate-library-edge
+  - id: confirm-engineering-design-reviewed-node
+    prompt: 是否确认“工程设计文档已评审并冻结为实施输入”是所有编码工作的必要前置里程碑？
+    target:
+      kind: node
+      id: engineering-design-reviewed
+      label: 工程设计文档已评审并冻结为实施输入
+      purpose: 确认代码开工前的设计评审门
+    status: answered
+    answer_updates:
+      - wayfinding.nodes.engineering-design-reviewed.status
+    answer: 我确认没有这项设计评审就不能开始编码
+    evidence_refs:
+      - kind: note
+        ref: demo-confirm-engineering-design-reviewed-node
+  - id: confirm-engineering-design-join
+    prompt: 是否确认领域模型和 API / 持久化契约是两条独立设计路径，缺一不可且不消费对方未声明的产出？
+    target:
+      kind: node
+      id: engineering-design-ready
+      label: 领域模型与 API / 持久化契约均已形成
+      purpose: 确认代码开工前的设计文档网络
+    status: answered
+    answer_updates:
+      - wayfinding.nodes.engineering-design-ready.status
+    answer: 我确认两份设计文档可以独立形成，之后在 AND 汇合
+    evidence_refs:
+      - kind: note
+        ref: demo-confirm-engineering-design-join
+  - id: confirm-design-domain-model-edge
+    prompt: 是否确认领域模型设计边只产出领域模型文档，不偷带 API 或代码实现？
+    target:
+      kind: edge
+      id: design-domain-model
+      label: 形成领域模型设计
+      purpose: 确认第一条设计子路径
+    status: answered
+    answer_updates:
+      - wayfinding.edges.design-domain-model.status
+    answer: 我确认领域模型文档有独立出口，不包含 API 实现
+    evidence_refs:
+      - kind: note
+        ref: demo-confirm-design-domain-model-edge
+  - id: confirm-design-api-contract-edge
+    prompt: 是否确认 API 与持久化契约边可以独立形成，并不消费领域模型边的隐藏产出？
+    target:
+      kind: edge
+      id: design-api-contract
+      label: 形成 API 与持久化契约
+      purpose: 确认第二条设计子路径
+    status: answered
+    answer_updates:
+      - wayfinding.edges.design-api-contract.status
+    answer: 我确认 API 与持久化契约有独立出口，与领域模型设计互不隐藏耦合
+    evidence_refs:
+      - kind: note
+        ref: demo-confirm-design-api-contract-edge
+  - id: confirm-review-engineering-design-edge
+    prompt: 是否确认设计评审边只消费两份独立设计文档，并以评审记录作为编码前置证据？
+    target:
+      kind: edge
+      id: review-engineering-design
+      label: 评审并冻结工程设计文档
+      purpose: 确认设计子图的 AND 汇合出口
+    status: answered
+    answer_updates:
+      - wayfinding.edges.review-engineering-design.status
+    answer: 我确认这条评审边必须等两份文档都存在且一致
+    evidence_refs:
+      - kind: note
+        ref: demo-confirm-review-engineering-design-edge
+  - id: confirm-core-journey-node
+    prompt: 是否确认“核心用户旅程已确认”是实施前必要的阶段性节点？
+    target:
+      kind: node
+      id: core-journey-confirmed
+      label: 核心用户旅程已确认
+      purpose: 确认实施的输入里程碑
+    status: answered
+    answer_updates:
+      - wayfinding.nodes.core-journey-confirmed.status
+    answer: 我确认这个里程碑能够约束实施范围
+    evidence_refs:
+      - kind: note
+        ref: demo-confirm-core-journey-node
+  - id: confirm-build-catalog-edge
+    prompt: 是否确认目录分支只实现新增与搜索，并拥有不依赖借还分支的出口证据？
+    target:
+      kind: edge
+      id: build-catalog-slice
+      label: 构建目录与搜索切片
+      purpose: 确认第一条独立分支
+    status: answered
+    answer_updates:
+      - wayfinding.edges.build-catalog-slice.status
+    answer: 我确认目录分支有独立出口，不消费借还分支的输出
+    evidence_refs:
+      - kind: note
+        ref: demo-confirm-build-catalog-edge
+  - id: confirm-build-circulation-edge
+    prompt: 是否确认借还分支只实现借出与归还，并拥有不依赖目录分支实现输出的出口证据？
+    target:
+      kind: edge
+      id: build-circulation-slice
+      label: 构建借还生命周期切片
+      purpose: 确认第二条独立分支
+    status: answered
+    answer_updates:
+      - wayfinding.edges.build-circulation-slice.status
+    answer: 我确认借还分支与目录分支共享的只有共同起始状态
+    evidence_refs:
+      - kind: note
+        ref: demo-confirm-build-circulation-edge
+  - id: confirm-core-journey-edge
+    prompt: 是否确认这条边只产生旅程决定，不偷偷包含实现工作？
+    target:
+      kind: edge
+      id: confirm-core-journey
+      label: 确认核心用户旅程
+      purpose: 闭合从始发地到目的地的候选链
+    status: answered
+    answer_updates:
+      - wayfinding.edges.confirm-core-journey.status
+    answer: 我确认这条边只产生旅程决定，候选链可以闭合
+    evidence_refs:
+      - kind: note
+        ref: demo-confirm-core-journey-edge
+updated_at: '2026-09-10T05:28:03Z'
