@@ -4,8 +4,10 @@ import path from "node:path";
 
 import {
   STATE_SCHEMA_VERSION,
+  arrivalCheckpointDigest,
   deriveSatisfiedNodes,
   edgeReadiness,
+  ensureArrivalCheckpoints,
   initialFacts,
   buildGoalRegression,
   predicateSatisfied,
@@ -739,6 +741,7 @@ function stateFacts(state, blueprint) {
 function validateRuntimeState(state, blueprint) {
   if (!state) return;
   asObject(state, "state");
+  ensureArrivalCheckpoints(state, blueprint);
   if (state.schema !== STATE_SCHEMA_VERSION) fail(`unsupported state schema: ${state.schema}`);
   if (state.map_id !== blueprint.map_id) fail(`state map_id ${state.map_id} does not match ${blueprint.map_id}`);
   asObject(state.facts, "state.facts");
@@ -749,6 +752,11 @@ function validateRuntimeState(state, blueprint) {
   if (state.active_edge !== null && typeof state.active_edge !== "string") fail("state.active_edge must be a string or null");
   for (const field of ["edge_runs", "decisions", "route_approval_requests", "route_approvals", "authorization_requests", "arrival_audit_requests", "work_events", "proposals", "regression_proposals", "map_receipts", "receipt_invalidations"]) {
     if (state[field] !== undefined) asArray(state[field], `state.${field}`);
+  }
+  for (const checkpoint of state.arrival_checkpoints ?? []) {
+    if (checkpoint?.schema !== "mapflow.arrival-checkpoint/v1" || checkpoint.receipt_digest !== arrivalCheckpointDigest(checkpoint)) {
+      fail(`Arrival Checkpoint is invalid: ${checkpoint?.id ?? "unknown"}`);
+    }
   }
 }
 
@@ -787,18 +795,19 @@ function acceptanceView(acceptance, evidence) {
   };
 }
 
-function nodeStatus(node, predicateViews, satisfied, arrived) {
-  if (arrived && node.kind === "destination") return "arrived";
+function nodeStatus(node, predicateViews, satisfied, { currentDestinationId, currentDestinationStatus, historicalArrival }) {
+  if (node.id === currentDestinationId && ["arrived", "drifted"].includes(currentDestinationStatus)) return currentDestinationStatus;
+  if (historicalArrival) return "historical-arrival";
   if (predicateViews.some((predicate) => predicate.actual === "conflict")) return "conflict";
   if (predicateViews.some((predicate) => predicate.actual === "unknown")) return "fog";
   return satisfied ? "satisfied" : "unsatisfied";
 }
 
-function edgeStatus({ edge, activeEdge, verifiedEdges, readiness, proofGaps, proven, latestRun, submap }) {
+function edgeStatus({ edge, activeEdge, verifiedEdges, readiness, proofGaps, proven, latestRun, submap, effectsObserved }) {
   if (submap?.receipt_status === "stale" || submap?.source_status === "stale") return "stale";
   if (activeEdge === edge.id || latestRun?.status === "active") return "active";
   if (["waiting", "blocked", "failed", "cancelled"].includes(latestRun?.status)) return latestRun.status;
-  if (verifiedEdges.has(edge.id)) return "verified";
+  if (verifiedEdges.has(edge.id)) return effectsObserved ? "verified" : "drifted";
   if (proofGaps.some((gap) => gap.at_edge === edge.id)) return "blocked";
   if (readiness.ready && proven) return "ready";
   if (readiness.ready) return "candidate";
@@ -821,7 +830,14 @@ function buildTimeline(state) {
     edge: entry.edge,
     details: clone(entry),
   }));
-  return [...history, ...evidence].sort((left, right) => (
+  const arrivals = (state?.arrival_checkpoints ?? []).map((checkpoint) => ({
+    id: `arrival:${checkpoint.id}`,
+    kind: "arrival",
+    at: checkpoint.recorded_at,
+    label: `Arrival · ${checkpoint.destination.statement}`,
+    details: clone(checkpoint),
+  }));
+  return [...history, ...evidence, ...arrivals].sort((left, right) => (
     String(left.at ?? "").localeCompare(String(right.at ?? "")) || left.id.localeCompare(right.id)
   ));
 }
@@ -859,6 +875,8 @@ export function compileBoardModel({
   const authorizationRequests = clone(state?.authorization_requests ?? []);
   const capabilities = clone(state?.capabilities ?? []);
   const arrivalAuditRequests = clone(state?.arrival_audit_requests ?? []);
+  const arrivalCheckpoints = clone(state?.arrival_checkpoints ?? []);
+  const successorBindings = clone(state?.successor_bindings ?? []);
   const submapByEdge = new Map(submaps.map((item) => [item.parent_edge, item]));
   const predicates = blueprint.predicates.map((predicate) => ({
     ...clone(predicate),
@@ -867,6 +885,26 @@ export function compileBoardModel({
     evidence: factEvidence(facts, predicate.fact),
   }));
   const predicateMap = new Map(predicates.map((predicate) => [predicate.id, predicate]));
+  const currentDestinationNode = [...blueprint.nodes].reverse().find((node) => (
+    node.kind === "destination"
+    && blueprint.destination.requires.every((predicateId) => node.predicates.includes(predicateId))
+  )) ?? null;
+  const invariantMap = new Map(blueprint.invariants.map((invariant) => [invariant.id, invariant]));
+  const currentDestinationRequired = [...new Set([
+    ...blueprint.destination.requires,
+    ...blueprint.destination.invariants.flatMap((invariantId) => invariantMap.get(invariantId)?.requires ?? []),
+  ])];
+  const currentDestinationMissing = currentDestinationRequired.filter((predicateId) => !predicateSatisfied(predicateId, facts, blueprint));
+  const currentDestinationObserved = currentDestinationMissing.length === 0;
+  const currentDestinationStatus = currentDestinationObserved
+    ? state?.phase === "arrived" ? "arrived" : "satisfied"
+    : state?.phase === "arrived" && arrivalCheckpoints.length > 0 ? "drifted" : "unsatisfied";
+  const checkpointIdsByNode = new Map();
+  for (const checkpoint of arrivalCheckpoints) {
+    const nodeId = checkpoint.destination_node.id;
+    if (!checkpointIdsByNode.has(nodeId)) checkpointIdsByNode.set(nodeId, []);
+    checkpointIdsByNode.get(nodeId).push(checkpoint.id);
+  }
 
   const nodes = blueprint.nodes.map((node) => {
     const nodePredicates = node.predicates.map((predicateId) => clone(predicateMap.get(predicateId)));
@@ -878,8 +916,13 @@ export function compileBoardModel({
         node,
         nodePredicates,
         satisfied,
-        actualArrival === "audited",
+        {
+          currentDestinationId: currentDestinationNode?.id ?? null,
+          currentDestinationStatus,
+          historicalArrival: checkpointIdsByNode.has(node.id) && node.id !== currentDestinationNode?.id,
+        },
       ),
+      arrival_checkpoint_ids: [...(checkpointIdsByNode.get(node.id) ?? [])],
       predicates: nodePredicates,
       proof_gaps: proofGaps.filter((gap) => node.predicates.includes(gap.missing)),
       goal_regression: null,
@@ -922,6 +965,7 @@ export function compileBoardModel({
         proven: provenEdges.has(edge.id),
         latestRun,
         submap,
+        effectsObserved: edge.effects.every((predicateId) => predicateSatisfied(predicateId, facts, blueprint)),
       }),
       candidate: candidateEdges.has(edge.id),
       proven: provenEdges.has(edge.id),
@@ -1056,6 +1100,14 @@ export function compileBoardModel({
       phase: state?.phase ?? "wayfinding",
       destination_status: state?.destination_status ?? "draft",
       actual_arrival: actualArrival,
+      current_destination: {
+        node_id: currentDestinationNode?.id ?? null,
+        status: currentDestinationStatus,
+        observed: currentDestinationObserved,
+        required: currentDestinationRequired,
+        missing: currentDestinationMissing,
+      },
+      latest_arrival: arrivalCheckpoints.at(-1) ?? null,
       runtime_status: state?.runtime_status ?? (state ? "idle" : "definition"),
     },
     summary: {
@@ -1073,6 +1125,8 @@ export function compileBoardModel({
       pending_authorizations: authorizationRequests.filter((request) => request.status === "pending").length,
       active_capabilities: capabilities.filter((capability) => capability.status === "active").length,
       pending_arrival_audits: arrivalAuditRequests.filter((request) => request.status === "pending").length,
+      arrival_checkpoints: arrivalCheckpoints.length,
+      successor_legs: successorBindings.length,
       proof_gaps: proofGaps.length,
       acceptance_passed: acceptance.filter((item) => item.status === "passed").length,
       acceptance_total: acceptance.length,
@@ -1105,6 +1159,8 @@ export function compileBoardModel({
     authorization_requests: authorizationRequests,
     capabilities,
     arrival_audit_requests: arrivalAuditRequests,
+    arrival_checkpoints: arrivalCheckpoints,
+    successor_bindings: successorBindings,
     proposals: clone(state?.proposals ?? []),
     work_events: clone(state?.work_events ?? []),
     map_receipts: clone(state?.map_receipts ?? []),

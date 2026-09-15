@@ -1,0 +1,144 @@
+schema_version: 3
+map_id: evolve-mapflow-into-living-navigation
+intent:
+  statement: 让 Mapflow 从一次性终态地图演化为持续存在、随可信事实变化的活导航场
+  status: shaped
+  open_questions: []
+destination:
+  statement: Mapflow 能把已审计 Arrival 接成下一航段起点，保留历史到达，并随可信事实实时重算和展示完整路线集
+  requires: [continuity-contract-established, successor-runtime-operational, live-board-operational, living-navigation-proven]
+  invariants: [historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+  acceptance:
+    - { id: continuity-contract-proof, proves: [continuity-contract-established], proof: Blueprint 与 Runtime 明确校验前驱 Arrival、后继起点和易漂移事实 }
+    - { id: successor-runtime-proof, proves: [successor-runtime-operational], proof: 到达后可在同一 map identity 上显式开始后继航段且旧证据保持不变 }
+    - { id: live-board-proof, proves: [live-board-operational], proof: Board 实时显示当前目的地、历史 Arrival、漂移和完整路线集 }
+    - { id: living-navigation-regression, proves: [living-navigation-proven], proof: 兼容迁移、漂移反例、SSE 与完整回归均通过 }
+predicates:
+  - { id: predecessor-arrival-audited, fact: predecessor-arrival-audited, equals: "true", kind: state }
+  - { id: continuity-contract-established, fact: continuity-contract-established, equals: "true", kind: state }
+  - { id: successor-runtime-operational, fact: successor-runtime-operational, equals: "true", kind: state }
+  - { id: live-board-operational, fact: live-board-operational, equals: "true", kind: state }
+  - { id: living-navigation-proven, fact: living-navigation-proven, equals: "true", kind: state }
+  - { id: historical-arrivals-immutable, fact: historical-arrivals-immutable, equals: "true", kind: resource }
+  - { id: trusted-facts-only, fact: trusted-facts-only, equals: "true", kind: authorization }
+  - { id: human-controls-destination, fact: human-controls-destination, equals: "true", kind: authorization }
+  - { id: no-release-side-effects, fact: no-release-side-effects, equals: "true", kind: authorization }
+initial_state:
+  facts:
+    - id: predecessor-arrival-audited
+      value: "true"
+      evidence:
+        - { kind: receipt, ref: refocus-mapflow-on-destination-derivation-arrival-28@094caefbef7e90a452593efd4b9e9078a55677644314a3029b7030bc80f6a972, strength: corroborated, observed_at: "2026-09-14T02:25:17Z" }
+    - { id: continuity-contract-established, value: "false", evidence: [{ kind: observation, ref: v0.8-arrival-is-terminal, strength: observed }] }
+    - { id: successor-runtime-operational, value: "false", evidence: [{ kind: observation, ref: v0.8-has-no-successor-transition, strength: observed }] }
+    - { id: live-board-operational, value: "false", evidence: [{ kind: observation, ref: v0.8-board-polls-and-projects-one-terminal-arrival, strength: observed }] }
+    - { id: living-navigation-proven, value: "false", evidence: [{ kind: observation, ref: successor-drift-and-stream-regressions-not-yet-run, strength: observed }] }
+    - { id: historical-arrivals-immutable, value: "true", evidence: [{ kind: note, ref: confirmed-destination-contract, strength: corroborated }] }
+    - { id: trusted-facts-only, value: "true", evidence: [{ kind: note, ref: confirmed-human-first-boundary, strength: corroborated }] }
+    - { id: human-controls-destination, value: "true", evidence: [{ kind: note, ref: confirmed-authorization-boundary, strength: corroborated }] }
+    - { id: no-release-side-effects, value: "true", evidence: [{ kind: note, ref: current-request-boundary, strength: corroborated }] }
+assumptions: []
+invariants:
+  - { id: historical-arrivals-immutable, applies_to: [establish-continuity-contract, implement-successor-runtime, implement-live-board, prove-living-navigation], requires: [historical-arrivals-immutable] }
+  - { id: trusted-facts-only, applies_to: [establish-continuity-contract, implement-successor-runtime, implement-live-board, prove-living-navigation], requires: [trusted-facts-only] }
+  - { id: human-controls-destination, applies_to: [establish-continuity-contract, implement-successor-runtime, implement-live-board, prove-living-navigation], requires: [human-controls-destination] }
+  - { id: no-release-side-effects, applies_to: [establish-continuity-contract, implement-successor-runtime, implement-live-board, prove-living-navigation], requires: [no-release-side-effects] }
+boundaries:
+  in_scope: [Blueprint 连续性合同、Arrival Checkpoint、后继状态迁移、Fact 漂移投影、SSE 通知、Board 活地图、文档、模板和测试]
+  out_of_scope: [发布、推送、全局安装、外部部署、自动改变 Destination、自动写正式节点或边、绕过人工授权]
+  authorization: [只修改当前仓库与外部 Mapflow Sidecar，允许本地测试和本地只读 Board，不执行外部受保护动作]
+nodes:
+  - id: audited-arrival-origin
+    kind: state
+    label: 上一段已审计 Arrival 成为可追溯起点
+    predicates: [predecessor-arrival-audited, historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+  - id: continuity-contract-ready
+    kind: state
+    label: 连续导航合同已固定
+    predicates: [predecessor-arrival-audited, continuity-contract-established, historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+  - id: runtime-and-board-joined
+    kind: join
+    label: 后继运行时与活地图汇合
+    predicates: [successor-runtime-operational, live-board-operational]
+  - id: living-navigation-field
+    kind: destination
+    label: Mapflow 持续导航场通过验证
+    predicates: [continuity-contract-established, successor-runtime-operational, live-board-operational, living-navigation-proven, historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+edges:
+  - id: establish-continuity-contract
+    from: audited-arrival-origin
+    to: continuity-contract-ready
+    brief_ref: briefs/establish-continuity-contract.md
+    preconditions: [predecessor-arrival-audited]
+    effects: [continuity-contract-established]
+    invariants: [historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+    certainty: expected
+    causal_contract:
+      rule_id: establish-continuity-contract-rule
+      premises: [predecessor-arrival-audited, historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+      conclusions: [continuity-contract-established]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: continuity-contract-check }
+      required_witnesses: [continuity-contract-proof]
+      non_interference: [historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+    evidence_contract:
+      - { id: continuity-contract-proof, proves: [continuity-contract-established], required: true }
+    on_failure: { action: replan }
+  - id: implement-successor-runtime
+    from: continuity-contract-ready
+    to: runtime-and-board-joined
+    brief_ref: briefs/implement-successor-runtime.md
+    preconditions: [continuity-contract-established]
+    effects: [successor-runtime-operational]
+    invariants: [historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+    certainty: expected
+    causal_contract:
+      rule_id: implement-successor-runtime-rule
+      premises: [predecessor-arrival-audited, continuity-contract-established, historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+      conclusions: [successor-runtime-operational]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: successor-runtime-check }
+      required_witnesses: [successor-runtime-proof]
+      non_interference: [historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+    evidence_contract:
+      - { id: successor-runtime-proof, proves: [successor-runtime-operational], required: true }
+    on_failure: { action: replan }
+  - id: implement-live-board
+    from: continuity-contract-ready
+    to: runtime-and-board-joined
+    brief_ref: briefs/implement-live-board.md
+    preconditions: [continuity-contract-established]
+    effects: [live-board-operational]
+    invariants: [historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+    certainty: expected
+    causal_contract:
+      rule_id: implement-live-board-rule
+      premises: [predecessor-arrival-audited, continuity-contract-established, historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+      conclusions: [live-board-operational]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: live-board-check }
+      required_witnesses: [live-board-proof]
+      non_interference: [historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+    evidence_contract:
+      - { id: live-board-proof, proves: [live-board-operational], required: true }
+    on_failure: { action: replan }
+  - id: prove-living-navigation
+    from: runtime-and-board-joined
+    to: living-navigation-field
+    brief_ref: briefs/prove-living-navigation.md
+    preconditions: [successor-runtime-operational, live-board-operational]
+    effects: [continuity-contract-established, living-navigation-proven]
+    invariants: [historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+    certainty: expected
+    causal_contract:
+      rule_id: prove-living-navigation-rule
+      premises: [successor-runtime-operational, live-board-operational, historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+      conclusions: [continuity-contract-established, living-navigation-proven]
+      proof_mode: executed-verifier
+      rule_basis: { kind: verifier, ref: living-navigation-check }
+      required_witnesses: [living-navigation-regression]
+      non_interference: [historical-arrivals-immutable, trusted-facts-only, human-controls-destination, no-release-side-effects]
+    evidence_contract:
+      - { id: living-navigation-regression, proves: [continuity-contract-established, living-navigation-proven], required: true }
+    on_failure: { action: replan }
+loops: []

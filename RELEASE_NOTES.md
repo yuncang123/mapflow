@@ -1,3 +1,26 @@
+# Mapflow v0.9.0
+
+Mapflow v0.9.0 turns the audited map into a living navigation field: an Arrival becomes an immutable historical checkpoint, a human-confirmed successor continues from that checkpoint in the same map identity, and trusted Fact changes re-compute current route state without rewriting history.
+
+## Highlights
+
+- Adds Arrival Checkpoints and explicit `continue` successor-leg binding with origin snapshots and drift-aware current Destination satisfaction.
+- Keeps historical Arrival evidence immutable while projecting current facts as satisfied, unsatisfied, or drifted.
+- Adds a read-only live Board with a complete Route Set lens, SSE revision notifications, authoritative API readback, and polling fallback.
+- Preserves trusted-fact and human-controlled Destination boundaries; notifications, model output, and unconfirmed proposals cannot become Facts.
+- Adds compatibility, continuity, drift, route-set, SSE, and full-regression coverage, including a self-bootstrap map for the living-navigation capability.
+
+## Verification
+
+- `npm test`: 137/137 passed.
+- `npm run benchmark:doctor`: all eight case packages and the impact map passed contract validation.
+- `npm run demo:evolution -- --no-serve`: completed with `arrival_status=audited`.
+- `git diff --check`: passed.
+
+## Evidence Boundary
+
+This release is backed by deterministic local tests, fixtures, and a local read-only Board. It does not prove deployment, production behavior, long-running enterprise use, accessibility, market demand, or product value.
+
 # Mapflow v0.8.0
 
 Mapflow v0.8.0 refocuses the product on one contract: regress a destination into a causally valid map, prove a route forward from sourced Facts, let a human or Agent execute only trusted Work Edges, and finish with an independent Arrival audit.

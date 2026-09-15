@@ -8,6 +8,9 @@ updated: YYYY-MM-DD
 # Destination and proof
 
 - 当前目的地：
+- 当前目的地满足度（satisfied / unsatisfied / arrived / drifted）：
+- 历史 Arrival Checkpoints：
+- 当前 Successor Binding / Origin Snapshot：
 - 最近一次可达性结论：
 - 尚未修复的 proof gaps：
 

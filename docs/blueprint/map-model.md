@@ -18,7 +18,8 @@ Fact -> State Node -- Work Edge / Causal Contract --> State Node
 next-actions -> Edge Run -> trusted witness -> Evidence -> Fact
 Work Event -> Proposal -> confirm -----------------------> Fact
 child Arrival -> Map Receipt ----------------------------> parent Fact
-completed Acceptance -> Arrival Audit Request -> auditor -> Arrival
+completed Acceptance -> Arrival Audit Request -> auditor -> Arrival Checkpoint
+Arrival Checkpoint -> Successor Binding -> Origin Snapshot -> next Destination
 ```
 
 - State Node 是 Predicate 的派生视图，不是任务。
@@ -111,16 +112,34 @@ events 以 seq、base revision、previous digest 和 event digest 形成可校�
 
 Board/runtime 同时区分：结构成立、声明模型可推导、当前运行就绪、执行推导有证据、到达已审计。前一层不蕴含后一层。
 
-Arrival Audit Request 冻结 Blueprint/Brief digest、事件 revision、Evidence 与 Acceptance。只有指定 `human:*` 或 `agent:*` auditor 在后续独立回答中消费该请求，地图才进入 Arrival。
+Arrival Audit Request 冻结 Blueprint/Brief digest、事件 revision、Evidence 与 Acceptance。只有指定 `human:*` 或 `agent:*` auditor 在后续独立回答中消费该请求，地图才生成不可变 Arrival Checkpoint。
+
+## 连续导航
+
+Arrival Checkpoint 记录当时的 Destination、目的地节点、目标 Fact、map/evidence digest、事件 revision、auditor、时间和 receipt digest。它证明“当时到达”，不充当永久现状。
+
+后继 Blueprint 使用根级 `continuity` 合同：
+
+```yaml
+continuity:
+  predecessor:
+    checkpoint: previous-map-arrival-checkpoint-1
+    receipt_digest: <sha256>
+  origin_node: previous-destination-node
+  imported_predicates: [previous-destination-predicate]
+  revalidate: [drift-prone-predicate]
+```
+
+`continue` 校验 receipt、同一 map identity 和追加式拓扑；旧正式对象保持逐项相同。`revalidate` 指定的 Fact 使用 successor initial observation，其余事实继承运行态，并共同形成 Successor Binding 中的 Origin Snapshot。
 
 ## 投影
 
 ```text
 Blueprint + Briefs + state/events + child summaries
                          ↓
-BoardModel(nodes, edges, proof, evidence, handoffs, runs, acceptance)
+BoardModel(nodes, edges, proof, evidence, arrivals, successors, handoffs, runs, acceptance)
                          ↓
 local read-only API + Cytoscape + inspector
 ```
 
-`board --map` 只显示定义；`board --root` 才读取 sidecar 运行态。首屏是 Current Focus；Work、Evidence、History、handoff 和子地图只在选中对象后按需展开。任何投影都不能反向修改 Blueprint、Fact 或 Evidence。
+`board --map` 只显示定义；`board --root` 才读取 sidecar 运行态。默认显示完整 Route Set；推荐路线只是镜头。SSE 只通知 revision 变化，Board 随后回读权威投影，低频轮询负责丢通知时恢复。任何投影都不能反向修改 Blueprint、Fact、Evidence 或 Arrival。

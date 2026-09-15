@@ -61,7 +61,62 @@ function serveStatic(request, response, assetsRoot, route) {
 
 export function createBoardServer({ mapPath = null, statePath = null, assetsRoot = DEFAULT_ASSETS } = {}) {
   const readSnapshot = createBoardSnapshotReader({ mapPath, statePath });
-  return http.createServer((request, response) => {
+  const streamClients = new Set();
+  const watchedFiles = [];
+  let lastStreamRevision = null;
+  let notificationTimer = null;
+
+  function writeRevision(response, snapshot) {
+    response.write(`id: ${snapshot.model.projection.revision}\n`);
+    response.write("event: revision\n");
+    response.write(`data: ${JSON.stringify({
+      revision: snapshot.model.projection.revision,
+      source_status: snapshot.model.projection.source_status,
+    })}\n\n`);
+  }
+
+  function publishRevision({ force = false } = {}) {
+    if (streamClients.size === 0 && !force) return;
+    const snapshot = readSnapshot();
+    const revision = snapshot.model.projection.revision;
+    if (!force && revision === lastStreamRevision) return;
+    lastStreamRevision = revision;
+    for (const client of [...streamClients]) {
+      try {
+        writeRevision(client, snapshot);
+      } catch {
+        streamClients.delete(client);
+      }
+    }
+  }
+
+  function scheduleRevisionReadback() {
+    if (notificationTimer !== null) clearTimeout(notificationTimer);
+    notificationTimer = setTimeout(() => {
+      notificationTimer = null;
+      try {
+        publishRevision();
+      } catch {
+        // The snapshot reader retains last-known-good state; the periodic fallback retries.
+      }
+    }, 50);
+    notificationTimer.unref?.();
+  }
+
+  for (const filePath of new Set([mapPath, statePath].filter(Boolean).map((candidate) => path.resolve(candidate)))) {
+    fs.watchFile(filePath, { interval: 250, persistent: false }, scheduleRevisionReadback);
+    watchedFiles.push(filePath);
+  }
+  const fallbackTimer = setInterval(() => {
+    try {
+      publishRevision();
+    } catch {
+      // A later filesystem notification or interval retries without mutating source state.
+    }
+  }, 15000);
+  fallbackTimer.unref?.();
+
+  const server = http.createServer((request, response) => {
     try {
       if (!new Set(["GET", "HEAD"]).has(request.method)) {
         response.setHeader("Allow", "GET, HEAD");
@@ -69,6 +124,25 @@ export function createBoardServer({ mapPath = null, statePath = null, assetsRoot
         return;
       }
       const url = new URL(request.url ?? "/", `http://${HOST}`);
+      if (url.pathname === "/api/stream") {
+        const headers = {
+          ...securityHeaders("text/event-stream; charset=utf-8"),
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+        };
+        response.writeHead(200, headers);
+        if (request.method === "HEAD") {
+          response.end();
+          return;
+        }
+        response.write("retry: 3000\n\n");
+        streamClients.add(response);
+        const snapshot = readSnapshot();
+        lastStreamRevision = snapshot.model.projection.revision;
+        writeRevision(response, snapshot);
+        request.once("close", () => streamClients.delete(response));
+        return;
+      }
       if (url.pathname === "/api/evolution") {
         const snapshot = readSnapshot.readEvolutionCatalog();
         if (request.headers["if-none-match"] === snapshot.etag) {
@@ -152,6 +226,14 @@ export function createBoardServer({ mapPath = null, statePath = null, assetsRoot
       sendJson(response, error instanceof BoardError ? 503 : 500, { error: message });
     }
   });
+  server.once("close", () => {
+    if (notificationTimer !== null) clearTimeout(notificationTimer);
+    clearInterval(fallbackTimer);
+    for (const filePath of watchedFiles) fs.unwatchFile(filePath, scheduleRevisionReadback);
+    for (const client of streamClients) client.end();
+    streamClients.clear();
+  });
+  return server;
 }
 
 export async function startBoardServer({ mapPath = null, statePath = null, port = 4173, assetsRoot = DEFAULT_ASSETS } = {}) {

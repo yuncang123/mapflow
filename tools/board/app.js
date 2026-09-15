@@ -1,4 +1,4 @@
-const POLL_INTERVAL_MS = 1000;
+const POLL_INTERVAL_MS = 15000;
 const REQUEST_TIMEOUT_MS = 5000;
 
 const STATUS_LABELS = {
@@ -32,6 +32,8 @@ const STATUS_LABELS = {
   verified: "已验证",
   waiting: "等待中",
   stale: "已失效",
+  drifted: "当前已漂移",
+  "historical-arrival": "历史 Arrival",
   unobserved: "未记录",
   audited: "已审计到达",
   missing: "缺失",
@@ -134,6 +136,7 @@ const EVENT_LABELS = {
   edge_authorization_declined: "施工授权已拒绝",
   decision_owner_assigned: "人工门责任人已登记",
   submap_receipt_accepted: "子地图回执已接纳",
+  successor_started: "开始后继航段",
 };
 
 const dom = typeof document === "undefined" ? {} : {
@@ -194,10 +197,11 @@ const runtime = {
   childModels: new Map(),
   submapEtags: new Map(),
   expandedSubmaps: new Set(),
-  lens: "proven",
+  lens: "all",
   layoutCount: 0,
   model: null,
   pollTimer: null,
+  stream: null,
   query: "",
   selected: null,
   topology: null,
@@ -419,13 +423,14 @@ export function currentActionView(model) {
     });
   }
   if (model.map?.actual_arrival === "audited") {
+    const drifted = model.map.current_destination?.status === "drifted";
     return result({
-      state: "complete",
-      state_label: "无待确认项",
-      title: "本地图已完成到达审计",
-      owner: "无需确认",
-      question: "当前没有待回答的人工门。",
-      after: "历史证据保持只读；新的工作目的地应建立后续地图。",
+      state: drifted ? "agent-next" : "complete",
+      state_label: drifted ? "事实已漂移" : "Arrival 已固定",
+      title: drifted ? "曾经到达，当前事实已经漂移" : "本航段已完成到达审计",
+      owner: drifted ? "当前会话 Agent 与任务所有者" : "任务所有者",
+      question: drifted ? `重新核验：${asText(model.map.current_destination.missing)}` : "是否开始一个已确认的新 Destination？",
+      after: "历史 Arrival 保持不变；用 continue 将新 Destination 绑定为后继航段。",
     });
   }
   const activeEdge = model.edges?.find((edge) => edge.id === model.summary?.active_edge);
@@ -502,10 +507,10 @@ export function currentActionView(model) {
 }
 
 function statusTone(value) {
-  if (["arrived", "satisfied", "verified", "passed"].includes(value)) return "teal";
+  if (["arrived", "historical-arrival", "satisfied", "verified", "passed"].includes(value)) return "teal";
   if (["active", "candidate", "ready"].includes(value)) return "amber";
   if (["fog", "destination-fog"].includes(value)) return "violet";
-  if (["blocked", "conflict", "failed", "stale"].includes(value)) return "coral";
+  if (["blocked", "conflict", "drifted", "failed", "stale"].includes(value)) return "coral";
   return "";
 }
 
@@ -1143,7 +1148,8 @@ function cytoscapeStyles() {
     { selector: "node.is-draft", style: { "border-color": "#bd731d", "border-style": "dashed", "border-width": 2.5 } },
     { selector: "node.status-satisfied", style: { "background-color": "#cfe7e3", "border-color": "#16766f", "border-width": 2 } },
     { selector: "node.status-arrived", style: { "background-color": "#16766f", "border-color": "#0b504b", color: "#ffffff", "border-width": 3 } },
-    { selector: "node.status-conflict, node.has-gap", style: { "background-color": "#f1d5d2", "border-color": "#c8564f", "border-width": 2.5 } },
+    { selector: "node.status-historical-arrival", style: { "background-color": "#dcebea", "border-color": "#16766f", "border-style": "double", "border-width": 4 } },
+    { selector: "node.status-drifted, node.status-conflict, node.has-gap", style: { "background-color": "#f1d5d2", "border-color": "#c8564f", "border-width": 2.5 } },
     {
       selector: "edge",
       style: {
@@ -1852,6 +1858,16 @@ function renderOverview(model) {
     ),
     labeledValue("执行约束", "个人工作流仍保持一个 active Run；完成或挂起一条分支后，另一条独立分支仍保持就绪。"),
   ]));
+  content.push(ledgerSection("航段连续性", [
+    labeledValue("当前 Destination", `${model.map.current_destination?.node_id ?? "尚未登记"} · ${statusLabel(model.map.current_destination?.status)}`, model.map.current_destination?.status === "drifted" ? "bad" : "good"),
+    labeledValue("当前缺失", model.map.current_destination?.missing?.length ? model.map.current_destination.missing : "无"),
+    labeledValue("历史 Arrival", model.arrival_checkpoints?.length
+      ? model.arrival_checkpoints.map((checkpoint) => `${checkpoint.id} · ${checkpoint.destination.statement} · ${formatTimestamp(checkpoint.recorded_at)}`)
+      : "尚无"),
+    labeledValue("后继航段", model.successor_bindings?.length
+      ? model.successor_bindings.map((binding) => `${binding.id} · ${binding.origin_node} → ${binding.destination_node.id}`)
+      : "尚无"),
+  ]));
   content.push(regressionSection(model));
   content.push(ledgerSection("Intent 与确认门", [
     labeledValue(`Intent · ${model.map.intent.status}`, `${model.map.intent.statement}\n开放问题：${asText(model.map.intent.open_questions)}`, model.map.intent.status === "shaped" && model.map.intent.open_questions.length === 0 ? "good" : "warn"),
@@ -1944,6 +1960,13 @@ function renderNodeInspector(node) {
     `期望 ${predicate.equals} · 当前 ${predicate.actual}\nFact: ${predicate.fact}\n证据:\n${evidenceRefs(predicate.evidence)}`,
     predicate.satisfied ? "good" : ["unknown", "conflict"].includes(predicate.actual) ? "bad" : "warn",
   ))));
+  if (node.arrival_checkpoint_ids?.length) {
+    content.push(ledgerSection("Arrival Checkpoint", node.arrival_checkpoint_ids.map((checkpointId) => labeledValue(
+      checkpointId,
+      runtime.model.arrival_checkpoints.find((checkpoint) => checkpoint.id === checkpointId)?.destination.statement ?? "历史到达",
+      "good",
+    ))));
+  }
   if (node.goal_regression) {
     const section = element("section", "ledger-section regression-section");
     section.append(element("h3", "", "目标回归位置"), regressionStepItem(node.goal_regression));
@@ -2223,7 +2246,11 @@ function renderCompositeModel(model) {
     : PHASE_LABELS[model.map.phase] ?? model.map.phase;
   dom.canvasEyebrow.textContent = canvasEyebrow(model);
   dom.reachability.textContent = REACHABILITY_LABELS[model.summary.reachability] ?? model.summary.reachability;
-  dom.arrival.textContent = ARRIVAL_LABELS[model.map.actual_arrival] ?? model.map.actual_arrival;
+  dom.arrival.textContent = model.map.actual_arrival === "audited" && model.map.current_destination?.status === "drifted"
+    ? "曾到达 · 当前已漂移"
+    : model.map.actual_arrival !== "audited" && (model.summary.arrival_checkpoints ?? 0) > 0
+      ? `历史到达 ${model.summary.arrival_checkpoints} · 当前航段未到达`
+      : ARRIVAL_LABELS[model.map.actual_arrival] ?? model.map.actual_arrival;
   dom.revision.textContent = model.projection.revision.slice(0, 12);
   dom.revision.title = model.projection.revision;
   renderCurrentAction(model);
@@ -2560,6 +2587,27 @@ async function pollBoard() {
   }
 }
 
+function connectBoardStream() {
+  if (typeof EventSource === "undefined" || runtime.stream) return;
+  const stream = new EventSource("/api/stream");
+  runtime.stream = stream;
+  stream.addEventListener("revision", (event) => {
+    try {
+      const notice = JSON.parse(event.data);
+      if (notice.revision === runtime.liveModel?.projection?.revision) return;
+    } catch {
+      // Notifications never become truth; the API readback below remains authoritative.
+    }
+    pollBoard();
+  });
+  stream.addEventListener("open", () => {
+    if (runtime.model?.projection?.source_status === "current") dom.syncState.textContent = "实时连接";
+  });
+  stream.addEventListener("error", () => {
+    if (runtime.model) dom.syncState.textContent = "重连中 · 轮询兜底";
+  });
+}
+
 function bindControls() {
   dom.lensButtons.forEach((button) => button.addEventListener("click", () => setLens(button.dataset.lens)));
   dom.search.addEventListener("input", () => {
@@ -2609,6 +2657,7 @@ function bindControls() {
 function bootstrap() {
   bindControls();
   dom.inspectorContent.replaceChildren(element("p", "empty-note", "正在读取 Blueprint、运行状态和实施凭据…"));
+  connectBoardStream();
   pollBoard();
 }
 

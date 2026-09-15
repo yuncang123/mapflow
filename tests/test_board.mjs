@@ -17,7 +17,7 @@ import {
   wayfindingDestinationView,
   wayfindingNextAction,
 } from "../tools/board/app.js";
-import { initialFacts, proveBlueprint, readBlueprint } from "../tools/mapflow-core.mjs";
+import { createArrivalCheckpoint, initialFacts, proveBlueprint, readBlueprint } from "../tools/mapflow-core.mjs";
 import { readWayfinding } from "../tools/mapflow-wayfinding.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -868,6 +868,52 @@ test("BoardModel exposes protected-edge authorization and arrival audit causalit
   assert.equal(action.owner, "你（human:owner）");
 });
 
+test("BoardModel keeps historical Arrival visible while current destination facts drift", () => {
+  const loaded = readBlueprint(TEMPLATE_MAP);
+  const state = runtimeState(loaded, TEMPLATE_MAP);
+  state.phase = "arrived";
+  state.destination_status = "approved";
+  const invariantMap = new Map(loaded.blueprint.invariants.map((invariant) => [invariant.id, invariant]));
+  const arrivalPredicates = [...new Set([
+    ...loaded.blueprint.destination.requires,
+    ...loaded.blueprint.destination.invariants.flatMap((invariantId) => invariantMap.get(invariantId).requires),
+  ])];
+  for (const predicateId of arrivalPredicates) {
+    const predicate = loaded.blueprint.predicates.find((item) => item.id === predicateId);
+    state.facts[predicate.fact] = { value: predicate.equals, evidence: [{ kind: "external", ref: `arrival:${predicateId}`, strength: "observed" }] };
+  }
+  state.arrival_audit = {
+    request: "publish-article-arrival-audit-request-1",
+    acceptance: loaded.blueprint.destination.acceptance.map((item) => item.id),
+    non_goals: [], risks: [], answer: "audited", confirm: "audited", actor: "human:owner",
+    recorded_at: "2026-09-03T00:10:00Z", run_id: "publish-article-arrival-12",
+  };
+  state.arrival_checkpoints = [];
+  state.successor_bindings = [];
+  state.arrival_checkpoints.push(createArrivalCheckpoint({ state, blueprint: loaded.blueprint, stateRevision: 12 }));
+  state.facts["article-published"] = {
+    value: "false",
+    evidence: [{ kind: "external", ref: "availability-readback:404", strength: "observed", observed_at: "2026-09-03T00:20:00Z" }],
+  };
+
+  const model = compileBoardModel({
+    blueprint: loaded.blueprint,
+    digest: loaded.digest,
+    briefs: loaded.briefs,
+    state,
+    stateDigest: "arrival-drift",
+  });
+  assert.equal(model.map.actual_arrival, "audited");
+  assert.equal(model.map.current_destination.status, "drifted");
+  assert.deepEqual(model.map.current_destination.missing, ["article-published"]);
+  assert.equal(model.arrival_checkpoints.length, 1);
+  assert.equal(model.summary.arrival_checkpoints, 1);
+  assert.equal(model.nodes.find((node) => node.id === "article-live").status, "drifted");
+  assert.equal(model.nodes.find((node) => node.id === "article-live").arrival_checkpoint_ids.length, 1);
+  const completeRouteSet = selectElementIds(model, "all");
+  assert.deepEqual(new Set(completeRouteSet.edges), new Set(model.edges.map((edge) => edge.id)));
+});
+
 test("the board distinguishes directly startable and protected ready edges", () => {
   const loaded = readBlueprint(TEMPLATE_MAP);
   const state = runtimeState(loaded, TEMPLATE_MAP);
@@ -1118,6 +1164,8 @@ test("board server serves a read-only ETag API and offline assets", async () => 
     assert.equal(app.status, 200);
     const appSource = await app.text();
     assert.match(appSource, /If-None-Match/);
+    assert.match(appSource, /new EventSource\("\/api\/stream"\)/);
+    assert.match(appSource, /lens:\s*"all"/);
     assert.doesNotMatch(appSource, /\.innerHTML\s*=/);
     assert.match(appSource, /goal-regression/);
     assert.match(appSource, /目标回归/);
@@ -1139,6 +1187,58 @@ test("board server serves a read-only ETag API and offline assets", async () => 
     assert.equal(write.status, 405);
     assert.match((await write.json()).error, /read-only/);
   } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("board stream notifies a revision change and leaves API readback authoritative", async () => {
+  const { directory, mapPath } = copyTemplate();
+  const loaded = readBlueprint(mapPath);
+  const statePath = path.join(directory, "state.json");
+  const state = runtimeState(loaded, mapPath);
+  fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  const server = createBoardServer({ mapPath, statePath });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const controller = new AbortController();
+  try {
+    const response = await fetch(`${base}/api/stream`, { signal: controller.signal });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type"), /text\/event-stream/);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    async function nextEvent() {
+      let buffer = "";
+      while (!buffer.includes("\n\n")) {
+        const part = await reader.read();
+        if (part.done) throw new Error("board stream closed before an event arrived");
+        buffer += decoder.decode(part.value, { stream: true });
+      }
+      return buffer;
+    }
+    const initial = await nextEvent();
+    assert.match(initial, /event: revision/);
+    const initialRevision = JSON.parse(initial.match(/data: (\{.*\})/)[1]).revision;
+
+    state.updated_at = "2026-09-03T00:01:00Z";
+    fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    let timeoutId;
+    const changed = await Promise.race([
+      nextEvent(),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error("timed out waiting for board stream revision")), 5000);
+      }),
+    ]).finally(() => clearTimeout(timeoutId));
+    const changedRevision = JSON.parse(changed.match(/data: (\{.*\})/)[1]).revision;
+    assert.notEqual(changedRevision, initialRevision);
+    const readback = await (await fetch(`${base}/api/board`)).json();
+    assert.equal(readback.projection.revision, changedRevision);
+    await reader.cancel();
+  } finally {
+    controller.abort();
     await new Promise((resolve) => server.close(resolve));
   }
 });

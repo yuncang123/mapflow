@@ -6,7 +6,7 @@
 
 Mapflow 只服务一个目标：
 
-> 从 Destination 反向演化出逻辑可推导的地图，从当前 Fact 正向证明可达，再让人或 Agent 沿可信 Work Edge 推进；Evidence 更新 Fact，最终形成可审计 Arrival。
+> 从 Destination 反向演化出逻辑可推导的完整路线集，从当前 Fact 正向证明可达，再让人或 Agent 沿可信 Work Edge 推进；Evidence 更新 Fact，Arrival 固化历史，下一个 Destination 继续成为新航段。
 
 Mapflow 是单人电脑上的仓库外 sidecar，不是团队协作空间。人、Agent、前端、后端、产品、测试、技术支持、领导和外部系统都可以提供事实、执行工作或审计结果，但 Mapflow 不接管他们的系统。
 
@@ -29,7 +29,7 @@ current/
 
 - Blueprint 定义 Destination、Predicate、Fact 初值、State Node、Work Edge、Invariant、Loop 和 Submap Binding。
 - Task Brief 定义一条边的执行、证据、岗位交接与上下文合同。
-- events 是不可变运行历史；state 是可重建投影；Board 是只读视图。
+- events 是不可变运行历史；state 是可重建投影；Arrival Checkpoint 固化某次到达；Board 是只读实时视图。
 - Git、Issue、PR、CI、测试、发布、监控和工单系统继续拥有各自事实。Mapflow 只保存稳定引用、digest、readback 或 receipt。
 - 旧 schema/state 可以兼容读取，但不会把旧 Activity、固定 SDLC 或 Route Approval 重新带回当前行为。
 
@@ -156,6 +156,8 @@ Task Brief 的 verifier 在 Run 开始前冻结。`issue-action` 生成绑定 ma
 
 对话、工具或流式输入先形成 Proposal；只有显式 `confirm` 后才改变 Fact。等待、阻塞、恢复和取消分别使用 `wait/block/resume/cancel`，每次变化都追加事件。
 
+Fact 一经可信确认，运行时立即重算 satisfied nodes、可达性和 ready/blocked/fog/drifted 状态。自动发生的是派生与投影，不是信任升级：模型自报、未确认 Proposal 或文件系统通知都不能直接成为 Fact。
+
 ### 6.2 Replan
 
 新事实改变路线时，只修改 proof gap 的最小 repair scope，并用 `replan --scope ... --changes ...` 登记精确 diff。已验证 Work Edge 的因果合同、Evidence 和 Fact 不得被重定义或覆盖；pending 授权与到达审计请求变 stale。
@@ -166,7 +168,7 @@ Task Brief 的 verifier 在 Run 开始前冻结。`issue-action` 生成绑定 ma
 
 `verify-submap` 只接受已审计到达、digest/revision 一致且 Acceptance 完整的 child receipt。父图使用该 receipt 后，child 漂移使其 stale；不能把 child 当前态偷偷拼进父历史帧。
 
-## 8. 到达审计
+## 8. 到达与后继航段
 
 所有目标 Predicate 已被可信 Evidence 建立后：
 
@@ -175,7 +177,18 @@ Task Brief 的 verifier 在 Run 开始前冻结。`issue-action` 生成绑定 ma
 
 到达必须同时满足：目标 Fact、逐项 Acceptance、Invariant、非目标/剩余风险、子地图 receipt 均可回指。pending 请求存在时不得先刷新 proof 或追加无关事件。
 
-Arrival 只证明本地图合同已到达，不自动证明产品价值、生产安全、真实用户满意或发布成功。
+`arrive` 同时生成不可变 Arrival Checkpoint，绑定当时的 Destination Contract、目的地节点、目标 Fact 快照、map/evidence digest、事件 revision、auditor、时间和 receipt digest。后续事实退化时保留该 checkpoint，并把当前目的地显示为 `drifted`；“曾到达”和“现在仍满足”是两个字段。
+
+新的 Destination 由人明确后，使用显式 `continue` 开始后继航段。Successor Blueprint 的 `continuity` 必须绑定：
+
+- 前一 checkpoint ID 和 receipt digest；
+- 前一目的地节点作为 `origin_node`；
+- 从前一 Destination 导入的 Predicate；
+- 需要用新 evidence 重新观测的易漂移 Predicate。
+
+`continue` 只接受同一 `map_id` 的追加式 Blueprint。前一节点、边、因果合同、Brief、Evidence 和 checkpoint 不得删除或重定义；易漂移 Fact 从 successor initial observations 重新取值，其余已有 Fact 原样继承。成功后生成 Successor Binding 与 Origin Snapshot，并进入新 Destination 的 implementation。Destination、正式拓扑和受保护动作都不会由事实变化自动改写。
+
+Arrival 只证明该航段合同在特定时间和证据版本下已到达，不自动证明产品价值、生产安全、真实用户满意或发布成功。
 
 ## 9. CLI 最小路径
 
@@ -194,6 +207,7 @@ node <runtime> gate --root path/to/workspace
 node <runtime> issue-action --root path/to/workspace --edge <edge> --verifier <id> --json
 node <runtime> verify-executed --root path/to/workspace --edge <edge> --verifier <id> --capability <token> --evidence <text> --outcome-ref command:<ref> --executor tool:mapflow
 node <runtime> replan --root path/to/workspace --reason <text> --scope <repair-scope> --changes <exact-refs>
+node <runtime> continue --root path/to/workspace --map path/to/successor-blueprint.yaml --reason <text> --actor human:owner
 node <runtime> request-arrival-audit --root path/to/workspace --question <text> --decision-owner human:owner
 node <runtime> arrive --root path/to/workspace --request <id> --answer <text> --actor human:owner --non-goals <text> --risks <text>
 node <runtime> rebuild --root path/to/workspace
@@ -206,7 +220,7 @@ node <runtime> board --root path/to/workspace
 node <runtime> board --map path/to/blueprint.yaml
 ```
 
-`board --root` 投影 sidecar 的当前事实和历史；`board --map` 只看定义，不混入运行态。首屏只强调 Current Focus；因果证明、handoff、evidence 和 history 在选择对象后按需展开。
+`board --root` 投影 sidecar 的当前事实和历史；`board --map` 只看定义，不混入运行态。默认镜头显示完整 Route Set，推荐路线、迷雾和目标回归只是阅读镜头。Board 通过 SSE 接收 revision 通知后回读权威 API，断流时低频轮询；通知本身不成为真相。当前 Destination、历史 Arrival、漂移和后继绑定在首屏与检查器中分别呈现。
 
 ## 10. 收尾回报
 

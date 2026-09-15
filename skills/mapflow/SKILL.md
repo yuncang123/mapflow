@@ -21,6 +21,7 @@ Mapflow 的用户级入口路由。本仓库维护副本：`docs/workflow.md`；
 5. **确定性派发**：每轮运行 `next-actions --json`。多条 ready edge 全部展示，由人选择；普通边执行 `start`，只有 Brief 声明授权要求时才创建 `request-authorization`。完成条件：最多一个 active Run，普通边没有被加上额外审批门。
 6. **按需施工**：有 active edge 时才加载 `context --layer work` 和 `edge-delivery`；失败诊断、证据判定或追责分别加载 Evidence/History，不预读。维护仓库中的相邻 Skill 位于 `../<name>/SKILL.md`；用户级安装包内含 Skill 位于 `skills/<name>/SKILL.md`。完成条件：可信 witness 更新 Fact，reported 观察不更新 Fact，上下文未越过 Brief 预算。
 7. **独立到达审计**：`next-actions` 指向到达时，创建 `request-arrival-audit`、展示冻结验收并结束当前回答。收到后续指定 `human:*` 或 `agent:*` auditor 回答时，第一项运行时动作使用该请求执行 `arrive`。完成条件：请求、回答和 arrival event 因果链完整，同一回答没有创建并消费请求。
+8. **连续航段**：Arrival 后运行 `next-actions`；只有人给出新的完整 Destination 时才制作带 `continuity` 的追加式 Blueprint，并用 `continue` 绑定最新 checkpoint。完成条件：同一 map identity、旧节点/边/证据/checkpoint 未变、易漂移 Fact 已重新观测、Successor Binding 与新 ready/proof 状态可回读。
 
 回答已登记的建模问题时使用 `wayfinding-answer --question <id> --answer <text> --evidence-ref kind:ref`，不要只留在聊天记录。
 

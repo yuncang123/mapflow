@@ -11,8 +11,12 @@ import {
   ModelError,
   STATE_SCHEMA_VERSION,
   TRUTH_VALUES,
+  arrivalCheckpointDigest,
+  arrivalEvidenceDigest,
+  createArrivalCheckpoint,
   deriveSatisfiedNodes,
   edgeReadiness,
+  ensureArrivalCheckpoints,
   initialFacts,
   predicateSatisfied,
   proveBlueprint,
@@ -113,6 +117,8 @@ function normalizeRuntimeState(state) {
   state.edge_runs ??= [];
   state.authorization_requests ??= [];
   state.arrival_audit_requests ??= [];
+  state.arrival_checkpoints ??= [];
+  state.successor_bindings ??= [];
   state.map_receipts ??= [];
   state.receipt_invalidations ??= [];
   state.brief_snapshots ??= {};
@@ -120,6 +126,7 @@ function normalizeRuntimeState(state) {
   state.runtime_status ??= state.phase === "arrived" ? "arrived" : state.active_edge ? "running" : state.phase === "wayfinding" ? "wayfinding" : "idle";
   state.event_stream ??= null;
   state.capabilities ??= [];
+  ensureArrivalCheckpoints(state, state.blueprint_snapshot);
   if (state.active_edge && !state.active_run) {
     const runId = `${state.active_edge}-legacy-run`;
     if (!state.edge_runs.some((run) => run.id === runId)) {
@@ -162,7 +169,7 @@ function validateState(state) {
   if (typeof state.map_digest !== "string" || state.map_digest.trim() === "") fail("map_digest must be a non-empty string");
   if (typeof state.map_id !== "string" || state.map_id.trim() === "") fail("map_id must be a non-empty string");
   if (state.active_edge !== null && typeof state.active_edge !== "string") fail("active_edge must be a string or null");
-  for (const field of ["verified_edges", "satisfied_nodes", "evidence", "history", "work_events", "proposals", "decisions", "edge_runs", "authorization_requests", "arrival_audit_requests", "map_receipts", "receipt_invalidations"]) {
+  for (const field of ["verified_edges", "satisfied_nodes", "evidence", "history", "work_events", "proposals", "decisions", "edge_runs", "authorization_requests", "arrival_audit_requests", "arrival_checkpoints", "successor_bindings", "map_receipts", "receipt_invalidations"]) {
     if (!Array.isArray(state[field])) fail(`${field} must be a list`);
   }
   for (const legacyField of ["route_approval_requests", "route_approvals"]) {
@@ -292,6 +299,42 @@ function validateState(state) {
   }
   if (state.arrival_audit_requests.filter((request) => request.status === "pending").length > 1) {
     fail("runtime allows at most one pending arrival audit request");
+  }
+  const checkpointIds = new Set();
+  const checkpointReceipts = new Set();
+  for (const checkpoint of state.arrival_checkpoints) {
+    if (!checkpoint || checkpoint.schema !== "mapflow.arrival-checkpoint/v1" || typeof checkpoint.id !== "string") {
+      fail("arrival_checkpoints contains an invalid checkpoint");
+    }
+    if (checkpoint.map_id !== state.map_id || typeof checkpoint.map_digest !== "string" || !Number.isInteger(checkpoint.state_revision) || checkpoint.state_revision < 1) {
+      fail(`Arrival Checkpoint ${checkpoint.id} has an invalid map or event binding`);
+    }
+    if (!checkpoint.destination || !checkpoint.destination_node || !checkpoint.destination_facts || !checkpoint.audit || !Array.isArray(checkpoint.acceptance)) {
+      fail(`Arrival Checkpoint ${checkpoint.id} is incomplete`);
+    }
+    if (checkpoint.receipt_digest !== arrivalCheckpointDigest(checkpoint)) {
+      fail(`Arrival Checkpoint ${checkpoint.id} receipt digest mismatch`);
+    }
+    if (checkpointIds.has(checkpoint.id) || checkpointReceipts.has(checkpoint.receipt_digest)) {
+      fail(`Arrival Checkpoint is duplicated: ${checkpoint.id}`);
+    }
+    checkpointIds.add(checkpoint.id);
+    checkpointReceipts.add(checkpoint.receipt_digest);
+  }
+  for (const binding of state.successor_bindings) {
+    if (!binding || binding.schema !== "mapflow.successor-binding/v1" || typeof binding.id !== "string") {
+      fail("successor_bindings contains an invalid binding");
+    }
+    const checkpoint = state.arrival_checkpoints.find((item) => item.id === binding.predecessor_checkpoint);
+    if (!checkpoint || checkpoint.receipt_digest !== binding.predecessor_receipt_digest) {
+      fail(`Successor Binding ${binding.id} does not resolve its predecessor Arrival Checkpoint`);
+    }
+    if (binding.map_id !== state.map_id || typeof binding.map_digest !== "string" || typeof binding.origin_node !== "string") {
+      fail(`Successor Binding ${binding.id} has an invalid map or origin binding`);
+    }
+    if (!Array.isArray(binding.imported_predicates) || !Array.isArray(binding.revalidated_predicates) || !binding.origin_snapshot) {
+      fail(`Successor Binding ${binding.id} is incomplete`);
+    }
   }
   for (const proposal of state.proposals) {
     if (!proposal || typeof proposal.id !== "string" || !PROPOSAL_STATES.has(proposal.status)) fail("proposals contains an invalid Proposal");
@@ -496,6 +539,24 @@ function assertMapUnchanged(statePath, state, digest) {
   if (digest !== state.map_digest) fail(`Blueprint or bound Task Brief changed after approval: ${resolveStateMap(statePath, state)}; use replan`);
 }
 
+function currentDestinationView(state, blueprint) {
+  const invariantMap = new Map(blueprint.invariants.map((invariant) => [invariant.id, invariant]));
+  const required = [...new Set([
+    ...blueprint.destination.requires,
+    ...blueprint.destination.invariants.flatMap((invariantId) => invariantMap.get(invariantId)?.requires ?? []),
+  ])];
+  const missing = required.filter((predicateId) => !predicateSatisfied(predicateId, state.facts, blueprint));
+  const observed = missing.length === 0;
+  return {
+    status: observed
+      ? state.phase === "arrived" ? "arrived" : "satisfied"
+      : state.phase === "arrived" && state.arrival_checkpoints.length > 0 ? "drifted" : "unsatisfied",
+    observed,
+    required,
+    missing,
+  };
+}
+
 function refreshDerivedState(state, blueprint) {
   state.loop_iterations = Object.fromEntries(blueprint.loops.map((loop) => [
     loop.id,
@@ -503,6 +564,8 @@ function refreshDerivedState(state, blueprint) {
   ]));
   state.satisfied_nodes = deriveSatisfiedNodes(blueprint, state.facts);
   state.last_proof = proveBlueprint(blueprint, state.facts, { loopIterations: state.loop_iterations });
+  state.current_destination = currentDestinationView(state, blueprint);
+  if (state.phase === "arrived") state.runtime_status = state.current_destination.observed ? "arrived" : "drifted";
 }
 
 function stableJson(value) {
@@ -562,6 +625,64 @@ function assertVerifiedEdgesPreserved(state, blueprint, briefDigests) {
       fail(`verified edge contract cannot be removed or redefined: ${edgeId}; preserve its accepted child version or initialize a successor map`);
     }
   }
+}
+
+function assertPredecessorCollectionsPreserved(state, blueprint, briefDigests, revalidatedPredicateIds) {
+  const previous = state.blueprint_snapshot;
+  const labels = {
+    predicates: "predicate",
+    assumptions: "assumption",
+    invariants: "invariant",
+    nodes: "node",
+    edges: "edge",
+    loops: "loop",
+    submaps: "submap",
+  };
+  for (const [collection, label] of Object.entries(labels)) {
+    const current = new Map((blueprint[collection] ?? []).map((item) => [item.id, item]));
+    for (const item of previous[collection] ?? []) {
+      if (!current.has(item.id) || stableJson(current.get(item.id)) !== stableJson(item)) {
+        fail(`predecessor ${label} cannot be removed or redefined: ${item.id}`);
+      }
+    }
+  }
+  for (const edgeId of Object.keys(state.brief_digests)) {
+    if (briefDigests[edgeId] !== state.brief_digests[edgeId]) {
+      fail(`predecessor Task Brief cannot be removed or redefined: ${edgeId}`);
+    }
+  }
+  for (const boundary of ["in_scope", "out_of_scope", "authorization"]) {
+    const current = new Set(blueprint.boundaries[boundary]);
+    const removed = previous.boundaries[boundary].filter((entry) => !current.has(entry));
+    if (removed.length > 0) fail(`predecessor boundary cannot be removed: ${boundary}`);
+  }
+  for (const [key, value] of Object.entries(previous.extensions ?? {})) {
+    if (stableJson(blueprint.extensions?.[key]) !== stableJson(value)) {
+      fail(`predecessor extension cannot be removed or redefined: ${key}`);
+    }
+  }
+  const revalidatedFacts = new Set(revalidatedPredicateIds.map((predicateId) => (
+    blueprint.predicates.find((predicate) => predicate.id === predicateId).fact
+  )));
+  const currentFacts = new Map(blueprint.initial_state.facts.map((fact) => [fact.id, fact]));
+  for (const fact of previous.initial_state.facts) {
+    const current = currentFacts.get(fact.id);
+    if (!current) fail(`predecessor initial Fact cannot be removed: ${fact.id}`);
+    if (!revalidatedFacts.has(fact.id) && stableJson(current) !== stableJson(fact)) {
+      fail(`predecessor initial Fact can change only through continuity.revalidate: ${fact.id}`);
+    }
+  }
+}
+
+function mergeSuccessorFacts(state, blueprint, revalidatedPredicateIds) {
+  const merged = initialFacts(blueprint);
+  const revalidatedFacts = new Set(revalidatedPredicateIds.map((predicateId) => (
+    blueprint.predicates.find((predicate) => predicate.id === predicateId).fact
+  )));
+  for (const [factId, fact] of Object.entries(state.facts)) {
+    if (factId in merged && !revalidatedFacts.has(factId)) merged[factId] = structuredClone(fact);
+  }
+  return merged;
 }
 
 function changedBlueprintRefs(previous, next, previousBriefDigests = {}, nextBriefDigests = {}) {
@@ -900,16 +1021,24 @@ function commandNextActions(statePath, options) {
   const state = loadState(statePath);
   if (state.phase === "arrived") {
     const { blueprint } = readStateBlueprint(statePath, state);
+    const currentDestination = currentDestinationView(state, blueprint);
     const output = {
       deterministic: true,
       phase: "arrived",
-      runtime_status: "arrived",
-      actions: [],
+      runtime_status: currentDestination.observed ? "arrived" : "drifted",
+      actions: [{
+        id: "begin-successor",
+        command: "continue",
+        reason: "bind a human-confirmed successor Destination to this immutable Arrival Checkpoint",
+        checkpoint: state.arrival_checkpoints.at(-1)?.id ?? null,
+      }],
       ready_edges: [],
       evidence_levels: runtimeEvidenceLevels(state, blueprint),
       arrival_audit: state.arrival_audit ?? null,
+      arrival_checkpoints: structuredClone(state.arrival_checkpoints),
+      current_destination: currentDestination,
     };
-    process.stdout.write(options.has("json") ? `${JSON.stringify(output, null, 2)}\n` : "no next action: destination arrival is audited\n");
+    process.stdout.write(options.has("json") ? `${JSON.stringify(output, null, 2)}\n` : "next action: continue from the audited Arrival Checkpoint\n");
     return;
   }
   if (state.phase === "wayfinding") {
@@ -1153,6 +1282,7 @@ function printHelp() {
   process.stdout.write("  verify-executed  run one verifier under a one-use capability and record trusted Evidence\n");
   process.stdout.write("  verify-submap  verify child arrival and accept a Map Receipt\n");
   process.stdout.write("  replan     preserve evidence and return to wayfinding\n");
+  process.stdout.write("  continue   bind an audited Arrival to a successor Blueprint in the same navigation field\n");
   process.stdout.write("  request-arrival-audit  freeze completed destination evidence for a human or Agent audit\n");
   process.stdout.write("  arrive     consume one pending audit answer and record Arrival\n");
   process.stdout.write("  rebuild    rebuild state projection from verified events\n");
@@ -1504,6 +1634,8 @@ function commandInit(statePath, options) {
     decisions: [],
     authorization_requests: [],
     arrival_audit_requests: [],
+    arrival_checkpoints: [],
+    successor_bindings: [],
     work_events: [],
     proposals: [],
     map_receipts: [],
@@ -1695,7 +1827,6 @@ function commandProve(statePath, options) {
     return;
   }
   const state = loadState(statePath);
-  if (state.phase === "arrived") fail("cannot refresh proof for an arrived map; start a new map");
   const pendingArrivalAudit = state.arrival_audit_requests.find((request) => request.status === "pending");
   if (pendingArrivalAudit) {
     fail(`cannot refresh proof while arrival audit request is pending: ${pendingArrivalAudit.id}; answer it with arrive --request ${pendingArrivalAudit.id}, or replan explicitly if the audited result is no longer acceptable`);
@@ -1965,7 +2096,6 @@ function semanticId(value, label) {
 
 function commandPropose(statePath, options) {
   const state = loadState(statePath);
-  if (state.phase === "arrived") fail("cannot create a Proposal for an arrived map");
   const proposalId = semanticId(required(options, "id"), "id");
   if (state.proposals.some((proposal) => proposal.id === proposalId)) fail(`proposal already exists: ${proposalId}`);
   const factId = semanticId(required(options, "fact"), "fact");
@@ -2515,14 +2645,111 @@ function commandReplan(statePath, options) {
   process.stdout.write(`returned to wayfinding; evidence preserved; proof: ${state.last_proof.structural}/${state.last_proof.reachability}\n`);
 }
 
-function arrivalEvidenceDigest(state) {
-  return crypto.createHash("sha256").update(stableJson({
-    facts: state.facts,
-    evidence: state.evidence,
-    map_receipts: state.map_receipts,
-    receipt_invalidations: state.receipt_invalidations,
-    verified_edges: state.verified_edges,
-  })).digest("hex");
+function commandContinue(statePath, options) {
+  const state = loadState(statePath);
+  if (state.phase !== "arrived") fail("a successor leg can start only from an audited Arrival");
+  ensureArrivalCheckpoints(state, state.blueprint_snapshot);
+  const absoluteMap = path.resolve(process.cwd(), required(options, "map"));
+  const reason = required(options, "reason");
+  const actor = required(options, "actor");
+  if (!/^(?:human|agent):/.test(actor)) fail("successor actor must use human:<identity> or agent:<identity>");
+  const { blueprint, digest, brief_digests: briefDigests, briefs } = validateSubmapTree(absoluteMap);
+  if (blueprint.map_id !== state.map_id) {
+    fail(`successor cannot change map identity from ${state.map_id} to ${blueprint.map_id}`);
+  }
+  const continuity = blueprint.continuity;
+  if (!continuity) fail("successor Blueprint requires a continuity contract");
+  const checkpoint = state.arrival_checkpoints.find((item) => item.id === continuity.predecessor.checkpoint);
+  if (!checkpoint) fail(`continuity predecessor checkpoint is unknown: ${continuity.predecessor.checkpoint}`);
+  if (checkpoint.receipt_digest !== continuity.predecessor.receipt_digest) {
+    fail(`continuity predecessor receipt does not match Arrival Checkpoint: ${checkpoint.id}`);
+  }
+  if (continuity.origin_node !== checkpoint.destination_node.id) {
+    fail(`continuity origin must be the predecessor destination node: ${checkpoint.destination_node.id}`);
+  }
+  const expectedImports = [...checkpoint.destination.requires].sort();
+  const actualImports = [...continuity.imported_predicates].sort();
+  if (stableJson(expectedImports) !== stableJson(actualImports)) {
+    fail(`continuity imported_predicates must exactly match predecessor destination requirements: ${expectedImports.join(", ")}`);
+  }
+  if (stableJson(blueprint.destination) === stableJson(checkpoint.destination)) {
+    fail("successor Destination must differ from the predecessor Arrival Destination");
+  }
+  for (const predicateId of continuity.revalidate) {
+    const predicate = blueprint.predicates.find((item) => item.id === predicateId);
+    const observation = blueprint.initial_state.facts.find((fact) => fact.id === predicate.fact);
+    if (!observation) fail(`continuity.revalidate requires an initial observation for Fact: ${predicate.fact}`);
+    if (observation.value !== "unknown" && observation.evidence.some((ref) => !ref.observed_at)) {
+      fail(`continuity.revalidate requires observed_at on fresh evidence for Fact: ${predicate.fact}`);
+    }
+  }
+  assertPredecessorCollectionsPreserved(state, blueprint, briefDigests, continuity.revalidate);
+  assertVerifiedEdgesPreserved(state, blueprint, briefDigests);
+
+  const facts = mergeSuccessorFacts(state, blueprint, continuity.revalidate);
+  const predicateMap = new Map(blueprint.predicates.map((predicate) => [predicate.id, predicate]));
+  const originFacts = {};
+  for (const predicateId of continuity.imported_predicates) {
+    const factId = predicateMap.get(predicateId).fact;
+    originFacts[factId] = structuredClone(facts[factId]);
+  }
+  const destinationNode = blueprint.nodes.find((node) => (
+    node.kind === "destination"
+    && blueprint.destination.requires.every((predicateId) => node.predicates.includes(predicateId))
+  ));
+  const binding = {
+    schema: "mapflow.successor-binding/v1",
+    id: nextSemanticId(state.successor_bindings, state.map_id, "successor-binding"),
+    map_id: state.map_id,
+    map_digest: digest,
+    predecessor_checkpoint: checkpoint.id,
+    predecessor_receipt_digest: checkpoint.receipt_digest,
+    origin_node: continuity.origin_node,
+    imported_predicates: [...continuity.imported_predicates],
+    revalidated_predicates: [...continuity.revalidate],
+    origin_snapshot: { facts: originFacts },
+    destination: structuredClone(blueprint.destination),
+    destination_node: structuredClone(destinationNode),
+    reason,
+    actor,
+    started_at: now(),
+  };
+
+  for (const request of state.authorization_requests.filter((item) => item.status === "pending")) {
+    request.status = "stale";
+    request.stale_at = now();
+    request.stale_reason = `successor leg started: ${reason}`;
+  }
+  for (const request of state.arrival_audit_requests.filter((item) => item.status === "pending")) {
+    request.status = "stale";
+    request.stale_at = now();
+    request.stale_reason = `successor leg started: ${reason}`;
+  }
+  state.map = mapPathForState(statePath, absoluteMap);
+  state.map_digest = digest;
+  state.blueprint_snapshot = structuredClone(blueprint);
+  state.brief_digests = { ...briefDigests };
+  state.brief_snapshots = structuredClone(briefs);
+  state.facts = facts;
+  state.phase = "implementation";
+  state.destination_status = "confirmed";
+  state.runtime_status = "idle";
+  state.active_edge = null;
+  state.active_run = null;
+  state.successor_bindings.push(binding);
+  refreshDerivedState(state, blueprint);
+  ensureApprovableProof(state);
+  record(state, "successor_started", {
+    binding: binding.id,
+    checkpoint: checkpoint.id,
+    origin_node: binding.origin_node,
+    destination_node: binding.destination_node.id,
+    revalidated_predicates: binding.revalidated_predicates,
+    reason,
+    actor,
+  });
+  saveState(statePath, state);
+  process.stdout.write(`started successor leg ${binding.id} from Arrival Checkpoint ${checkpoint.id}\n`);
 }
 
 function assertArrivalReady(statePath, state) {
@@ -2578,7 +2805,7 @@ function assertArrivalReady(statePath, state) {
 
 function commandRequestArrivalAudit(statePath, options) {
   const state = loadState(statePath);
-  const { acceptance } = assertArrivalReady(statePath, state);
+  const { blueprint, acceptance } = assertArrivalReady(statePath, state);
   const evidenceDigest = arrivalEvidenceDigest(state);
   const currentRevision = state.event_stream?.last_seq ?? 0;
   const existing = state.arrival_audit_requests.find((request) => request.status === "pending");
@@ -2637,7 +2864,7 @@ function commandArrive(statePath, options) {
   if (request.state_revision !== (state.event_stream?.last_seq ?? 0)) {
     fail(`arrival audit request is stale: ${requestId}; runtime revision changed after the request`);
   }
-  const { acceptance } = assertArrivalReady(statePath, state);
+  const { blueprint, acceptance } = assertArrivalReady(statePath, state);
   if (request.evidence_digest !== arrivalEvidenceDigest(state) || stableJson(request.acceptance) !== stableJson(acceptance)) {
     fail(`arrival audit request is stale: ${requestId}; evidence or Acceptance changed`);
   }
@@ -2660,6 +2887,13 @@ function commandArrive(statePath, options) {
     recorded_at: recordedAt,
     run_id: `${state.map_id}-arrival-${(state.event_stream?.last_seq ?? 0) + 1}`,
   };
+  refreshDerivedState(state, blueprint);
+  state.arrival_checkpoints.push(createArrivalCheckpoint({
+    state,
+    blueprint,
+    evidenceDigest: request.evidence_digest,
+    stateRevision: (state.event_stream?.last_seq ?? 0) + 1,
+  }));
   record(state, "arrival_audited", { request: request.id, acceptance, answer, actor, causation_id: request.id });
   saveState(statePath, state);
   process.stdout.write(`arrival audited from request ${request.id}\n`);
@@ -2721,6 +2955,7 @@ export async function main(argv) {
     case "verify-executed": options.set("mode", "executed"); commandVerify(statePath, options); return 0;
     case "verify-submap": commandVerifySubmap(statePath, options); return 0;
     case "replan": commandReplan(statePath, options); return 0;
+    case "continue": commandContinue(statePath, options); return 0;
     case "request-arrival-audit": commandRequestArrivalAudit(statePath, options); return 0;
     case "arrive": commandArrive(statePath, options); return 0;
     case "rebuild": commandRebuild(statePath, options); return 0;

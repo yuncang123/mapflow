@@ -38,6 +38,18 @@ function allowedKeys(value, keys, label) {
   if (unexpected.length > 0) fail(`${label} has unsupported fields: ${unexpected.join(", ")}`);
 }
 
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function sha256(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
 function array(value, label, { nonEmpty = false } = {}) {
   if (!Array.isArray(value)) fail(`${label} must be a list`);
   if (nonEmpty && value.length === 0) fail(`${label} must not be empty`);
@@ -116,7 +128,7 @@ export function validateBlueprint(value) {
   const blueprint = object(value, "blueprint");
   allowedKeys(blueprint, [
     "schema_version", "map_id", "intent", "destination", "predicates", "initial_state", "assumptions",
-    "invariants", "boundaries", "nodes", "edges", "loops", "submaps", "workflow", "extensions",
+    "invariants", "boundaries", "nodes", "edges", "loops", "submaps", "workflow", "extensions", "continuity",
   ], "blueprint");
   if (![LEGACY_BLUEPRINT_SCHEMA_VERSION, BLUEPRINT_SCHEMA_VERSION].includes(blueprint.schema_version)) {
     fail(`unsupported blueprint schema: ${blueprint.schema_version}`);
@@ -246,6 +258,32 @@ export function validateBlueprint(value) {
   const destinationNodes = nodes.filter((node) => node.kind === "destination");
   if (!destinationNodes.some((node) => destination.requires.every((predicateId) => node.predicates.includes(predicateId)))) {
     fail("a destination node must contain every destination.required predicate");
+  }
+
+  if (blueprint.continuity !== undefined) {
+    if (blueprint.schema_version < 3) fail("continuity requires blueprint schema 3");
+    const continuity = object(blueprint.continuity, "continuity");
+    allowedKeys(continuity, ["predecessor", "origin_node", "imported_predicates", "revalidate"], "continuity");
+    const predecessor = object(continuity.predecessor, "continuity.predecessor");
+    allowedKeys(predecessor, ["checkpoint", "receipt_digest"], "continuity.predecessor");
+    id(predecessor.checkpoint, "continuity.predecessor.checkpoint");
+    string(predecessor.receipt_digest, "continuity.predecessor.receipt_digest");
+    if (!/^[a-f0-9]{64}$/.test(predecessor.receipt_digest)) {
+      fail("continuity.predecessor.receipt_digest must be a sha256 hex digest");
+    }
+    id(continuity.origin_node, "continuity.origin_node");
+    requireReferences([continuity.origin_node], nodeMap, "continuity.origin_node");
+    ids(continuity.imported_predicates, "continuity.imported_predicates", { nonEmpty: true });
+    requireReferences(continuity.imported_predicates, predicateMap, "continuity.imported_predicates");
+    ids(continuity.revalidate, "continuity.revalidate");
+    requireReferences(continuity.revalidate, predicateMap, "continuity.revalidate");
+    const unrelated = continuity.revalidate.filter((predicateId) => !continuity.imported_predicates.includes(predicateId));
+    if (unrelated.length > 0) fail(`continuity.revalidate must be imported first: ${unrelated.join(", ")}`);
+    const origin = nodeMap.get(continuity.origin_node);
+    const absentFromOrigin = continuity.imported_predicates.filter((predicateId) => !origin.predicates.includes(predicateId));
+    if (absentFromOrigin.length > 0) {
+      fail(`continuity origin node does not contain imported predicates: ${absentFromOrigin.join(", ")}`);
+    }
   }
 
   const edges = array(blueprint.edges, "edges", { nonEmpty: true });
@@ -594,6 +632,95 @@ export function validateSubmapTree(filePath) {
   }
   const loaded = visit(rootPath);
   return { ...loaded, maps: seenMapIds.size, bindings };
+}
+
+function destinationNodeFor(blueprint) {
+  return blueprint.nodes.find((node) => (
+    node.kind === "destination"
+    && blueprint.destination.requires.every((predicateId) => node.predicates.includes(predicateId))
+  )) ?? null;
+}
+
+function inferredArrivalRevision(state, audit) {
+  if (Number.isInteger(state.event_stream?.last_seq) && state.event_stream.last_seq > 0) return state.event_stream.last_seq;
+  const suffix = String(audit?.run_id ?? "").match(/-(\d+)$/);
+  return suffix ? Number(suffix[1]) : 1;
+}
+
+export function arrivalEvidenceDigest(state) {
+  return sha256(canonicalJson({
+    facts: state.facts ?? {},
+    evidence: state.evidence ?? [],
+    map_receipts: state.map_receipts ?? [],
+    receipt_invalidations: state.receipt_invalidations ?? [],
+    verified_edges: state.verified_edges ?? [],
+  }));
+}
+
+export function arrivalCheckpointDigest(checkpoint) {
+  const payload = structuredClone(checkpoint);
+  delete payload.receipt_digest;
+  return sha256(canonicalJson(payload));
+}
+
+export function createArrivalCheckpoint({
+  state,
+  blueprint,
+  audit = state.arrival_audit,
+  evidenceDigest = arrivalEvidenceDigest(state),
+  stateRevision = inferredArrivalRevision(state, audit),
+} = {}) {
+  if (!state || !blueprint || !audit) fail("an Arrival Checkpoint requires state, Blueprint, and arrival audit");
+  const destinationNode = destinationNodeFor(blueprint);
+  if (!destinationNode) fail("an Arrival Checkpoint requires the current destination node");
+  const predicateMap = new Map(blueprint.predicates.map((predicate) => [predicate.id, predicate]));
+  const invariantMap = new Map(blueprint.invariants.map((invariant) => [invariant.id, invariant]));
+  const checkpointPredicates = [...new Set([
+    ...blueprint.destination.requires,
+    ...blueprint.destination.invariants.flatMap((invariantId) => invariantMap.get(invariantId)?.requires ?? []),
+  ])];
+  const destinationFacts = {};
+  for (const predicateId of checkpointPredicates) {
+    const factId = predicateMap.get(predicateId)?.fact;
+    if (factId && state.facts?.[factId]) destinationFacts[factId] = structuredClone(state.facts[factId]);
+  }
+  const checkpoint = {
+    schema: "mapflow.arrival-checkpoint/v1",
+    id: `${state.map_id}-arrival-checkpoint-${(state.arrival_checkpoints?.length ?? 0) + 1}`,
+    map_id: state.map_id,
+    map_digest: state.map_digest,
+    state_revision: stateRevision,
+    arrival_event: `${state.map_id}-${stateRevision}-arrival-audited`,
+    arrival_run: audit.run_id,
+    destination: structuredClone(blueprint.destination),
+    destination_node: structuredClone(destinationNode),
+    destination_facts: destinationFacts,
+    evidence_digest: evidenceDigest,
+    acceptance: [...audit.acceptance],
+    audit: {
+      request: audit.request ?? null,
+      actor: audit.actor,
+      answer: audit.answer ?? audit.confirm,
+    },
+    non_goals: [...(audit.non_goals ?? [])],
+    risks: [...(audit.risks ?? [])],
+    recorded_at: audit.recorded_at,
+  };
+  checkpoint.receipt_digest = arrivalCheckpointDigest(checkpoint);
+  return checkpoint;
+}
+
+export function ensureArrivalCheckpoints(state, blueprint = state?.blueprint_snapshot) {
+  if (!state || typeof state !== "object") return state;
+  state.arrival_checkpoints ??= [];
+  state.successor_bindings ??= [];
+  if (state.arrival_audit && blueprint && !state.arrival_checkpoints.some((checkpoint) => (
+    checkpoint.arrival_run === state.arrival_audit.run_id
+    || (state.arrival_audit.request && checkpoint.audit?.request === state.arrival_audit.request)
+  ))) {
+    state.arrival_checkpoints.push(createArrivalCheckpoint({ state, blueprint }));
+  }
+  return state;
 }
 
 export function initialFacts(blueprint) {

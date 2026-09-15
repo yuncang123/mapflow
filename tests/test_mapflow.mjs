@@ -706,8 +706,142 @@ test("edge evidence requires a separate human arrival audit request before arriv
   assertExit(status);
   assert.equal(JSON.parse(status.stdout).actual_arrival, "audited");
   const reprove = runCli(state, "prove");
-  assertExit(reprove, 1);
-  assert.match(reprove.stderr, /cannot refresh proof for an arrived map/);
+  assertExit(reprove);
+  const reproved = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(reproved.phase, "arrived");
+  assert.equal(reproved.arrival_checkpoints.length, 1);
+});
+
+test("an audited Arrival becomes an immutable checkpoint and can explicitly start a successor leg", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-living-successor-"));
+  const mapPath = makeMap(directory);
+  const state = path.join(directory, "state.json");
+
+  assertExit(runCli(state, "init", "--map", mapPath));
+  assertExit(approveAndAuthorize(state, "settle-audience"));
+  assertExit(verify(state, "settle-audience", "audience-known"));
+  assertExit(authorizeEdge(state, "write-candidate"));
+  assertExit(verify(state, "write-candidate", "article-drafted,sensitive-content-checked", "sensitive-review-recorded"));
+  assertExit(authorizeEdge(state, "obtain-owner-approval"));
+  assertExit(verify(state, "obtain-owner-approval", "owner-approved"));
+  assertExit(authorizeEdge(state, "publish-article"));
+  assertExit(verify(state, "publish-article", "article-published,public-url-exists", "public-page-readable", "external:https://example.invalid/article"));
+  const requested = requestArrivalAudit(state);
+  assertExit(requested);
+  assertExit(runCli(
+    state,
+    "arrive", "--request", JSON.parse(requested.stdout).request_id,
+    "--answer", "The published article destination is independently audited",
+    "--actor", "human:owner",
+  ));
+
+  let arrived = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(arrived.arrival_checkpoints.length, 1);
+  const checkpoint = structuredClone(arrived.arrival_checkpoints[0]);
+  assert.equal(checkpoint.schema, "mapflow.arrival-checkpoint/v1");
+  assert.equal(checkpoint.map_id, arrived.map_id);
+  assert.equal(checkpoint.map_digest, arrived.map_digest);
+  assert.equal(checkpoint.destination.statement, readBlueprint(mapPath).blueprint.destination.statement);
+  assert.equal(checkpoint.destination_node.id, "article-live");
+  assert.equal(checkpoint.audit.actor, "human:owner");
+  assert.match(checkpoint.receipt_digest, /^[a-f0-9]{64}$/);
+  const frozenCheckpoint = JSON.stringify(checkpoint);
+  const frozenEvidence = JSON.stringify(arrived.evidence);
+  const frozenContracts = JSON.stringify(arrived.verified_edge_contracts);
+
+  const arrivedActions = runCli(state, "next-actions", "--json");
+  assertExit(arrivedActions);
+  assert.ok(JSON.parse(arrivedActions.stdout).actions.some((action) => action.id === "begin-successor"));
+
+  assertExit(runCli(
+    state,
+    "propose", "--id", "published-page-disappeared", "--fact", "article-published", "--value", "false",
+    "--source", "external:availability-monitor", "--summary", "Published page readback now fails", "--strength", "observed",
+    "--outcome-ref", "external:https://example.invalid/article", "--actor", "tool:monitor",
+  ));
+  assertExit(runCli(state, "confirm", "--proposal", "published-page-disappeared", "--by", "human:owner"));
+  arrived = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(arrived.phase, "arrived");
+  assert.equal(arrived.runtime_status, "drifted");
+  assert.equal(arrived.current_destination.status, "drifted");
+  assert.equal(JSON.stringify(arrived.arrival_checkpoints[0]), frozenCheckpoint);
+
+  function successorMap(name, mutate = () => {}) {
+    const successorDirectory = path.join(directory, name);
+    fs.mkdirSync(path.join(successorDirectory, "briefs"), { recursive: true });
+    fs.cpSync(path.join(directory, "briefs"), path.join(successorDirectory, "briefs"), { recursive: true });
+    const blueprint = structuredClone(readBlueprint(mapPath).blueprint);
+    blueprint.intent = { statement: "Keep the published article healthy", status: "shaped", open_questions: [] };
+    blueprint.destination = {
+      statement: "The published article is maintained after a fresh readback",
+      requires: ["article-maintained"],
+      invariants: [],
+      acceptance: [{ id: "article-maintenance-readback", proves: ["article-maintained"], proof: "A fresh maintenance readback passes" }],
+    };
+    blueprint.predicates.push({ id: "article-maintained", fact: "article-maintained", equals: "true", kind: "state" });
+    blueprint.initial_state.facts.find((fact) => fact.id === "article-published").value = "true";
+    blueprint.initial_state.facts.find((fact) => fact.id === "article-published").evidence = [{
+      kind: "external", ref: "successor-readback:https://example.invalid/article", strength: "observed", observed_at: "2026-09-15T00:00:00Z",
+    }];
+    blueprint.initial_state.facts.push({ id: "article-maintained", value: "false", evidence: [{ kind: "observation", ref: "maintenance not yet verified", strength: "observed" }] });
+    blueprint.nodes.push({ id: "article-maintained-destination", kind: "destination", label: "Published article maintained", predicates: ["article-maintained"] });
+    blueprint.edges.push({
+      id: "maintain-published-article", from: "article-live", to: "article-maintained-destination", brief_ref: "briefs/maintain-published-article.md",
+      preconditions: ["article-published", "public-url-exists", "sensitive-content-checked"], effects: ["article-maintained"], invariants: [], certainty: "expected",
+      causal_contract: {
+        rule_id: "maintain-published-article-rule",
+        premises: ["article-published", "public-url-exists", "sensitive-content-checked"],
+        conclusions: ["article-maintained"], proof_mode: "executed-verifier",
+        rule_basis: { kind: "verifier", ref: "maintenance-readback" },
+        required_witnesses: ["article-maintenance-readback"], non_interference: [],
+      },
+      evidence_contract: [{ id: "article-maintenance-readback", proves: ["article-maintained"], required: true }],
+      on_failure: { action: "replan" },
+    });
+    blueprint.continuity = {
+      predecessor: { checkpoint: checkpoint.id, receipt_digest: checkpoint.receipt_digest },
+      origin_node: checkpoint.destination_node.id,
+      imported_predicates: [...checkpoint.destination.requires],
+      revalidate: ["article-published"],
+    };
+    mutate(blueprint);
+    const successorPath = path.join(successorDirectory, "blueprint.yaml");
+    fs.writeFileSync(successorPath, `${JSON.stringify(blueprint, null, 2)}\n`, "utf8");
+    fs.writeFileSync(path.join(successorDirectory, "briefs", "maintain-published-article.md"), `---\nedge: maintain-published-article\ncontract:\n  scope:\n    in: [maintain the published article]\n    out: [all unrelated work]\n  authorization:\n    required: []\n    allowed_actions: [run a local fixture]\n  evidence:\n    proves: [article-maintained]\n    exit_conditions: [maintenance readback passes]\n  verification:\n    commands:\n      - id: maintenance-readback\n        program: node\n        args: [-e, "process.stdout.write('maintained')"]\n        cwd: workspace\n        timeout_seconds: 30\n        success_exit_codes: [0]\n        proves: [article-maintained]\n  failure:\n    action: replan\n    rollback: [preserve the predecessor arrival]\n---\n\n# Maintain article\n`, "utf8");
+    return successorPath;
+  }
+
+  const invalidSuccessor = successorMap("invalid-successor", (blueprint) => {
+    blueprint.nodes.find((node) => node.id === "article-live").label = "Rewritten historical destination";
+  });
+  const rejected = runCli(
+    state, "continue", "--map", invalidSuccessor,
+    "--reason", "Start a maintenance leg", "--actor", "human:owner",
+  );
+  assertExit(rejected, 1);
+  assert.match(rejected.stderr, /predecessor node cannot be removed or redefined: article-live/);
+
+  const successor = successorMap("successor");
+  assertExit(runCli(
+    state, "continue", "--map", successor,
+    "--reason", "Start a maintenance leg from the audited publication", "--actor", "human:owner",
+  ));
+  const continued = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.equal(continued.phase, "implementation");
+  assert.equal(continued.destination_status, "confirmed");
+  assert.equal(continued.map_id, arrived.map_id);
+  assert.equal(continued.current_destination.status, "unsatisfied");
+  assert.equal(continued.facts["article-published"].value, "true");
+  assert.equal(JSON.stringify(continued.arrival_checkpoints[0]), frozenCheckpoint);
+  assert.equal(JSON.stringify(continued.evidence), frozenEvidence);
+  assert.equal(JSON.stringify(continued.verified_edge_contracts), frozenContracts);
+  assert.equal(continued.successor_bindings.length, 1);
+  assert.equal(continued.successor_bindings[0].predecessor_checkpoint, checkpoint.id);
+  assert.equal(continued.successor_bindings[0].origin_node, "article-live");
+  assert.equal(continued.successor_bindings[0].origin_snapshot.facts["article-published"].value, "true");
+  const next = runCli(state, "next-actions", "--json");
+  assertExit(next);
+  assert.ok(JSON.parse(next.stdout).actions.some((action) => action.edge === "maintain-published-article"));
 });
 
 test("pending arrival audit blocks proof refresh and still fails closed after replan", () => {
@@ -2182,7 +2316,7 @@ test("global installer provides explicit-enable runtime and keeps workspace stat
   assert.doesNotMatch(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: true/);
   assert.match(entry, /disable-model-invocation: true/);
   const globalManifest = JSON.parse(fs.readFileSync(path.join(globalRoot, "mapflow", "install-manifest.json"), "utf8"));
-  assert.equal(globalManifest.version, "0.8.0");
+  assert.equal(globalManifest.version, "0.9.0");
   assert.equal(globalManifest.runtime, "mapflow/runtime/mapflow.mjs");
   assert.equal(globalManifest.workspace_schema, "mapflow.workspace/v1");
   assert.ok(globalManifest.capabilities.includes("workspace-sidecar"));

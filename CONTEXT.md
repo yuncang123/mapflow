@@ -1,6 +1,6 @@
 # Mapflow
 
-Mapflow 描述从目的地反向形成可推导路线、再由实际证据推进到可审计到达的工作领域。它以个人 sidecar 保存地图真相，并通过小型合同接入人、Agent 与企业岗位。
+Mapflow 描述从目的地反向形成可推导路线、由实际证据推进到可审计到达、再从 Arrival 连续进入下一航段的工作领域。它以个人 sidecar 保存动态地图真相，并通过小型合同接入人、Agent 与企业岗位。
 
 ## Language
 
@@ -117,8 +117,24 @@ _Avoid_: Suffix Proof, verified edge
 _Avoid_: Same-turn self approval, completion claim
 
 **Arrival**:
-Destination、Acceptance、Invariant 和剩余风险均可回指并已经独立审计的地图终态。
+Destination、Acceptance、Invariant 和剩余风险均可回指并已经独立审计的一次航段到达。
 _Avoid_: Logical reachability, product success
+
+**Arrival Checkpoint**:
+在特定时间、事件 revision 和证据集合下固化的不可变 Arrival 收据；后续事实漂移不撤销它。
+_Avoid_: Current state, permanent truth
+
+**Successor Binding**:
+把前一 Arrival Checkpoint、旧目的地节点和导入 Predicate 绑定到同一地图身份下的新 Destination。
+_Avoid_: New unrelated map, overwritten Arrival
+
+**Origin Snapshot**:
+后继航段开始时，在重新观测易漂移 Fact 后形成的可追溯起点事实快照。
+_Avoid_: Copied Destination, timeless state
+
+**Current Destination Satisfaction**:
+当前 Fact 是否仍满足当前 Destination 与 Invariant 的派生状态，可为 satisfied、unsatisfied、arrived 或 drifted。
+_Avoid_: Arrival history, audit result
 
 **Submap Binding**:
 父 Blueprint 中把一条 Work Edge 单向绑定到独立 child map 的版本化合同。

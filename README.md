@@ -1,6 +1,8 @@
 # Mapflow
 
-Mapflow 是单人电脑上的工程地图 sidecar。它从已确认的 Destination 反向回归出 State Node 与 Work Edge，再从有来源的当前 Fact 正向证明至少一条路线可达；人或 Agent 只沿当前可信边推进，实际 Evidence 更新 Fact，最后形成可审计 Arrival。
+Mapflow 为所有工程化目的地提供可靠导航。它是单人电脑上的活地图 sidecar：从已确认的 Destination 反向回归出完整路线集，再从有来源的当前 Fact 正向证明哪些路线此刻可达；人或 Agent 沿可信 Work Edge 推进，实际 Evidence 更新 Fact，最终形成可审计 Arrival。
+
+Arrival 不是地图的永久终点。它会固化成不可变检查点；人明确下一个 Destination 后，`continue` 把该检查点绑定为同一导航场的新起点。后续事实漂移只改变当前满足度和路线状态，不改写“曾经到达”的历史。
 
 它解决的不是“写一份看起来可实现的计划”，而是四个更严格的问题：
 
@@ -11,7 +13,7 @@ Mapflow 是单人电脑上的工程地图 sidecar。它从已确认的 Destinati
 
 Mapflow 不建设协作空间，也不取代 Jira、Git、PR、CI、测试平台、发布平台或团队沟通。Task Brief 中的小型 `handoff` 合同负责接入真实岗位；`context` 合同与 `mapflow context` 负责渐进式披露和注意力预算。
 
-当前发布版本为 `0.8.0`。版本号只标识源码与用户级安装包，不代表已经部署或获得真实团队采用。
+当前发布版本为 `0.9.0`。版本号只标识源码与用户级安装包，不代表已经部署或获得真实团队采用。
 
 ## 最小用法
 
@@ -54,6 +56,15 @@ node tools/mapflow.mjs verify-executed --root D:/path/to/workspace \
   --evidence "合同测试实际通过" --outcome-ref command:contract-test --executor tool:mapflow
 ```
 
+到达后开始下一航段：
+
+```bash
+node tools/mapflow.mjs continue --root D:/path/to/workspace \
+  --map path/to/successor-blueprint.yaml --reason "开始下一航段" --actor human:owner
+```
+
+Successor Blueprint 的 `continuity` 必须绑定前一 Arrival Checkpoint 的 ID/receipt、前一目的地节点、导入 Predicate 和需要重新观测的易漂移 Predicate。命令只接受同一 `map_id` 的追加式拓扑；历史节点、边、Brief、证据和 Arrival 都保持不变。
+
 ## 上下文披露
 
 `focus` 是默认层，只给当前目的地、当前边、效果、岗位交接摘要和加载预算。更深内容按需取用：
@@ -79,7 +90,7 @@ mapflow/
 ├─ tools/mapflow-core.mjs              # 模型校验、反向闭包、正向证明
 ├─ tools/mapflow-proof.mjs             # 推导图与证明摘要
 ├─ tools/mapflow.mjs                   # 运行态、证据与写入门
-├─ tools/mapflow-board*.mjs            # 只读投影
+├─ tools/mapflow-board*.mjs            # 只读实时投影与 SSE 变化通知
 └─ tests/                               # 合同与回归验证
 ```
 

@@ -35,7 +35,7 @@ function fixture() {
 
 test("the default product surface contains only the destination-derived causal flow", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.8.0");
+  assert.equal(pkg.version, "0.9.0");
   for (const removed of ["tools/mapflow-activity.mjs", "tools/mapflow-sdlc.mjs", "tests/test_activity.mjs", "tests/test_sdlc.mjs", "examples/ai-native-sdlc"]) {
     assert.equal(fs.existsSync(path.join(ROOT, removed)), false, `${removed} must stay outside the default product`);
   }
@@ -73,6 +73,26 @@ test("schema 3 requires explicit causal rules and rejects fixed lifecycle fields
   const staged = structuredClone(blueprint);
   staged.edges[0].sdlc_stage = "build";
   assert.throws(() => validateBlueprint(staged), /sdlc_stage is not part of Mapflow schema 3/);
+
+  const continuous = structuredClone(blueprint);
+  continuous.continuity = {
+    predecessor: {
+      checkpoint: "publish-article-arrival-checkpoint-1",
+      receipt_digest: "a".repeat(64),
+    },
+    origin_node: "article-live",
+    imported_predicates: [...blueprint.destination.requires],
+    revalidate: ["article-published"],
+  };
+  assert.doesNotThrow(() => validateBlueprint(continuous));
+
+  const unknownImport = structuredClone(continuous);
+  unknownImport.continuity.imported_predicates.push("not-a-predicate");
+  assert.throws(() => validateBlueprint(unknownImport), /continuity.imported_predicates references unknown id/);
+
+  const unrelatedRevalidation = structuredClone(continuous);
+  unrelatedRevalidation.continuity.revalidate = ["owner-approved"];
+  assert.throws(() => validateBlueprint(unrelatedRevalidation), /continuity.revalidate must be imported/);
 });
 
 test("Task Briefs expose compact role handoffs and bounded disclosure contracts", () => {

@@ -16,6 +16,13 @@ updated: YYYY-MM-DD
 | --- | --- | --- |
 | 待填写 | unknown | 无 |
 
+# Continuity（仅后继航段）
+
+- 前一 Arrival Checkpoint / receipt digest：
+- 前一目的地节点（新 `origin_node`）：
+- 导入 Predicate：
+- 需要新 Evidence 的易漂移 Predicate：
+
 # Backward regression
 
 从每个目标 Predicate 反向记录能够产生它的独立 Work Edge，以及该边需要的前置 Predicate。AND 使用多 Predicate 的 State/Join Node；OR 使用多条替代边。
@@ -51,3 +58,4 @@ updated: YYYY-MM-DD
 - [ ] 不变量未被破坏
 - [ ] 非目标保持排除
 - [ ] 剩余风险和未知项已回报
+- [ ] Arrival Checkpoint 已生成且 receipt digest 可校验
