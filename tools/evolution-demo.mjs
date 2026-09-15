@@ -49,7 +49,21 @@ function main() {
   const destinationNode = blueprint.nodes.find((node) => node.kind === "destination");
   const enabled = JSON.parse(run(workspace, "enable", "--root", workspace, "--mapflow-home", mapflowHome, "--json"));
   const stateArgs = ["--state", enabled.paths.state];
-  const command = (...commandArgs) => run(workspace, ...stateArgs, ...commandArgs);
+  const revisionBound = new Set([
+    "wayfinding-write", "wayfinding-answer", "init", "prove", "assign-decision-owner", "start",
+    "request-authorization", "authorize", "decline-authorization", "issue-action", "wait", "block",
+    "resume", "cancel", "propose", "confirm", "reject", "verify", "verify-executed", "verify-submap",
+    "replan", "continue", "request-arrival-audit", "arrive", "rebuild", "status", "context", "gate", "next-actions",
+  ]);
+  const command = (...commandArgs) => {
+    const snapshot = JSON.parse(run(
+      workspace, "snapshot", "--root", workspace, "--mapflow-home", mapflowHome, "--json",
+    ));
+    const guarded = revisionBound.has(commandArgs[0])
+      ? [...commandArgs, "--expected-revision", snapshot.head.revision]
+      : commandArgs;
+    return run(workspace, ...stateArgs, ...guarded);
+  };
   const answer = (question, value) => command(
     "wayfinding-answer", "--question", question, "--answer", value,
     "--evidence-ref", `note:demo-${question}`, "--actor", "human:demo",

@@ -1,5 +1,6 @@
 const POLL_INTERVAL_MS = 15000;
 const REQUEST_TIMEOUT_MS = 5000;
+const ACTION_RECEIPT_KEY = "mapflow.workspace-action-receipt/v1";
 
 const STATUS_LABELS = {
   active: "实施中",
@@ -87,9 +88,9 @@ const PHASE_LABELS = {
 };
 
 const WAYFINDING_PHASE_LABELS = {
-  survey: "现场信息勘探",
-  shaping: "目的地定形",
-  regression: "反向目标回归",
+  survey: "了解现状",
+  shaping: "确认目标",
+  regression: "倒推路线",
 };
 
 const STRUCTURAL_LABELS = {
@@ -147,6 +148,11 @@ const dom = typeof document === "undefined" ? {} : {
   actionQuestion: document.querySelector("#current-action-question"),
   actionState: document.querySelector("#current-action-state"),
   actionTitle: document.querySelector("#current-action-title"),
+  adjustDestination: document.querySelector("#adjust-destination"),
+  adjustment: document.querySelector("#wayfinding-adjustment"),
+  adjustmentCancel: document.querySelector("#cancel-adjustment"),
+  adjustmentForm: document.querySelector("#wayfinding-adjust-form"),
+  confirmDestination: document.querySelector("#confirm-destination"),
   currentPosition: document.querySelector("#current-position"),
   currentPositionDetail: document.querySelector("#current-position-detail"),
   currentPositionTitle: document.querySelector("#current-position-title"),
@@ -174,9 +180,15 @@ const dom = typeof document === "undefined" ? {} : {
   evolutionSummary: document.querySelector("#evolution-summary"),
   fit: document.querySelector("#fit-map"),
   freshness: document.querySelector("#freshness"),
+  goalCriteria: document.querySelector("#goal-criteria"),
+  goalOutOfScope: document.querySelector("#goal-out-of-scope"),
+  goalSummary: document.querySelector("#goal-summary"),
+  goalSummaryStatus: document.querySelector("#goal-summary-status"),
   inspector: document.querySelector("#inspector"),
   inspectorContent: document.querySelector("#inspector-content"),
   inspectorToggle: document.querySelector("#toggle-inspector"),
+  journeyDestination: document.querySelector("#journey-destination"),
+  journeyOrigin: document.querySelector("#journey-origin"),
   lensButtons: [...document.querySelectorAll("[data-lens]")],
   mapCounts: document.querySelector("#map-counts"),
   phase: document.querySelector("#phase-value"),
@@ -190,11 +202,24 @@ const dom = typeof document === "undefined" ? {} : {
   visibleCount: document.querySelector("#visible-count"),
   workbench: document.querySelector("#workbench"),
   wayfindingRail: document.querySelector("#wayfinding-rail"),
+  wayfindingResponse: document.querySelector("#wayfinding-response"),
+  wayfindingResponseActions: document.querySelector("#wayfinding-response > .response-actions"),
+  wayfindingResponseStatus: document.querySelector("#wayfinding-response-status"),
   canvasExplanation: document.querySelector("#canvas-explanation"),
   canvasEyebrow: document.querySelector("#canvas-eyebrow"),
 };
 
 const runtime = {
+  actionBusy: false,
+  actionQuestionId: null,
+  actionReceipt: (() => {
+    if (typeof sessionStorage === "undefined") return null;
+    try {
+      return JSON.parse(sessionStorage.getItem(ACTION_RECEIPT_KEY) ?? "null");
+    } catch {
+      return null;
+    }
+  })(),
   cy: null,
   etag: null,
   liveModel: null,
@@ -236,6 +261,24 @@ function asText(value) {
 function questionUpdateLabel(question) {
   const updates = question.answer_updates?.length ? asText(question.answer_updates) : "无";
   return `回答后处理：${updates}；回答不会自动确认节点、边或 Fact`;
+}
+
+function humanQuestionText(question) {
+  if (question?.target?.kind === "destination") {
+    return "这份目标、完成标准和“暂时不做”的范围，符合你对第一版的预期吗？";
+  }
+  return question?.prompt ?? "请补充当前情况。";
+}
+
+function humanSurfaceText(value) {
+  return String(value ?? "")
+    .replace(/\bGit worktree\b/gi, "项目")
+    .replace(/\bOwner\b/g, "你")
+    .replace(/\bBlueprint\b/g, "路线图")
+    .replace(/\bPredicate\b/g, "完成条件")
+    .replace(/\bFact\b/g, "已知事实")
+    .replace(/\bDestination\b/g, "目标")
+    .replace(/\bMVP\b/gi, "第一版");
 }
 
 function factValue(fact) {
@@ -363,24 +406,42 @@ export function currentActionView(model) {
       item.id === model.wayfinding?.current_question_id && item.status === "pending"
     )) ?? (model.questions ?? []).find((item) => item.status === "pending");
     if (question) {
+      const isDestinationChoice = question.target?.kind === "destination";
       return result({
         state: "waiting-human",
-        state_label: "等待你的回答",
-        title: `回答：${question.target?.label ?? question.target?.id}`,
-        owner: decisionOwnerLabel(question),
+        state_label: isDestinationChoice ? "需要你决定" : "需要补充信息",
+        title: isDestinationChoice ? "确认第一版做到什么程度" : "补充当前情况",
+        owner: isDestinationChoice ? "你" : decisionOwnerLabel(question),
         requested_by: question.requested_by ?? null,
         target_id: question.target?.id ?? question.id,
-        question: question.prompt,
-        after: `${questionUpdateLabel(question)}；看板刷新后才会出现下一个唯一问题。`,
+        question: humanQuestionText(question),
+        after: isDestinationChoice
+          ? "确认后开始从结果倒推路线；调整后先更新目标，再请你重新确认。"
+          : "信息记录后，页面会给出下一项需要确认的内容。",
+      });
+    }
+    const lastDestinationAnswer = [...(model.questions ?? [])].reverse().find((item) => (
+      item.target?.kind === "destination" && item.status === "answered"
+    ));
+    if (lastDestinationAnswer) {
+      const confirmed = /(?:确认|批准|同意|接受|就按这个)/.test(lastDestinationAnswer.answer ?? "")
+        && !/(?:不确认|拒绝|调整|修改)/.test(lastDestinationAnswer.answer ?? "");
+      return result({
+        state: "agent-next",
+        state_label: confirmed ? "目标已确认" : "调整意见已记录",
+        title: confirmed ? "准备从结果倒推路线" : "正在更新目标",
+        owner: "当前会话 Agent",
+        question: confirmed ? "确认记录已经保存，接下来会生成一条能解释的完整路线。" : "修改内容已经保存，目标更新后会再次请你确认。",
+        after: confirmed ? "路线生成后，你会先看到完整路线，再决定从哪里开始。" : "新目标不会自动确认。",
       });
     }
     return result({
       state: "agent-next",
-      state_label: "继续收敛",
-      title: "推进当前建模阶段",
+      state_label: "正在整理",
+      title: "准备下一步",
       owner: "当前会话 Agent",
       question: model.empty_state?.next_steps?.[0] ?? wayfindingNextAction(model.wayfinding?.phase),
-      after: model.empty_state?.next_steps?.[1] ?? "生成下一个唯一建模问题并刷新只读投影。",
+      after: model.empty_state?.next_steps?.[1] ?? "整理完成后，页面只会给出一个明确的下一步。",
     });
   }
 
@@ -520,15 +581,74 @@ export function currentActionView(model) {
   });
 }
 
+export function wayfindingInteractionView(model) {
+  if (model.evolution?.historical || model.interaction?.mode !== "destination-answer") {
+    return { enabled: false };
+  }
+  const question = (model.questions ?? []).find((item) => (
+    item.id === model.interaction.question_id
+    && item.id === model.wayfinding?.current_question_id
+    && item.status === "pending"
+    && item.target?.kind === "destination"
+  ));
+  if (!question || model.interaction.revision !== model.projection?.revision) return { enabled: false };
+  return {
+    enabled: true,
+    endpoint: model.interaction.endpoint,
+    token: model.interaction.token,
+    revision: model.interaction.revision,
+    question_id: question.id,
+  };
+}
+
+export function interactionReceiptView(receipt, model) {
+  if (!receipt || !model?.projection?.revision) return null;
+  const workspaceId = model.projection.workspace_head?.workspace_id ?? null;
+  if (receipt.workspace_id && workspaceId && receipt.workspace_id !== workspaceId) return null;
+  const applied = model.projection.revision !== receipt.recorded_revision;
+  return {
+    ...receipt,
+    status: applied ? "applied" : "recorded",
+    message: applied ? "已应用到地图" : "已记录，等待 Codex 处理",
+  };
+}
+
+function persistActionReceipt(receipt) {
+  runtime.actionReceipt = receipt;
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    if (receipt) sessionStorage.setItem(ACTION_RECEIPT_KEY, JSON.stringify(receipt));
+    else sessionStorage.removeItem(ACTION_RECEIPT_KEY);
+  } catch {
+    // The in-memory receipt still keeps the current page honest when storage is unavailable.
+  }
+}
+
 export function navigationPositionView(model) {
   if (model.projection?.mode === "empty") {
     return { label: "尚未建立地图", detail: "先勘探有来源的起始事实", state: "fog" };
   }
   if (model.projection?.mode === "wayfinding") {
     const target = model.wayfinding?.current_target;
+    const phase = model.wayfinding?.phase ?? model.map.wayfinding_phase;
+    if (phase === "survey") return {
+      label: "正在了解现状",
+      detail: "先确认已经具备什么、还缺什么",
+      state: target ? "active" : "waiting",
+    };
+    if (phase === "shaping") return {
+      label: "正在确认第一版范围",
+      detail: "目标确认后，才会从结果倒推出路线",
+      state: target ? "active" : "waiting",
+    };
+    if (phase === "regression") return {
+      label: "正在从结果倒推路线",
+      detail: "路线形成后会先整体展示，再开始行动",
+      state: target ? "active" : "waiting",
+    };
     return {
       label: target?.label ?? wayfindingPhaseTitle(model),
-      detail: target ? `${TARGET_KIND_LABELS[target.kind] ?? target.kind} · ${target.id}` : "正在收敛可执行路线",
+      detail: "正在整理可执行路线",
       state: target ? "active" : "waiting",
     };
   }
@@ -1639,9 +1759,9 @@ function updateView({ fit = false } = {}) {
     });
   });
   dom.canvasEmpty.textContent = runtime.model?.projection.mode === "empty"
-    ? "尚未建立正式地图。先完成勘探，再从目的地向始发地回归。"
+    ? "先了解现在已经有什么，再确认想完成的结果。"
     : runtime.model?.projection.mode === "wayfinding"
-      ? "当前显示待确认建模对象；正式图仍未建立。"
+      ? "目标确认后，路线会从结果向现在逐步展开。"
       : "当前镜头没有匹配对象。";
   dom.canvasEmpty.hidden = visibleNodes.size + visibleEdges.size !== 0;
   dom.visibleCount.textContent = String(selection.nodes.length + selection.edges.length);
@@ -1666,17 +1786,17 @@ function setLens(lens) {
 
 function wayfindingPhaseTitle(model) {
   const phase = model.wayfinding?.phase ?? model.map.wayfinding_phase;
-  if (phase === "survey") return "现场尚未完成勘探";
-  if (phase === "shaping") return "目的地尚未定形";
-  if (phase === "regression") return "反向目标回归进行中";
-  return "地图正在建模";
+  if (phase === "survey") return "先了解我们从哪里出发";
+  if (phase === "shaping") return "先确认第一版要做到什么";
+  if (phase === "regression") return "正在从结果倒推出完整路线";
+  return "正在整理路线";
 }
 
 export function wayfindingNextAction(phase) {
-  if (phase === "survey") return "先回答并记录当前始发问题；用四值事实更新草稿，再创建目的地问题。";
-  if (phase === "shaping") return "先逐项收敛并确认目的地合同；确认前不创建工作边或 Blueprint。";
-  if (phase === "regression") return "审阅完整候选链并补齐每条边的合同；validate/prove 通过后写入 Blueprint 并登记。";
-  return "先回答当前唯一问题，再根据真相刷新建模焦点。";
+  if (phase === "survey") return "先说清楚现在已经有什么、还缺什么。";
+  if (phase === "shaping") return "确认第一版的完成标准和暂不包含的范围。";
+  if (phase === "regression") return "检查从结果倒推的完整路线，再决定从哪里开始。";
+  return "先完成当前唯一的问题，页面会给出下一步。";
 }
 
 export function wayfindingDestinationView(model) {
@@ -1691,17 +1811,33 @@ export function wayfindingDestinationView(model) {
   return { status, label, statement };
 }
 
+export function humanDestinationTitle(model) {
+  const destination = wayfindingDestinationView(model);
+  const label = String(destination.label ?? "")
+    .replace(/\bMVP\b/gi, "")
+    .replace(/目的地/g, "")
+    .replace(/(?:尚未定形|待确认|等待确认)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return label.length >= 4 && label.length <= 32 ? label : destination.statement;
+}
+
 function canvasEyebrow(model) {
-  if (model.projection.mode === "empty") return "MAP INITIALIZATION";
+  if (model.projection.mode === "empty") return "路线";
   if (model.projection.mode === "wayfinding") {
     const phase = model.wayfinding?.phase ?? model.map.wayfinding_phase;
-    return phase === "survey" ? "SURVEY CANVAS" : phase === "shaping" ? "DESTINATION SHAPING" : "GOAL REGRESSION";
+    return phase === "survey" ? "了解现状" : phase === "shaping" ? "路线准备中" : "从结果倒推";
   }
-  return model.map.phase === "implementation" ? "LIVE WORK MAP" : "MAP CANVAS";
+  return model.map.phase === "implementation" ? "正在推进" : "完整路线";
 }
 
 function destinationContextText(model) {
-  if (model.projection.mode === "wayfinding") return `Intent：${model.map.intent.statement}`;
+  if (model.projection.mode === "wayfinding") {
+    const destination = wayfindingDestinationView(model);
+    return ["confirmed", "destination"].includes(destination.status)
+      ? "目标已经确认 · 路线正在根据完成标准展开"
+      : "请先确认这是不是你想要的第一版 · 确认前不会生成路线或开始实施";
+  }
   if (model.map.current_destination?.status === "drifted") return "历史到达仍保留 · 当前事实变化，路线正在重算";
   if ((model.summary.arrival_checkpoints ?? 0) > 0) return `已有 ${model.summary.arrival_checkpoints} 个历史到达 · 当前航段随事实刷新`;
   return "地图随事实和证据刷新 · 到达需要责任人确认";
@@ -1730,8 +1866,8 @@ function renderWayfindingChrome(model) {
   const current = model.wayfinding?.current_target;
   const currentQuestion = model.wayfinding?.questions?.find((question) => question.id === model.wayfinding.current_question_id);
   const explanation = [];
-  if (phase === "survey") explanation.push("当前只固定始发事实；不推演路线。");
-  if (phase === "shaping") explanation.push("当前只收敛目的地合同；不创建工作边。");
+  if (phase === "survey") explanation.push("先了解现在已经具备什么。路线还不会开始。");
+  if (phase === "shaping") explanation.push("先把“完成”说清楚。确认目标后，这里才会展开实现与验收路线。");
   if (phase === "regression") {
     const steps = model.goal_regression?.steps ?? [];
     explanation.push("当前从目的地向始发地提出里程碑候选；紫色箭头表示反向推理，橙色虚线表示尚未进入正式图。");
@@ -1752,9 +1888,8 @@ function renderWayfindingChrome(model) {
       }
     }
   }
-  explanation.push(current ? `本轮目标：${TARGET_KIND_LABELS[current.kind] ?? current.kind} · ${current.label}（${current.id}）` : "本轮没有待确认的建模目标。");
-  if (currentQuestion) explanation.push(questionUpdateLabel(currentQuestion));
-  if (phase !== "regression" && (model.summary.draft_edges ?? 0) === 0) explanation.push("图中只有始发/目的地候选，没有任何路径边。");
+  if (currentQuestion) explanation.push(`现在需要你：${humanQuestionText(currentQuestion)}`);
+  if (phase !== "regression" && (model.summary.draft_edges ?? 0) === 0) explanation.push("目标确认后，Mapflow 会从结果倒推出完整路线。");
   if (phase === "regression" && (model.summary.draft_edges ?? 0) > 0) explanation.push("完整候选链留在‘全部候选’镜头供整体审阅；写入 Blueprint 并通过 validate/prove 与 init/replan 后才成为正式拓扑。");
   dom.canvasExplanation.replaceChildren(element("span", "canvas-explanation-text", explanation.join("\n")));
 }
@@ -1775,11 +1910,16 @@ function startTrailAnimation() {
 function renderCounts(model) {
   if (model.projection.mode === "wayfinding") {
     const phase = model.wayfinding?.phase ?? model.map.wayfinding_phase;
-    const counts = [
-      [`${model.summary.draft_edges ?? 0}`, "候选任务"],
-      [`${model.summary.draft_nodes ?? 0}`, "候选里程碑"],
-      [`${model.summary.open_questions ?? 0}`, "待回答"],
-      [WAYFINDING_PHASE_LABELS[phase] ?? "探路建模", "当前阶段"],
+    const counts = phase === "shaping" ? [
+      ["待确认", "第一版目标"],
+      ["未生成", "工作路线"],
+      [`${model.summary.open_questions ?? 0}`, "需要你决定"],
+      ["下一步", "从结果倒推"],
+    ] : [
+      [`${model.summary.draft_edges ?? 0}`, "路线中的任务"],
+      [`${model.summary.draft_nodes ?? 0}`, "关键里程碑"],
+      [`${model.summary.open_questions ?? 0}`, "需要你决定"],
+      [WAYFINDING_PHASE_LABELS[phase] ?? "整理路线", "当前进度"],
     ];
     dom.mapCounts.replaceChildren(...counts.map(([value, label]) => {
       const card = element("div", "count-card");
@@ -1804,6 +1944,98 @@ function renderCounts(model) {
   }));
 }
 
+function renderGoalSummary(model) {
+  const destination = wayfindingDestinationView(model);
+  const acceptance = model.map?.destination?.acceptance ?? [];
+  const visible = model.projection?.mode === "wayfinding" && acceptance.length > 0;
+  dom.goalSummary.hidden = !visible;
+  if (!visible) return;
+  const origin = model.nodes?.find((node) => node.id !== destination.id && node.kind !== "destination")
+    ?? model.nodes?.find((node) => node.id !== destination.id);
+  dom.journeyOrigin.textContent = humanSurfaceText(origin?.label ?? "当前工作起点");
+  dom.journeyDestination.textContent = humanSurfaceText(destination.statement);
+  dom.goalSummaryStatus.textContent = ["confirmed", "destination"].includes(destination.status) ? "已经确认" : "等待你确认";
+  dom.goalCriteria.replaceChildren(...acceptance.map((item) => element("li", "", humanSurfaceText(item.proof))));
+  const outOfScope = model.map?.boundaries?.out_of_scope ?? [];
+  dom.goalOutOfScope.closest("details").hidden = outOfScope.length === 0;
+  dom.goalOutOfScope.replaceChildren(...outOfScope.map((item) => element("li", "", humanSurfaceText(item))));
+}
+
+function setWayfindingResponseStatus(message = "", tone = "") {
+  dom.wayfindingResponseStatus.textContent = message;
+  dom.wayfindingResponseStatus.classList.toggle("is-error", tone === "error");
+  dom.wayfindingResponseStatus.classList.toggle("is-success", tone === "success");
+}
+
+function renderWayfindingResponse(model) {
+  const interaction = wayfindingInteractionView(model);
+  const receipt = interactionReceiptView(runtime.actionReceipt, model);
+  if (receipt && receipt.status !== runtime.actionReceipt?.status) persistActionReceipt(receipt);
+  dom.wayfindingResponse.hidden = !interaction.enabled && !receipt;
+  dom.wayfindingResponseActions.hidden = !interaction.enabled;
+  if (!interaction.enabled) {
+    runtime.actionQuestionId = null;
+    runtime.actionBusy = false;
+    dom.adjustmentForm.hidden = true;
+    dom.adjustment.value = "";
+    if (receipt) setWayfindingResponseStatus(receipt.message, "success");
+    else setWayfindingResponseStatus();
+    return;
+  }
+  if (runtime.actionQuestionId !== interaction.question_id) {
+    runtime.actionQuestionId = interaction.question_id;
+    runtime.actionBusy = false;
+    dom.adjustmentForm.hidden = true;
+    dom.adjustment.value = "";
+    if (!receipt) setWayfindingResponseStatus();
+  }
+  dom.confirmDestination.disabled = runtime.actionBusy;
+  dom.adjustDestination.disabled = runtime.actionBusy;
+  for (const button of dom.adjustmentForm.querySelectorAll("button")) button.disabled = runtime.actionBusy;
+  if (receipt) setWayfindingResponseStatus(receipt.message, "success");
+}
+
+async function submitWayfindingChoice(choice, adjustment = "") {
+  const interaction = wayfindingInteractionView(runtime.liveModel ?? runtime.model);
+  if (!interaction.enabled || runtime.actionBusy) return;
+  runtime.actionBusy = true;
+  renderWayfindingResponse(runtime.liveModel ?? runtime.model);
+  setWayfindingResponseStatus(choice === "confirm" ? "正在记录你的确认…" : "正在记录调整意见…");
+  try {
+    const response = await fetch(interaction.endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Mapflow-Action-Token": interaction.token,
+      },
+      body: JSON.stringify({
+        question_id: interaction.question_id,
+        revision: interaction.revision,
+        choice,
+        adjustment,
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
+    persistActionReceipt({
+      schema: ACTION_RECEIPT_KEY,
+      workspace_id: body.workspace_id ?? null,
+      question_id: interaction.question_id,
+      choice,
+      recorded_revision: body.recorded_revision ?? body.revision,
+      status: body.application_status ?? "recorded",
+    });
+    runtime.actionBusy = false;
+    setWayfindingResponseStatus("已记录，等待 Codex 处理", "success");
+    runtime.etag = null;
+    await pollBoard();
+  } catch (error) {
+    runtime.actionBusy = false;
+    renderWayfindingResponse(runtime.liveModel ?? runtime.model);
+    setWayfindingResponseStatus(error.message, "error");
+  }
+}
+
 function renderCurrentAction(model) {
   const action = currentActionView(model);
   dom.actionGate.dataset.state = action.state;
@@ -1814,6 +2046,7 @@ function renderCurrentAction(model) {
     ? `${action.owner}\n发起者：${action.requested_by}`
     : action.owner;
   dom.actionAfter.textContent = action.after;
+  renderWayfindingResponse(model);
 }
 
 function renderCurrentPosition(model) {
@@ -2466,14 +2699,16 @@ function renderCompositeModel(model) {
   const previousSelection = runtime.selected;
   runtime.model = model;
   runtime.topology = nextTopology;
+  const wayfindingPhase = model.wayfinding?.phase ?? model.map.wayfinding_phase;
+  document.body.dataset.journeyMode = model.projection.mode === "wayfinding" ? wayfindingPhase : model.projection.mode;
 
   if (model.projection.mode === "wayfinding") {
-    dom.destination.textContent = wayfindingPhaseTitle(model);
+    dom.destination.textContent = humanDestinationTitle(model);
   } else {
     dom.destination.textContent = model.map.destination.statement;
   }
   dom.destinationContext.textContent = destinationContextText(model);
-  document.title = `${model.map.id} · Mapflow Board`;
+  document.title = `${humanDestinationTitle(model)} · Mapflow`;
   dom.phase.textContent = model.projection.mode === "wayfinding"
     ? WAYFINDING_PHASE_LABELS[model.wayfinding?.phase ?? model.map.wayfinding_phase] ?? "探路建模"
     : PHASE_LABELS[model.map.phase] ?? model.map.phase;
@@ -2488,6 +2723,7 @@ function renderCompositeModel(model) {
   dom.revision.title = model.projection.revision;
   renderCurrentPosition(model);
   renderCurrentAction(model);
+  renderGoalSummary(model);
   if (model.evolution?.historical) {
     dom.actionGate.dataset.state = "historical";
     dom.actionState.textContent = "历史态 · 只读";
@@ -2827,8 +3063,7 @@ function connectBoardStream() {
   runtime.stream = stream;
   stream.addEventListener("revision", (event) => {
     try {
-      const notice = JSON.parse(event.data);
-      if (notice.revision === runtime.liveModel?.projection?.revision) return;
+      JSON.parse(event.data);
     } catch {
       // Notifications never become truth; the API readback below remains authoritative.
     }
@@ -2843,6 +3078,20 @@ function connectBoardStream() {
 }
 
 function bindControls() {
+  dom.confirmDestination.addEventListener("click", () => submitWayfindingChoice("confirm"));
+  dom.adjustDestination.addEventListener("click", () => {
+    dom.adjustmentForm.hidden = false;
+    dom.adjustment.focus();
+  });
+  dom.adjustmentCancel.addEventListener("click", () => {
+    dom.adjustmentForm.hidden = true;
+    dom.adjustment.value = "";
+    setWayfindingResponseStatus();
+  });
+  dom.adjustmentForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitWayfindingChoice("adjust", dom.adjustment.value);
+  });
   dom.lensButtons.forEach((button) => button.addEventListener("click", () => setLens(button.dataset.lens)));
   dom.inspectorToggle.addEventListener("click", () => setInspectorOpen(dom.inspector.hidden));
   dom.search.addEventListener("input", () => {

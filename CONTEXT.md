@@ -62,7 +62,7 @@ _Avoid_: Read everything, document bundle
 
 **Context Pack**:
 针对当前地图或 Work Edge 按 Focus、Work、Evidence 或 History 层披露的只读上下文。
-_Avoid_: Complete repository dump, new source of truth
+_Avoid_: Complete repository dump, Workspace Head, new source of truth
 
 **Evidence Record**:
 实际执行后形成的不可覆盖记录，绑定 Work Edge、被证明的 Predicate 和相关验收项。
@@ -146,7 +146,15 @@ _Avoid_: Child done boolean, path-only evidence
 
 **Map Projection**:
 从 Blueprint 与运行 Fact 生成的阅读视图，不反向改变地图真相。
-_Avoid_: Source of truth, runtime
+_Avoid_: Workspace Head, source of truth, runtime
+
+**Workspace Head**:
+Sidecar 中唯一标识当前提交 revision 的小型记录；绑定当前 Wayfinding 或 runtime 事件头、源文件摘要和精确 runtime build。
+_Avoid_: Board revision, chat memory, second map copy
+
+**Workspace Snapshot**:
+在同一读锁内校验 Workspace Head、当前地图文件、事件流、状态投影和 runtime identity 后生成的只读回合入口。
+_Avoid_: Cached prompt, unverified file read, writable context
 
 **Workspace Identity**:
 把一次本地工作空间与 Mapflow 状态稳定关联的身份。

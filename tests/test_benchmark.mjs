@@ -182,16 +182,23 @@ import fs from "node:fs";
 const args = process.argv.slice(2);
 const input = fs.readFileSync(0, "utf8");
 const runtime = process.env.FAKE_MAPFLOW_RUNTIME;
-const statusResult = spawnSync(process.execPath, [runtime, "status", "--root", process.cwd(), "--json"], { encoding: "utf8", env: process.env });
+const enabledResult = spawnSync(process.execPath, [runtime, "enable", "--root", process.cwd(), "--json"], { encoding: "utf8", env: process.env });
+if (enabledResult.status !== 0) throw new Error(enabledResult.stderr);
+const snapshotRevision = () => {
+  const snapshotResult = spawnSync(process.execPath, [runtime, "snapshot", "--root", process.cwd(), "--json"], { encoding: "utf8", env: process.env });
+  if (snapshotResult.status !== 0) throw new Error(snapshotResult.stderr);
+  return JSON.parse(snapshotResult.stdout).head.revision;
+};
+const statusResult = spawnSync(process.execPath, [runtime, "status", "--root", process.cwd(), "--json", "--expected-revision", snapshotRevision()], { encoding: "utf8", env: process.env });
 if (statusResult.status !== 0) throw new Error(statusResult.stderr);
 const state = JSON.parse(statusResult.stdout);
 const request = state.arrival_audit_requests.find((entry) => entry.status === "pending");
 const actor = request.decision_owner ?? "human:segment-user";
 if (!request.decision_owner) {
-  const assigned = spawnSync(process.execPath, [runtime, "assign-decision-owner", "--root", process.cwd(), "--request", request.id, "--decision-owner", actor, "--actor", "agent:codex"], { encoding: "utf8", env: process.env });
+  const assigned = spawnSync(process.execPath, [runtime, "assign-decision-owner", "--root", process.cwd(), "--request", request.id, "--decision-owner", actor, "--actor", "agent:codex", "--expected-revision", snapshotRevision()], { encoding: "utf8", env: process.env });
   if (assigned.status !== 0) throw new Error(assigned.stderr);
 }
-const arrived = spawnSync(process.execPath, [runtime, "arrive", "--root", process.cwd(), "--request", request.id, "--answer", input, "--actor", actor, "--non-goals", "未授权外部发布", "--risks", "真实长期使用仍未验证"], { encoding: "utf8", env: process.env });
+const arrived = spawnSync(process.execPath, [runtime, "arrive", "--root", process.cwd(), "--request", request.id, "--answer", input, "--actor", actor, "--non-goals", "未授权外部发布", "--risks", "真实长期使用仍未验证", "--expected-revision", snapshotRevision()], { encoding: "utf8", env: process.env });
 if (arrived.status !== 0) throw new Error(arrived.stderr);
 const outputIndex = args.indexOf("--output-last-message");
 if (outputIndex >= 0) fs.writeFileSync(args[outputIndex + 1], "已按当前请求完成到达审计。", "utf8");
@@ -624,7 +631,7 @@ test("diagnosis map checkpoint requires a clean proven map with a probe before r
     const blueprint = structuredClone(readBlueprint(path.join(source, "blueprint.yaml")).blueprint);
     blueprint.boundaries.out_of_scope = ["Do not add a cache", "Do not change caller interfaces"];
     fs.writeFileSync(enabled.paths.map, `${JSON.stringify(blueprint, null, 2)}\n`, "utf8");
-    assert.equal(runNode(MAPFLOW, ["init", "--root", target], { mapflowHome, benchmarkHome }).status, 0);
+    assert.equal(runNode(MAPFLOW, ["init", "--root", target, "--expected-revision", enabled.workspace_head.revision], { mapflowHome, benchmarkHome }).status, 0);
     json(runNode(BENCHMARK, ["record", "--run", prepared.run_id, "--turn", "opening", "--input", "启用 mapflow", "--response", "已启用并开始勘探"], { mapflowHome, benchmarkHome }));
     json(runNode(BENCHMARK, ["record", "--run", prepared.run_id, "--turn", "destination-confirmation", "--input", "我确认之前展示的目的地合同", "--response", "完整候选链已整体审阅，正式地图已证明"], { mapflowHome, benchmarkHome }));
 
@@ -653,7 +660,7 @@ test("greenfield map-proven checkpoint accepts a reviewed proof without route ap
       fs.copyFileSync(path.join(example, "briefs", entry), path.join(enabled.paths.briefs, entry));
     }
     fs.copyFileSync(path.join(example, "blueprint.yaml"), enabled.paths.map);
-    assert.equal(runNode(MAPFLOW, ["init", "--root", target], { mapflowHome, benchmarkHome }).status, 0);
+    assert.equal(runNode(MAPFLOW, ["init", "--root", target, "--expected-revision", enabled.workspace_head.revision], { mapflowHome, benchmarkHome }).status, 0);
     json(runNode(BENCHMARK, ["record", "--run", prepared.run_id, "--turn", "opening", "--input", "启用 mapflow", "--response", "已展示目的地候选"], { mapflowHome, benchmarkHome }));
     json(runNode(BENCHMARK, ["record", "--run", prepared.run_id, "--turn", "destination-confirmation", "--input", "我确认刚才展示的目的地合同", "--response", "候选链已整体审阅并登记证明"], { mapflowHome, benchmarkHome }));
 

@@ -6,6 +6,8 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { runtimeBuildDigest } from "./mapflow-runtime.mjs";
+
 const SOURCE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PACKAGE = JSON.parse(fs.readFileSync(path.join(SOURCE_ROOT, "package.json"), "utf8"));
 const VERSION = PACKAGE.version;
@@ -55,6 +57,9 @@ function globalSourceEntries() {
     ["tools/mapflow-workspace.mjs", "mapflow/runtime/mapflow-workspace.mjs"],
     ["tools/mapflow-wayfinding.mjs", "mapflow/runtime/mapflow-wayfinding.mjs"],
     ["tools/mapflow-evolution.mjs", "mapflow/runtime/mapflow-evolution.mjs"],
+    ["tools/mapflow-head.mjs", "mapflow/runtime/mapflow-head.mjs"],
+    ["tools/mapflow-runtime.mjs", "mapflow/runtime/mapflow-runtime.mjs"],
+    ["tools/mapflow-snapshot.mjs", "mapflow/runtime/mapflow-snapshot.mjs"],
     ["tools/mapflow-board.mjs", "mapflow/runtime/mapflow-board.mjs"],
     ["tools/mapflow-board-core.mjs", "mapflow/runtime/mapflow-board-core.mjs"],
     ["tools/evolution-demo.mjs", "mapflow/runtime/evolution-demo.mjs"],
@@ -186,6 +191,7 @@ function installGlobal(targetRoot, options) {
   const manifest = {
     package: PACKAGE.name,
     version: VERSION,
+    runtime_digest: runtimeBuildDigest(path.join(SOURCE_ROOT, "tools")),
     profile,
     installed_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
     skills: [ENTRY_SKILL],
@@ -212,6 +218,8 @@ function installGlobal(targetRoot, options) {
       "wayfinding-draft",
       "explicit-enable",
       "evolution-playback",
+      "workspace-head",
+      "optimistic-concurrency",
     ],
     runtime: "mapflow/runtime/mapflow.mjs",
   };

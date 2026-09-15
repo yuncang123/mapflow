@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -11,20 +12,40 @@ import {
   collapsedSubmapElements,
   currentActionView,
   edgeExecutionLabel,
+  humanDestinationTitle,
   navigationPositionView,
   parallelEdgeLane,
   selectElementIds,
   timelineEventLabel,
   topologySignature,
+  interactionReceiptView,
   wayfindingDestinationView,
+  wayfindingInteractionView,
   wayfindingNextAction,
 } from "../tools/board/app.js";
 import { createArrivalCheckpoint, initialFacts, proveBlueprint, readBlueprint } from "../tools/mapflow-core.mjs";
-import { readWayfinding } from "../tools/mapflow-wayfinding.mjs";
+import { readWayfinding, writeWayfinding } from "../tools/mapflow-wayfinding.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const TEMPLATE_MAP = path.join(ROOT, "templates", "blueprint.yaml");
 const ORDER_TIMEOUT_MAP = path.join(ROOT, "examples", "order-query-timeout", "blueprint.yaml");
+const MAPFLOW_CLI = path.join(ROOT, "tools", "mapflow.mjs");
+
+function runMapflow(...args) {
+  const commandIndex = args[0] === "--state" ? 2 : 0;
+  const command = args[commandIndex];
+  if (new Set(["wayfinding-answer", "wayfinding-write", "init"]).has(command) && !args.includes("--expected-revision") && args[0] === "--state") {
+    const headPath = path.join(path.dirname(args[1]), "head.json");
+    if (fs.existsSync(headPath)) args.push("--expected-revision", JSON.parse(fs.readFileSync(headPath, "utf8")).revision);
+  }
+  const result = spawnSync(process.execPath, [MAPFLOW_CLI, ...args], {
+    cwd: ROOT,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return result.stdout.trim();
+}
 
 function copyTemplate() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-board-"));
@@ -146,8 +167,8 @@ test("a collapsed submap replaces its parent edge with one readable node", () =>
 test("wayfinding next action does not register a Blueprint before regression closes", () => {
   assert.doesNotMatch(wayfindingNextAction("survey"), /写入 Blueprint|登记变更/);
   assert.doesNotMatch(wayfindingNextAction("shaping"), /写入 Blueprint|登记变更/);
-  assert.match(wayfindingNextAction("regression"), /审阅完整候选链.*validate\/prove/);
-  assert.match(wayfindingNextAction("regression"), /写入 Blueprint/);
+  assert.match(wayfindingNextAction("regression"), /检查.*完整路线/);
+  assert.doesNotMatch(wayfindingNextAction("regression"), /Blueprint|validate\/prove/);
 });
 
 test("wayfinding draft projects the origin candidate and question target before formal Blueprint", () => {
@@ -282,6 +303,28 @@ questions:
   assert.doesNotMatch(model.empty_state.next_steps.join(" "), /Blueprint|登记正式/);
   const destination = model.nodes.find((node) => node.id === "library-system-ready");
   assert.deepEqual(destination.predicates.map((predicate) => predicate.id), model.map.destination.requires);
+  const action = currentActionView(model);
+  assert.equal(action.title, "确认第一版做到什么程度");
+  assert.equal(action.owner, "你");
+  assert.doesNotMatch(`${action.title} ${action.after}`, /Predicate|Fact|Blueprint|library-system-ready/);
+  assert.equal(navigationPositionView(model).label, "正在确认第一版范围");
+  assert.equal(humanDestinationTitle(model), "核心借阅流程可验收");
+
+  const interactive = structuredClone(model);
+  interactive.interaction = {
+    mode: "destination-answer",
+    endpoint: "/api/wayfinding/answer",
+    token: "test-token",
+    question_id: "confirm-destination",
+    revision: model.projection.revision,
+  };
+  assert.deepEqual(wayfindingInteractionView(interactive), {
+    enabled: true,
+    endpoint: "/api/wayfinding/answer",
+    token: "test-token",
+    question_id: "confirm-destination",
+    revision: model.projection.revision,
+  });
 });
 
 test("wayfinding candidate edges preserve human-confirmed contracts for the next regression step", () => {
@@ -1239,10 +1282,12 @@ test("board server serves a read-only ETag API and offline assets", async () => 
     const pageSource = await page.text();
     assert.match(pageSource, /Mapflow Board/);
     assert.match(pageSource, /id="current-action"/);
-    assert.match(pageSource, /目的地/);
-    assert.match(pageSource, /当前位置/);
-    assert.match(pageSource, /下一步/);
-    assert.match(pageSource, /任务与里程碑/);
+    assert.match(pageSource, /想完成的结果/);
+    assert.match(pageSource, /现在需要你/);
+    assert.match(pageSource, /确认这个目标/);
+    assert.match(pageSource, /我想调整/);
+    assert.match(pageSource, /做到这些，才算完成/);
+    assert.match(pageSource, /全部任务与里程碑/);
     assert.match(pageSource, /id="toggle-inspector"[^>]*aria-expanded="false"/);
     assert.match(pageSource, /id="inspector"[^>]*hidden/);
     assert.match(pageSource, /当前推进/);
@@ -1256,6 +1301,8 @@ test("board server serves a read-only ETag API and offline assets", async () => 
     const appSource = await app.text();
     assert.match(appSource, /If-None-Match/);
     assert.match(appSource, /new EventSource\("\/api\/stream"\)/);
+    assert.match(appSource, /submitWayfindingChoice/);
+    assert.match(appSource, /X-Mapflow-Action-Token/);
     assert.match(appSource, /lens:\s*"all"/);
     assert.doesNotMatch(appSource, /\.innerHTML\s*=/);
     assert.match(appSource, /goal-regression/);
@@ -1276,11 +1323,162 @@ test("board server serves a read-only ETag API and offline assets", async () => 
 
     const write = await fetch(`${base}/api/board`, { method: "POST" });
     assert.equal(write.status, 405);
-    assert.match((await write.json()).error, /read-only/);
+    assert.match((await write.json()).error, /只读投影/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("workspace board records an explicit destination answer through the existing wayfinding journal", async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-board-answer-workspace-"));
+  const mapflowHome = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-board-answer-home-"));
+  const enabled = JSON.parse(runMapflow(
+    "enable", "--root", workspace, "--mapflow-home", mapflowHome, "--json",
+  ));
+  runMapflow(
+    "--state", enabled.paths.state,
+    "wayfinding-answer",
+    "--question", "establish-starting-state",
+    "--answer", "空工作区已经建立",
+    "--evidence-ref", "observation:test-workspace",
+    "--actor", "agent:test",
+  );
+  const candidate = structuredClone(readWayfinding(enabled.paths.wayfinding).draft);
+  candidate.phase = "shaping";
+  candidate.intent = {
+    statement: "做一个可以验收的本地图书管理系统",
+    status: "draft",
+    open_questions: ["是否确认第一版目标"],
+  };
+  candidate.origin.label = "空工作区，尚未开始实现";
+  candidate.destination = {
+    id: "workspace-destination-fog",
+    kind: "fog",
+    label: "图书管理系统目标待确认",
+    statement: "管理员可以完成图书入库、检索、借出和归还",
+    status: "pending",
+    requires: ["library-journey-works"],
+    invariants: ["no-external-release"],
+    acceptance: [{ id: "journey-demo", proves: ["library-journey-works"], proof: "完整旅程演示通过" }],
+  };
+  candidate.boundaries = {
+    in_scope: ["入库、检索、借出和归还"],
+    out_of_scope: ["生产部署"],
+    authorization: ["外部发布另行授权"],
+  };
+  candidate.questions.push({
+    id: "confirm-destination",
+    prompt: "是否确认这份第一版目标和完成标准？",
+    target: {
+      kind: "destination",
+      id: candidate.destination.id,
+      label: candidate.destination.label,
+      purpose: "确认目标后开始倒推路线",
+    },
+    status: "pending",
+    answer_updates: [
+      "wayfinding.intent.status",
+      "wayfinding.intent.open_questions",
+      "wayfinding.destination.status",
+    ],
+  });
+  const candidatePath = path.join(mapflowHome, "candidate.yaml");
+  writeWayfinding(candidatePath, candidate);
+  runMapflow(
+    "--state", enabled.paths.state,
+    "wayfinding-write",
+    "--draft-file", candidatePath,
+    "--reason", "形成待确认的目的地合同",
+    "--actor", "agent:test",
+  );
+
+  const server = createBoardServer({ statePath: enabled.paths.state });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const initialResponse = await fetch(`${base}/api/board`);
+    assert.equal(initialResponse.status, 200);
+    const initial = await initialResponse.json();
+    assert.equal(initial.interaction.mode, "destination-answer");
+    assert.equal(initial.interaction.question_id, "confirm-destination");
+    assert.ok(initial.interaction.token);
+
+    const missingToken = await fetch(`${base}/api/wayfinding/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(missingToken.status, 403);
+
+    const emptyAdjustment = await fetch(`${base}/api/wayfinding/answer`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Mapflow-Action-Token": initial.interaction.token,
+      },
+      body: JSON.stringify({
+        question_id: initial.interaction.question_id,
+        revision: initial.interaction.revision,
+        choice: "adjust",
+        adjustment: "",
+      }),
+    });
+    assert.equal(emptyAdjustment.status, 400);
+
+    const confirmed = await fetch(`${base}/api/wayfinding/answer`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Mapflow-Action-Token": initial.interaction.token,
+      },
+      body: JSON.stringify({
+        question_id: initial.interaction.question_id,
+        revision: initial.interaction.revision,
+        choice: "confirm",
+      }),
+    });
+    assert.equal(confirmed.status, 200);
+    const receipt = await confirmed.json();
+    assert.match(receipt.message, /已记录，等待 Codex 处理/);
+    assert.equal(receipt.application_status, "recorded");
+    assert.equal(interactionReceiptView({
+      workspace_id: receipt.workspace_id,
+      recorded_revision: receipt.recorded_revision,
+    }, refreshedBoardModel(receipt.recorded_revision, receipt.workspace_id)).message, "已记录，等待 Codex 处理");
+    assert.equal(interactionReceiptView({
+      workspace_id: receipt.workspace_id,
+      recorded_revision: receipt.recorded_revision,
+    }, refreshedBoardModel("f".repeat(64), receipt.workspace_id)).message, "已应用到地图");
+
+    const answered = readWayfinding(enabled.paths.wayfinding).draft.questions.find((question) => question.id === "confirm-destination");
+    assert.equal(answered.status, "answered");
+    assert.match(answered.answer, /我确认当前展示的目的地/);
+    assert.deepEqual(answered.evidence_refs.map((ref) => ref.kind), ["observation"]);
+    const events = fs.readFileSync(enabled.paths.wayfinding_events, "utf8").trim().split("\n").map(JSON.parse);
+    assert.equal(events.at(-1).actor, "human:owner");
+
+    const refreshed = await (await fetch(`${base}/api/board`)).json();
+    assert.equal(refreshed.interaction.mode, "view-only");
+    const health = await (await fetch(`${base}/health`)).json();
+    assert.equal(health.projection_read_only, true);
+    assert.equal(health.destination_answer, false);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+function refreshedBoardModel(revision, workspaceId) {
+  return {
+    projection: {
+      revision,
+      workspace_head: { workspace_id: workspaceId },
+    },
+  };
+}
 
 test("board stream notifies a revision change and leaves API readback authoritative", async () => {
   const { directory, mapPath } = copyTemplate();
@@ -1327,6 +1525,123 @@ test("board stream notifies a revision change and leaves API readback authoritat
     assert.notEqual(changedRevision, initialRevision);
     const readback = await (await fetch(`${base}/api/board`)).json();
     assert.equal(readback.projection.revision, changedRevision);
+    await reader.cancel();
+  } finally {
+    controller.abort();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("workspace board watches Head and Wayfinding files changed by an external Codex write", async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-board-head-watch-workspace-"));
+  const mapflowHome = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-board-head-watch-home-"));
+  const enabled = JSON.parse(runMapflow("enable", "--root", workspace, "--mapflow-home", mapflowHome, "--json"));
+  const server = createBoardServer({ statePath: enabled.paths.state });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const controller = new AbortController();
+  try {
+    const response = await fetch(`${base}/api/stream`, { signal: controller.signal });
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    async function nextRevisionEvent() {
+      let buffer = "";
+      while (true) {
+        const part = await reader.read();
+        if (part.done) throw new Error("board stream closed before a revision arrived");
+        buffer += decoder.decode(part.value, { stream: true });
+        const match = buffer.match(/event: revision\ndata: (\{.*\})\n\n/);
+        if (match) return JSON.parse(match[1]);
+      }
+    }
+    const initial = await nextRevisionEvent();
+    assert.equal(initial.revision, JSON.parse(fs.readFileSync(enabled.paths.head, "utf8")).revision);
+
+    runMapflow(
+      "--state", enabled.paths.state,
+      "wayfinding-answer", "--question", "establish-starting-state",
+      "--answer", "外部 Codex 已完成现场勘探",
+      "--evidence-ref", "observation:external-codex",
+    );
+    const expected = JSON.parse(fs.readFileSync(enabled.paths.head, "utf8")).revision;
+    let timeoutId;
+    const changed = await Promise.race([
+      nextRevisionEvent(),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error("timed out waiting for Head revision")), 5000);
+      }),
+    ]).finally(() => clearTimeout(timeoutId));
+    assert.equal(changed.revision, expected);
+    assert.notEqual(changed.revision, initial.revision);
+    const readback = await (await fetch(`${base}/api/board`)).json();
+    assert.equal(readback.projection.revision, expected);
+    await reader.cancel();
+  } finally {
+    controller.abort();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("workspace board refreshes when Head runtime identity changes without an event revision", async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-board-runtime-watch-workspace-"));
+  const mapflowHome = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-board-runtime-watch-home-"));
+  const enabled = JSON.parse(runMapflow("enable", "--root", workspace, "--mapflow-home", mapflowHome, "--json"));
+  const server = createBoardServer({ statePath: enabled.paths.state });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const controller = new AbortController();
+  try {
+    const initialResponse = await fetch(`${base}/api/board`);
+    const initialEtag = initialResponse.headers.get("etag");
+    const initialBoard = await initialResponse.json();
+    assert.equal(initialBoard.projection.source_status, "current");
+
+    const response = await fetch(`${base}/api/stream`, { signal: controller.signal });
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    async function nextRevisionEvent() {
+      let buffer = "";
+      while (true) {
+        const part = await reader.read();
+        if (part.done) throw new Error("board stream closed before a Head change arrived");
+        buffer += decoder.decode(part.value, { stream: true });
+        const match = buffer.match(/event: revision\ndata: (\{.*\})\n\n/);
+        if (match) return JSON.parse(match[1]);
+      }
+    }
+    await nextRevisionEvent();
+
+    const head = JSON.parse(fs.readFileSync(enabled.paths.head, "utf8"));
+    const originalRevision = head.revision;
+    head.runtime.build_digest = "0".repeat(64);
+    fs.writeFileSync(enabled.paths.head, `${JSON.stringify(head, null, 2)}\n`, "utf8");
+
+    let timeoutId;
+    const changed = await Promise.race([
+      nextRevisionEvent(),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error("timed out waiting for Head runtime change")), 5000);
+      }),
+    ]).finally(() => clearTimeout(timeoutId));
+    assert.equal(changed.revision, originalRevision);
+    assert.equal(changed.source_status, "stale");
+    assert.equal(changed.head_runtime.build_digest, "0".repeat(64));
+
+    const refreshedResponse = await fetch(`${base}/api/board`, {
+      headers: { "If-None-Match": initialEtag },
+    });
+    assert.equal(refreshedResponse.status, 200);
+    assert.notEqual(refreshedResponse.headers.get("etag"), initialEtag);
+    const refreshed = await refreshedResponse.json();
+    assert.equal(refreshed.projection.revision, originalRevision);
+    assert.equal(refreshed.projection.source_status, "stale");
+    assert.equal(refreshed.interaction.reason, "runtime-mismatch");
     await reader.cancel();
   } finally {
     controller.abort();

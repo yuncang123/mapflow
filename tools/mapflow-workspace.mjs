@@ -136,6 +136,7 @@ export function resolveWorkspace({
     statePath: path.join(current, "state.json"),
     eventsPath: path.join(current, "events.jsonl"),
     wayfindingEventsPath: path.join(current, "wayfinding-events.jsonl"),
+    headPath: path.join(current, "head.json"),
   };
 
   let created = false;
@@ -163,6 +164,7 @@ export function resolveWorkspace({
         state: "current/state.json",
         events: "current/events.jsonl",
         wayfinding_events: "current/wayfinding-events.jsonl",
+        head: "current/head.json",
       },
     });
     created = true;

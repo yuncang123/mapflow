@@ -20,6 +20,20 @@ function run(...args) {
 }
 
 function runAt(cwd, ...args) {
+  const commandIndex = args[0] === "--state" ? 2 : 0;
+  const command = args[commandIndex];
+  const revisionBound = new Set([
+    "wayfinding-write", "wayfinding-answer", "init", "prove", "assign-decision-owner", "start",
+    "request-authorization", "authorize", "decline-authorization", "issue-action", "wait", "block",
+    "resume", "cancel", "propose", "confirm", "reject", "verify", "verify-executed", "verify-submap",
+    "replan", "continue", "request-arrival-audit", "arrive", "rebuild", "status", "context", "gate", "next-actions",
+  ]);
+  if (revisionBound.has(command) && !args.includes("--expected-revision") && args[0] === "--state") {
+    const headPath = path.join(path.dirname(args[1]), "head.json");
+    if (fs.existsSync(headPath)) {
+      args.push("--expected-revision", JSON.parse(fs.readFileSync(headPath, "utf8")).revision);
+    }
+  }
   return spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: "utf8" });
 }
 
@@ -663,7 +677,7 @@ test("the software-project demo genuinely traverses shaping, regression, evidenc
   const result = spawnSync(process.execPath, [EVOLUTION_DEMO, "--no-serve"], {
     cwd: ROOT,
     encoding: "utf8",
-    timeout: 30_000,
+    timeout: 60_000,
   });
   assertExit(result);
   const output = JSON.parse(result.stdout);

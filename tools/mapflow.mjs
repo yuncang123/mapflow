@@ -27,6 +27,15 @@ import {
 import { WorkspaceError, resolveWorkspace } from "./mapflow-workspace.mjs";
 import { WayfindingError, answerWayfindingQuestion, initialWayfindingDraft, readWayfinding, writeWayfinding } from "./mapflow-wayfinding.mjs";
 import {
+  WorkspaceHeadError,
+  acquireWorkspaceWriteLock,
+  assertExpectedWorkspaceRevision,
+  readWorkspaceHead,
+  workspaceHeadPathForState,
+  writeWorkspaceHead,
+} from "./mapflow-head.mjs";
+import { WorkspaceSnapshotError, createWorkspaceSnapshotReader } from "./mapflow-snapshot.mjs";
+import {
   certificateDigest,
   createProofCertificate,
   normalizeCausalContract,
@@ -53,6 +62,13 @@ const AUTHORIZATION_REQUEST_STATES = new Set(["pending", "granted", "declined", 
 const ARRIVAL_AUDIT_REQUEST_STATES = new Set(["pending", "granted", "declined", "stale"]);
 const PENDING_EVENTS = new WeakMap();
 const CAPABILITY_ACTIONS = new Set(["read_workspace", "write_artifact", "run_verifier"]);
+const MUTATING_COMMANDS = new Set([
+  "wayfinding-write", "wayfinding-answer", "init", "prove", "assign-decision-owner", "start",
+  "request-authorization", "authorize", "decline-authorization", "issue-action", "wait", "block",
+  "resume", "cancel", "propose", "confirm", "reject", "verify", "verify-executed", "verify-submap",
+  "replan", "continue", "request-arrival-audit", "arrive", "rebuild",
+]);
+const REVISION_BOUND_READS = new Set(["status", "context", "gate", "next-actions"]);
 
 class CliError extends Error {}
 
@@ -1269,9 +1285,11 @@ function printHelp() {
   process.stdout.write("Evidence-driven state-node/work-edge map runtime\n\n");
   process.stdout.write("workspace options:\n");
   process.stdout.write("  --root PATH          resolve the Git worktree or directory being assisted\n");
-  process.stdout.write("  --mapflow-home PATH  override the user state home with an absolute path outside the workspace\n\n");
+  process.stdout.write("  --mapflow-home PATH  override the user state home with an absolute path outside the workspace\n");
+  process.stdout.write("  --expected-revision DIGEST  bind a read or write to the latest snapshot Head\n\n");
   process.stdout.write("commands:\n");
   process.stdout.write("  enable     create or restore the current workspace sidecar\n");
+  process.stdout.write("  snapshot   read the one authoritative Workspace Head and its current projection\n");
   process.stdout.write("  wayfinding-write  validate and atomically replace the modeling draft\n");
   process.stdout.write("  wayfinding-answer  persist one human answer and refresh the modeling draft\n");
   process.stdout.write("  validate   validate a Blueprint definition\n");
@@ -1301,7 +1319,7 @@ function printHelp() {
   process.stdout.write("  request-arrival-audit  freeze completed destination evidence for a human or Agent audit\n");
   process.stdout.write("  arrive     consume one pending audit answer and record Arrival\n");
   process.stdout.write("  rebuild    rebuild state projection from verified events\n");
-  process.stdout.write("  board      serve a read-only dynamic map (--map MAP, --port PORT)\n");
+  process.stdout.write("  board      serve the human journey view and read-only map projection (--map MAP, --port PORT)\n");
 }
 
 function sha256File(filePath) {
@@ -1378,55 +1396,81 @@ function commandEnable(options) {
     create: true,
   });
   let wayfindingInitialized = false;
-  if (
-    !fs.existsSync(workspace.mapPath)
-    && !fs.existsSync(workspace.statePath)
-    && !fs.existsSync(workspace.wayfindingPath)
-  ) {
-    const draftCheckpoint = fileCheckpoint(workspace.wayfindingPath);
-    const journalCheckpoint = fileCheckpoint(workspace.wayfindingEventsPath);
-    try {
-      appendWayfindingEvent(workspace.wayfindingEventsPath, {
+  let runtimeRebound = false;
+  let headInfo;
+  const lease = acquireWorkspaceWriteLock(workspace.statePath);
+  try {
+    if (
+      !fs.existsSync(workspace.mapPath)
+      && !fs.existsSync(workspace.statePath)
+      && !fs.existsSync(workspace.wayfindingPath)
+    ) {
+      const draftCheckpoint = fileCheckpoint(workspace.wayfindingPath);
+      const journalCheckpoint = fileCheckpoint(workspace.wayfindingEventsPath);
+      try {
+        appendWayfindingEvent(workspace.wayfindingEventsPath, {
+          workspaceId: workspace.workspace_id,
+          type: "mapflow.workspace.enabled.v1",
+          actor: "system:mapflow",
+          subject: `workspace/${workspace.workspace_id}`,
+          summary: "启用 Mapflow；此时尚无地图",
+          reason: "为真实演化建立可验证的空白起点",
+          target: { kind: "workspace", id: workspace.workspace_id },
+          snapshot: null,
+          coverage: "complete",
+          details: { formal_nodes: 0, formal_edges: 0, sidecar_truth: "absent-before-enable" },
+        });
+        const written = writeWayfinding(workspace.wayfindingPath, initialWayfindingDraft());
+        appendWayfindingEvent(workspace.wayfindingEventsPath, {
+          workspaceId: workspace.workspace_id,
+          type: "mapflow.wayfinding.initialized.v1",
+          actor: "system:mapflow",
+          subject: "node/workspace-origin-fog",
+          summary: "建立始发地迷雾与目的地迷雾",
+          reason: "从现场勘探问题开始，而不是预设正式地图",
+          target: { kind: "node", id: "workspace-origin-fog" },
+          snapshot: written.draft,
+          draftDigest: written.digest,
+          coverage: "complete",
+        });
+        wayfindingInitialized = true;
+      } catch (error) {
+        restoreFileCheckpoint(workspace.wayfindingPath, draftCheckpoint);
+        restoreFileCheckpoint(workspace.wayfindingEventsPath, journalCheckpoint);
+        throw error;
+      }
+    } else if (
+      fs.existsSync(workspace.wayfindingPath)
+      && !fs.existsSync(workspace.statePath)
+      && !fs.existsSync(workspace.wayfindingEventsPath)
+    ) {
+      ensureWayfindingMigrationAnchor({
+        eventsPath: workspace.wayfindingEventsPath,
+        wayfindingPath: workspace.wayfindingPath,
         workspaceId: workspace.workspace_id,
-        type: "mapflow.workspace.enabled.v1",
-        actor: "system:mapflow",
-        subject: `workspace/${workspace.workspace_id}`,
-        summary: "启用 Mapflow；此时尚无地图",
-        reason: "为真实演化建立可验证的空白起点",
-        target: { kind: "workspace", id: workspace.workspace_id },
-        snapshot: null,
-        coverage: "complete",
-        details: { formal_nodes: 0, formal_edges: 0, sidecar_truth: "absent-before-enable" },
       });
-      const written = writeWayfinding(workspace.wayfindingPath, initialWayfindingDraft());
-      appendWayfindingEvent(workspace.wayfindingEventsPath, {
-        workspaceId: workspace.workspace_id,
-        type: "mapflow.wayfinding.initialized.v1",
-        actor: "system:mapflow",
-        subject: "node/workspace-origin-fog",
-        summary: "建立始发地迷雾与目的地迷雾",
-        reason: "从现场勘探问题开始，而不是预设正式地图",
-        target: { kind: "node", id: "workspace-origin-fog" },
-        snapshot: written.draft,
-        draftDigest: written.digest,
-        coverage: "complete",
-      });
-      wayfindingInitialized = true;
-    } catch (error) {
-      restoreFileCheckpoint(workspace.wayfindingPath, draftCheckpoint);
-      restoreFileCheckpoint(workspace.wayfindingEventsPath, journalCheckpoint);
-      throw error;
     }
-  } else if (
-    fs.existsSync(workspace.wayfindingPath)
-    && !fs.existsSync(workspace.statePath)
-    && !fs.existsSync(workspace.wayfindingEventsPath)
-  ) {
-    ensureWayfindingMigrationAnchor({
-      eventsPath: workspace.wayfindingEventsPath,
-      wayfindingPath: workspace.wayfindingPath,
-      workspaceId: workspace.workspace_id,
-    });
+    if (fs.existsSync(workspace.headPath)) {
+      headInfo = readWorkspaceHead(workspace.statePath);
+      if (!headInfo.runtime_compatible && options.has("expected-revision")) {
+        const expectedRevision = options.get("expected-revision");
+        if (expectedRevision !== headInfo.head.revision) {
+          fail(`expected revision is stale: expected ${expectedRevision}, current ${headInfo.head.revision}; reload snapshot --root before rebinding the runtime`);
+        }
+        const headCheckpoint = fileCheckpoint(workspace.headPath);
+        try {
+          headInfo = writeWorkspaceHead(workspace.statePath);
+          runtimeRebound = true;
+        } catch (error) {
+          restoreFileCheckpoint(workspace.headPath, headCheckpoint);
+          throw error;
+        }
+      }
+    } else {
+      headInfo = writeWorkspaceHead(workspace.statePath);
+    }
+  } finally {
+    lease.release();
   }
   const wayfinding = fs.existsSync(workspace.wayfindingPath)
     ? readWayfinding(workspace.wayfindingPath).draft
@@ -1442,6 +1486,14 @@ function commandEnable(options) {
     map_exists: fs.existsSync(workspace.mapPath),
     wayfinding_exists: Boolean(wayfinding),
     wayfinding_initialized: wayfindingInitialized,
+    workspace_head: {
+      path: headInfo.path,
+      revision: headInfo.head.revision,
+      phase: headInfo.head.phase,
+      runtime: headInfo.head.runtime,
+      runtime_compatible: headInfo.runtime_compatible,
+      runtime_rebound: runtimeRebound,
+    },
     state_exists: fs.existsSync(workspace.statePath),
     formal_topology: {
       present: fs.existsSync(workspace.mapPath),
@@ -1466,6 +1518,7 @@ function commandEnable(options) {
       state: workspace.statePath,
       events: workspace.eventsPath,
       wayfinding_events: workspace.wayfindingEventsPath,
+      head: workspace.headPath,
     },
     legacy_project_state: workspace.legacy_project_state,
   };
@@ -1483,6 +1536,22 @@ function commandEnable(options) {
   if (workspace.legacy_project_state) {
     process.stdout.write("legacy .mapflow detected in the project; it was not imported or modified\n");
   }
+}
+
+function commandSnapshot(workspace, statePath, options) {
+  if (!workspace?.exists) fail("workspace sidecar is absent; run enable --root before snapshot");
+  const result = createWorkspaceSnapshotReader({ workspace, statePath })();
+  if (options.has("json")) {
+    process.stdout.write(`${JSON.stringify(result.snapshot, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`workspace revision: ${result.snapshot.head.revision}\n`);
+  process.stdout.write(`phase: ${result.snapshot.focus.phase}\n`);
+  process.stdout.write(`runtime: ${result.snapshot.runtime.current.version}/${result.snapshot.runtime.current.build_digest.slice(0, 12)} (${result.snapshot.runtime.compatible_with_head ? "compatible" : "mismatch"})\n`);
+  if (result.snapshot.focus.current_question) {
+    process.stdout.write(`current question: ${result.snapshot.focus.current_question.id} - ${result.snapshot.focus.current_question.prompt}\n`);
+  }
+  process.stdout.write(`next action: ${result.snapshot.focus.next_action.id}\n`);
 }
 
 function commandWayfindingAnswer(statePath, options) {
@@ -1740,6 +1809,37 @@ function runtimeEvidenceLevels(state, blueprint) {
 }
 
 function commandContext(statePath, options) {
+  if (!fs.existsSync(statePath)) {
+    const wayfindingPath = wayfindingPathsForState(statePath).draftPath;
+    if (!fs.existsSync(wayfindingPath)) fail(`state and Wayfinding draft are both missing beside: ${statePath}`);
+    const layer = options.get("layer") ?? "focus";
+    if (layer !== "focus") fail("work, evidence, and history context require a formal runtime; use focus during Wayfinding");
+    const draft = readWayfinding(wayfindingPath).draft;
+    const question = draft.questions.find((item) => (item.status ?? "pending") === "pending") ?? null;
+    const output = {
+      schema: "mapflow.context-pack/v1",
+      layer: "focus",
+      map: {
+        id: draft.destination?.id ?? "unshaped-workspace",
+        destination: draft.destination?.statement ?? draft.intent?.statement ?? null,
+        phase: "wayfinding",
+        actual_arrival: "not-audited",
+      },
+      focus: {
+        edge: null,
+        question: question ? {
+          id: question.id,
+          prompt: question.prompt,
+          target: structuredClone(question.target),
+        } : null,
+        note: question ? "answer the current Wayfinding question" : "continue shaping the destination and regressing the route",
+      },
+      available_layers: ["focus"],
+      budget: { max_files: 2, max_chars: 12000, declared_load_first: 1, included_chars: 0, within_budget: true },
+    };
+    process.stdout.write(options.has("json") ? `${JSON.stringify(output, null, 2)}\n` : `context focus: ${output.map.id}\n${question ? `question: ${question.id} - ${question.prompt}\n` : "no pending question\n"}`);
+    return;
+  }
   const state = loadState(statePath);
   const { blueprint, digest, briefs } = readStateBlueprint(statePath, state);
   assertMapUnchanged(statePath, state, digest);
@@ -2914,35 +3014,115 @@ function commandArrive(statePath, options) {
   process.stdout.write(`arrival audited from request ${request.id}\n`);
 }
 
-export async function main(argv) {
-  if (argv.length === 0 || argv.includes("--help") || argv.includes("-h")) {
-    printHelp();
-    return 0;
+async function captureCommandOutput(execute) {
+  const originalWrite = process.stdout.write;
+  let output = "";
+  process.stdout.write = (chunk, encoding, callback) => {
+    output += Buffer.isBuffer(chunk) ? chunk.toString(typeof encoding === "string" ? encoding : "utf8") : String(chunk);
+    if (typeof encoding === "function") encoding();
+    if (typeof callback === "function") callback();
+    return true;
+  };
+  try {
+    const value = await execute();
+    return { output, value };
+  } finally {
+    process.stdout.write = originalWrite;
   }
-  let statePath = null;
-  let stateExplicit = false;
-  const args = [...argv];
-  if (args[0] === "--state") {
-    stateExplicit = true;
-    statePath = args[1] ?? fail("value is required for --state");
-    args.splice(0, 2);
+}
+
+function emitCapturedWithMetadata(captured, options, field, metadata) {
+  if (!options.has("json")) {
+    process.stdout.write(captured);
+    process.stdout.write(`${field === "write_receipt" ? "workspace write" : "workspace read"} revision: ${metadata.revision}\n`);
+    return;
   }
-  const command = args.shift();
-  const options = parseOptions(args);
-  if (command === "enable") {
-    commandEnable(options);
-    return 0;
+  const trimmed = captured.trim();
+  let parsed = null;
+  if (trimmed) {
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      parsed = null;
+    }
   }
-  const workspace = stateExplicit ? null : resolveWorkspace({
-    root: options.get("root") ?? process.cwd(),
-    mapflowHome: options.get("mapflow-home") ?? null,
-  });
-  if (workspace) options.set("_workspace-root", workspace.workspace_root);
-  statePath ??= workspace.statePath;
-  if (!stateExplicit && !options.has("map") && new Set(["validate", "init"]).has(command)) {
-    options.set("map", workspace.mapPath);
+  const output = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+    ? { ...parsed, [field]: metadata }
+    : {
+        schema: field === "write_receipt" ? "mapflow.command-result/v1" : "mapflow.read-result/v1",
+        command_output: parsed ?? trimmed,
+        [field]: metadata,
+      };
+  process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+}
+
+function mutationPaths(statePath, headInfo) {
+  const directory = path.dirname(path.resolve(statePath));
+  const paths = new Set([
+    path.resolve(statePath),
+    path.join(directory, "events.jsonl"),
+    path.join(directory, "wayfinding.yaml"),
+    path.join(directory, "wayfinding-events.jsonl"),
+    workspaceHeadPathForState(statePath),
+  ]);
+  if (headInfo.head.source.state) paths.add(path.resolve(directory, headInfo.head.source.state));
+  if (headInfo.head.source.events) paths.add(path.resolve(directory, headInfo.head.source.events));
+  return [...paths];
+}
+
+async function runWorkspaceMutation({ command, statePath, options, execute }) {
+  const lease = acquireWorkspaceWriteLock(statePath);
+  let checkpoints = [];
+  try {
+    const current = assertExpectedWorkspaceRevision(statePath, options.get("expected-revision"));
+    checkpoints = mutationPaths(statePath, current).map((filePath) => ({ filePath, checkpoint: fileCheckpoint(filePath) }));
+    const captured = await captureCommandOutput(execute);
+    const written = writeWorkspaceHead(statePath);
+    const readback = readWorkspaceHead(statePath);
+    if (written.head.revision !== readback.head.revision) fail("Workspace Head readback revision does not match the committed write");
+    const receipt = {
+      schema: "mapflow.write-receipt/v1",
+      command,
+      expected_revision: options.get("expected-revision"),
+      previous_revision: current.head.revision,
+      revision: readback.head.revision,
+      changed: current.head.revision !== readback.head.revision,
+      phase: readback.head.phase,
+      runtime: structuredClone(readback.head.runtime),
+      readback: "verified",
+      head: readback.path,
+    };
+    emitCapturedWithMetadata(captured.output, options, "write_receipt", receipt);
+    return captured.value;
+  } catch (error) {
+    for (const { filePath, checkpoint } of [...checkpoints].reverse()) restoreFileCheckpoint(filePath, checkpoint);
+    throw error;
+  } finally {
+    lease.release();
   }
+}
+
+async function runRevisionBoundRead({ statePath, options, execute }) {
+  const lease = acquireWorkspaceWriteLock(statePath);
+  try {
+    const current = assertExpectedWorkspaceRevision(statePath, options.get("expected-revision"));
+    const captured = await captureCommandOutput(execute);
+    emitCapturedWithMetadata(captured.output, options, "workspace_head", {
+      revision: current.head.revision,
+      phase: current.head.phase,
+      runtime: structuredClone(current.head.runtime),
+      readback: "verified",
+      head: current.path,
+    });
+    return captured.value;
+  } finally {
+    lease.release();
+  }
+}
+
+async function dispatchCommand(command, statePath, options, workspace) {
   switch (command) {
+    case "snapshot": commandSnapshot(workspace, statePath, options); return 0;
     case "wayfinding-write": commandWayfindingWrite(statePath, options); return 0;
     case "wayfinding-answer": commandWayfindingAnswer(statePath, options); return 0;
     case "validate": commandValidate(options); return 0;
@@ -2977,8 +3157,9 @@ export async function main(argv) {
     case "board": {
       const { startBoardServer } = await import("./mapflow-board.mjs");
       await startBoardServer({
+        workspace,
         mapPath: options.has("map") ? path.resolve(process.cwd(), required(options, "map")) : null,
-        statePath: options.has("map") && !stateExplicit ? null : path.resolve(process.cwd(), statePath),
+        statePath: options.has("map") && !options.has("_state-explicit") ? null : path.resolve(process.cwd(), statePath),
         port: options.get("port") ?? 4173,
       });
       return 0;
@@ -2987,11 +3168,59 @@ export async function main(argv) {
   }
 }
 
+export async function main(argv) {
+  if (argv.length === 0 || argv.includes("--help") || argv.includes("-h")) {
+    printHelp();
+    return 0;
+  }
+  let statePath = null;
+  let stateExplicit = false;
+  const args = [...argv];
+  if (args[0] === "--state") {
+    stateExplicit = true;
+    statePath = args[1] ?? fail("value is required for --state");
+    args.splice(0, 2);
+  }
+  const command = args.shift();
+  const options = parseOptions(args);
+  if (command === "enable") {
+    commandEnable(options);
+    return 0;
+  }
+  const workspace = stateExplicit ? null : resolveWorkspace({
+    root: options.get("root") ?? process.cwd(),
+    mapflowHome: options.get("mapflow-home") ?? null,
+  });
+  if (workspace) options.set("_workspace-root", workspace.workspace_root);
+  if (stateExplicit) options.set("_state-explicit", true);
+  statePath ??= workspace.statePath;
+  if (!stateExplicit && !options.has("map") && new Set(["validate", "init"]).has(command)) {
+    options.set("map", workspace.mapPath);
+  }
+  const revisionControlled = !stateExplicit || fs.existsSync(workspaceHeadPathForState(statePath));
+  if (MUTATING_COMMANDS.has(command) && revisionControlled) {
+    return runWorkspaceMutation({
+      command,
+      statePath,
+      options,
+      execute: () => dispatchCommand(command, statePath, options, workspace),
+    });
+  }
+  if (REVISION_BOUND_READS.has(command) && revisionControlled) {
+    return runRevisionBoundRead({
+      statePath,
+      options,
+      execute: () => dispatchCommand(command, statePath, options, workspace),
+    });
+  }
+  return dispatchCommand(command, statePath, options, workspace);
+}
+
 if (path.resolve(process.argv[1] ?? "") === path.resolve(fileURLToPath(import.meta.url))) {
   try {
     process.exitCode = await main(process.argv.slice(2));
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = error instanceof CliError || error instanceof ModelError || error instanceof WayfindingError || error instanceof WorkspaceError || error instanceof EvolutionError ? 1 : 2;
+    process.exitCode = error instanceof CliError || error instanceof ModelError || error instanceof WayfindingError || error instanceof WorkspaceError || error instanceof EvolutionError || error instanceof WorkspaceHeadError || error instanceof WorkspaceSnapshotError ? 1 : 2;
   }
 }

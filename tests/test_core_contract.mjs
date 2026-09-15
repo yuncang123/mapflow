@@ -35,7 +35,7 @@ function fixture() {
 
 test("the default product surface contains only the destination-derived causal flow", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.9.2");
+  assert.equal(pkg.version, "0.10.0");
   for (const removed of ["tools/mapflow-activity.mjs", "tools/mapflow-sdlc.mjs", "tests/test_activity.mjs", "tests/test_sdlc.mjs", "examples/ai-native-sdlc"]) {
     assert.equal(fs.existsSync(path.join(ROOT, removed)), false, `${removed} must stay outside the default product`);
   }

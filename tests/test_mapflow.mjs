@@ -9,6 +9,7 @@ import { pathToFileURL } from "node:url";
 import { initialFacts, proveBlueprint, readBlueprint } from "../tools/mapflow-core.mjs";
 import { createBoardSnapshotReader } from "../tools/mapflow-board-core.mjs";
 import { createBoardServer } from "../tools/mapflow-board.mjs";
+import { runtimeBuildDigest } from "../tools/mapflow-runtime.mjs";
 import { readWayfinding, validateWayfinding } from "../tools/mapflow-wayfinding.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -2338,7 +2339,7 @@ test("global installer provides explicit-enable runtime and keeps workspace stat
   assert.doesNotMatch(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: true/);
   assert.doesNotMatch(entry, /disable-model-invocation/);
   const globalManifest = JSON.parse(fs.readFileSync(path.join(globalRoot, "mapflow", "install-manifest.json"), "utf8"));
-  assert.equal(globalManifest.version, "0.9.2");
+  assert.equal(globalManifest.version, "0.10.0");
   assert.deepEqual(globalManifest.skills, ["mapflow"]);
   assert.deepEqual(globalManifest.phase_references, ["destination-shaping", "repository-recon", "blueprint-planning", "edge-slicing", "edge-delivery"]);
   assert.equal(globalManifest.runtime, "mapflow/runtime/mapflow.mjs");
@@ -2352,8 +2353,16 @@ test("global installer provides explicit-enable runtime and keeps workspace stat
   assert.ok(!globalManifest.capabilities.includes("auto-enable"));
   assert.ok(globalManifest.capabilities.includes("arrival-audit-request"));
   assert.ok(globalManifest.capabilities.includes("evolution-playback"));
+  assert.ok(globalManifest.capabilities.includes("workspace-head"));
+  assert.ok(globalManifest.capabilities.includes("optimistic-concurrency"));
+  assert.match(globalManifest.runtime_digest, /^[a-f0-9]{64}$/);
+  assert.equal(globalManifest.runtime_digest, runtimeBuildDigest(path.join(installedRoot, "runtime")));
+  assert.equal(globalManifest.runtime_digest, runtimeBuildDigest(path.join(ROOT, "tools")));
   assert.equal(globalManifest.wayfinding_event_schema, "mapflow.wayfinding-event/v1");
   assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-evolution.mjs")));
+  assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-head.mjs")));
+  assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-runtime.mjs")));
+  assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-snapshot.mjs")));
 
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-consumer-"));
   assertExit(spawnSync("git", ["init", "--quiet", workspace], { encoding: "utf8", windowsHide: true }));
@@ -2379,6 +2388,13 @@ test("global installer provides explicit-enable runtime and keeps workspace stat
   assert.equal(initialWayfinding.questions.filter((question) => question.status === "pending").length, 1);
   assert.equal(path.relative(workspace, enabled.sidecar).startsWith(".."), true);
   assert.equal(fs.existsSync(path.join(workspace, ".mapflow")), false);
+  const paritySnapshot = spawnSync(process.execPath, [runtime, "snapshot", "--root", workspace, "--mapflow-home", mapflowHome, "--json"], {
+    cwd: workspace,
+    encoding: "utf8",
+    env: { ...process.env, USERPROFILE: userProfile },
+  });
+  assertExit(paritySnapshot);
+  assert.equal(JSON.parse(paritySnapshot.stdout).runtime.current_matches_installed, true);
   const secondEnable = spawnSync(process.execPath, [runtime, ...enableArgs], { cwd: workspace, encoding: "utf8" });
   assertExit(secondEnable);
   assert.equal(JSON.parse(secondEnable.stdout).created, false);
@@ -2389,12 +2405,18 @@ test("global installer provides explicit-enable runtime and keeps workspace stat
   fs.cpSync(path.join(installedRoot, "templates", "briefs"), enabled.paths.briefs, { recursive: true });
   const init = spawnSync(process.execPath, [
     runtime, "init", "--root", workspace, "--mapflow-home", mapflowHome,
+    "--expected-revision", enabled.workspace_head.revision,
   ], { cwd: workspace, encoding: "utf8" });
   assertExit(init);
   assert.ok(fs.existsSync(enabled.paths.state));
   assert.ok(fs.existsSync(enabled.paths.events));
+  const initializedSnapshot = spawnSync(process.execPath, [
+    runtime, "snapshot", "--root", workspace, "--mapflow-home", mapflowHome, "--json",
+  ], { cwd: workspace, encoding: "utf8" });
+  assertExit(initializedSnapshot);
   const status = spawnSync(process.execPath, [
     runtime, "status", "--root", workspace, "--mapflow-home", mapflowHome, "--json",
+    "--expected-revision", JSON.parse(initializedSnapshot.stdout).head.revision,
   ], { cwd: workspace, encoding: "utf8" });
   assertExit(status);
   assert.equal(JSON.parse(status.stdout).map_id, "publish-article");

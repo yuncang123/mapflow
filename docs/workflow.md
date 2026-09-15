@@ -19,6 +19,7 @@ Sidecar 保存：
 ```text
 workspace.json
 current/
+  head.json
   wayfinding.yaml
   wayfinding-events.jsonl
   blueprint.yaml
@@ -29,11 +30,21 @@ current/
 
 - Blueprint 定义 Destination、Predicate、Fact 初值、State Node、Work Edge、Invariant、Loop 和 Submap Binding。
 - Task Brief 定义一条边的执行、证据、岗位交接与上下文合同。
-- events 是不可变运行历史；state 是可重建投影；Arrival Checkpoint 固化某次到达；Board 是只读实时视图。
+- `head.json` 是唯一 Workspace Head：它不复制领域状态，只把一个 current revision 绑定到当前 Wayfinding 或 runtime 事件头、地图/事件/state 摘要和精确 runtime build。
+- Wayfinding、Blueprint、Brief、events 和 state 是 Head 指向并校验的内容；events 是不可变运行历史，state 是可重建投影，Arrival Checkpoint 固化某次到达。任何绕过事件日志直接改变源文件的行为都会让 Head 校验失败，不能被看板或 Agent 当成新真相。
+- Context Pack、BoardModel、地图画面和历史画面都是只读投影，不拥有 revision，也不能反向改变 Head。工作区面板只为当前待答的目的地问题提供一个窄的人类回答入口，写入仍由既有 `wayfinding-answer` 合同和事件日志完成，不能直接确认 Fact、启动 Work Edge、通过验收或登记 Arrival。
 - Git、Issue、PR、CI、测试、发布、监控和工单系统继续拥有各自事实。Mapflow 只保存稳定引用、digest、readback 或 receipt。
 - 旧 schema/state 可以兼容读取，但不会把旧 Activity、固定 SDLC 或 Route Approval 重新带回当前行为。
 
 静态代码、模型推演、本地测试、外部 readback、生产结果和业务验收是不同证据层，不能相互冒充。
+
+### 2.1 Workspace Head 与并发门
+
+每个 Mapflow 回合必须先运行 `snapshot --root`。该命令在同一把本机排他锁内读取 Head，校验它绑定的地图、事件流和 state，并由同一个 reader 生成 Focus、当前问题、下一动作和 BoardModel。Agent 不得用聊天记忆、旧 Context Pack 或看板缓存替代本次 snapshot。
+
+每次正式写入前必须再次 snapshot，并携带刚读到的 `--expected-revision`。写入在锁内执行以下固定事务：比较 Head revision 与 runtime build、保存可恢复检查点、执行既有命令、根据新事件头更新 Head、强制 readback、返回新的 `write_receipt.revision`。revision 或 runtime 不匹配时在写入前拒绝；提交或 readback 失败时恢复 Sidecar 文件。这个门防止看板、Agent 或两个终端基于旧上下文互相覆盖。
+
+`context` 和 `next-actions` 也必须携带当前 snapshot revision，保证额外披露没有跨越 Head。升级 runtime 时，snapshot 会同时显示当前 runtime、Head runtime 和用户级安装 runtime 的 version/build digest；不一致时看板只读、正式写入失败。确认安装版本一致后，使用 `enable --expected-revision <head>` 显式重绑 runtime identity。
 
 ## 3. 从目的地反向建图
 
@@ -194,33 +205,38 @@ Arrival 只证明该航段合同在特定时间和证据版本下已到达，不
 
 ```bash
 node <runtime> enable --root path/to/workspace --json
-node <runtime> context --root path/to/workspace --layer focus --json
-node <runtime> wayfinding-answer --root path/to/workspace --question <id> --answer <text> --evidence-ref conversation:<ref>
+node <runtime> snapshot --root path/to/workspace --json
+node <runtime> context --root path/to/workspace --layer focus --expected-revision <head> --json
+node <runtime> wayfinding-answer --root path/to/workspace --question <id> --answer <text> --evidence-ref conversation:<ref> --expected-revision <latest-head>
 node <runtime> validate --root path/to/workspace
-node <runtime> prove --root path/to/workspace --json
-node <runtime> init --root path/to/workspace
-node <runtime> next-actions --root path/to/workspace --json
-node <runtime> start --root path/to/workspace --edge <unprotected-edge>
-node <runtime> request-authorization --root path/to/workspace --edge <protected-edge> --question <text> --decision-owner human:owner
-node <runtime> authorize --root path/to/workspace --request <id> --answer <text> --actor human:owner
-node <runtime> gate --root path/to/workspace
-node <runtime> issue-action --root path/to/workspace --edge <edge> --verifier <id> --json
-node <runtime> verify-executed --root path/to/workspace --edge <edge> --verifier <id> --capability <token> --evidence <text> --outcome-ref command:<ref> --executor tool:mapflow
-node <runtime> replan --root path/to/workspace --reason <text> --scope <repair-scope> --changes <exact-refs>
-node <runtime> continue --root path/to/workspace --map path/to/successor-blueprint.yaml --reason <text> --actor human:owner
-node <runtime> request-arrival-audit --root path/to/workspace --question <text> --decision-owner human:owner
-node <runtime> arrive --root path/to/workspace --request <id> --answer <text> --actor human:owner --non-goals <text> --risks <text>
-node <runtime> rebuild --root path/to/workspace
+node <runtime> prove --root path/to/workspace --expected-revision <latest-head> --json
+node <runtime> init --root path/to/workspace --expected-revision <latest-head>
+node <runtime> next-actions --root path/to/workspace --expected-revision <head> --json
+node <runtime> start --root path/to/workspace --edge <unprotected-edge> --expected-revision <latest-head>
+node <runtime> request-authorization --root path/to/workspace --edge <protected-edge> --question <text> --decision-owner human:owner --expected-revision <latest-head>
+node <runtime> authorize --root path/to/workspace --request <id> --answer <text> --actor human:owner --expected-revision <latest-head>
+node <runtime> gate --root path/to/workspace --expected-revision <head>
+node <runtime> issue-action --root path/to/workspace --edge <edge> --verifier <id> --expected-revision <latest-head> --json
+node <runtime> verify-executed --root path/to/workspace --edge <edge> --verifier <id> --capability <token> --evidence <text> --outcome-ref command:<ref> --executor tool:mapflow --expected-revision <latest-head>
+node <runtime> replan --root path/to/workspace --reason <text> --scope <repair-scope> --changes <exact-refs> --expected-revision <latest-head>
+node <runtime> continue --root path/to/workspace --map path/to/successor-blueprint.yaml --reason <text> --actor human:owner --expected-revision <latest-head>
+node <runtime> request-arrival-audit --root path/to/workspace --question <text> --decision-owner human:owner --expected-revision <latest-head>
+node <runtime> arrive --root path/to/workspace --request <id> --answer <text> --actor human:owner --non-goals <text> --risks <text> --expected-revision <latest-head>
+node <runtime> rebuild --root path/to/workspace --expected-revision <latest-head>
 ```
 
-看板只读：
+看板的地图与历史投影只读：
 
 ```bash
 node <runtime> board --root path/to/workspace
 node <runtime> board --map path/to/blueprint.yaml
 ```
 
-`board --root` 投影 sidecar 的当前事实和历史；`board --map` 只看定义，不混入运行态。默认镜头显示完整 Route Set，推荐路线、迷雾和目标回归只是阅读镜头。Board 通过 SSE 接收 revision 通知后回读权威 API，断流时低频轮询；通知本身不成为真相。当前 Destination、历史 Arrival、漂移和后继绑定在首屏与检查器中分别呈现。
+`board --root` 与 CLI 使用同一个 Workspace Snapshot reader，并直接监听 Head、Wayfinding、两条事件流和 state；它不再生成自己的权威 revision。当且仅当 Wayfinding 正在等待当前 Destination 回答且 runtime 匹配时，页面显示“确认目标 / 调整目标”。动作绑定当前 question ID、Head revision 和进程内同源令牌，经带 `expected_revision` 的 `wayfinding-answer` 追加事件并 readback。页面先持续显示“已记录，等待 Codex 处理”；后续 Codex 写入使 Head 再次前进后显示“已应用到地图”。确认回答仍需后续建模回合更新 Destination 并生成路线，不能在页面里越过确认门。`board --map` 只看定义，不提供回答入口。
+
+默认页面只使用“想完成的结果、现在、下一步、完成标准、路线”等用户语言；Predicate、Fact、Blueprint、内部 ID、证明合同和原始证据收进按需打开的依据与高级详情。这个分层防止非设计者为了回答一个产品问题，先学习 Mapflow 的内部模型。
+
+默认镜头显示完整 Route Set，推荐路线、待明确区域和目标回溯只是阅读镜头。Board 通过 SSE 接收 revision 通知后回读权威 API，断流时低频轮询；通知本身不成为真相。当前 Destination、历史 Arrival、漂移和后继绑定在首屏与检查器中分别呈现。
 
 ## 10. 收尾回报
 

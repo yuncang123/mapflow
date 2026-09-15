@@ -10,13 +10,13 @@
   <script src="/app.js" type="module"></script>
 </head>
 <body>
-  <a class="skip-link" href="#map-stage">跳到任务活动图</a>
+  <a class="skip-link" href="#map-stage">跳到路线图</a>
   <div id="source-banner" class="source-banner" role="status" hidden></div>
 
   <header class="topbar">
     <div class="brand-lockup">
       <div class="brand-mark" aria-hidden="true"><span></span><span></span></div>
-      <div><strong>Mapflow</strong><span>事实 → 下一步 → 到达</span></div>
+      <div><strong>Mapflow</strong><span>把复杂工作变成一条看得懂的路</span></div>
     </div>
     <div class="status-rack" aria-label="地图状态摘要">
       <span><i aria-hidden="true"></i><small>当前</small><strong id="phase-value">—</strong></span>
@@ -28,18 +28,18 @@
 
   <section class="journey-overview" aria-label="当前导航">
     <div class="destination-panel">
-      <p class="eyebrow">DESTINATION / 目的地</p>
+      <p class="eyebrow">想完成的结果</p>
       <h1 id="destination-title">正在读取地图…</h1>
       <p id="destination-context" class="destination-context"></p>
     </div>
     <div id="current-position" class="position-panel" data-state="loading">
-      <p class="eyebrow">CURRENT POSITION / 当前位置</p>
+      <p class="eyebrow">现在</p>
       <strong id="current-position-title">正在定位…</strong>
       <span id="current-position-detail">—</span>
     </div>
     <section id="current-action" class="current-action" aria-labelledby="current-action-title" aria-live="polite">
       <div class="current-action-heading">
-        <p class="eyebrow">NEXT / 下一步</p>
+        <p class="eyebrow">现在需要你</p>
         <span id="current-action-state" class="current-action-state">读取中</span>
       </div>
       <h2 id="current-action-title">正在确定下一动作…</h2>
@@ -48,18 +48,53 @@
         <span><b>责任人</b><strong id="current-action-owner">—</strong></span>
         <span><b>完成后</b><strong id="current-action-after">—</strong></span>
       </div>
+      <div id="wayfinding-response" class="wayfinding-response" hidden>
+        <div class="response-actions">
+          <button id="confirm-destination" type="button" class="primary-action">确认这个目标</button>
+          <button id="adjust-destination" type="button" class="secondary-action">我想调整</button>
+        </div>
+        <form id="wayfinding-adjust-form" class="adjust-form" hidden>
+          <label for="wayfinding-adjustment">你希望改掉、增加或删去什么？</label>
+          <textarea id="wayfinding-adjustment" rows="3" maxlength="2000" placeholder="例如：第一版需要支持读者登记，但暂时不做逾期罚款。"></textarea>
+          <div class="response-actions">
+            <button type="submit" class="primary-action">提交调整意见</button>
+            <button id="cancel-adjustment" type="button" class="secondary-action">取消</button>
+          </div>
+        </form>
+        <p id="wayfinding-response-status" class="response-status" role="status" aria-live="polite"></p>
+      </div>
     </section>
+  </section>
+
+  <section id="goal-summary" class="goal-summary" aria-labelledby="goal-summary-title" hidden>
+    <div class="goal-summary-heading">
+      <div>
+        <p class="eyebrow">完成标准</p>
+        <h2 id="goal-summary-title">做到这些，才算完成</h2>
+      </div>
+      <span id="goal-summary-status" class="goal-summary-status">等待确认</span>
+    </div>
+    <div class="journey-line" aria-label="从现在到目标的路线">
+      <div class="journey-point is-origin"><span>现在</span><strong id="journey-origin">—</strong></div>
+      <div class="journey-gap"><span>确认目标后，这里会展开完整路线</span></div>
+      <div class="journey-point is-destination"><span>目标</span><strong id="journey-destination">—</strong></div>
+    </div>
+    <ul id="goal-criteria" class="goal-criteria-list"></ul>
+    <details class="scope-details">
+      <summary>查看这次暂时不做什么</summary>
+      <ul id="goal-out-of-scope"></ul>
+    </details>
   </section>
 
   <main id="workbench" class="workbench">
     <section id="map-stage" class="map-stage" aria-labelledby="map-stage-title">
       <div class="map-toolbar">
         <div>
-          <p id="canvas-eyebrow" class="eyebrow">LIVE ACTIVITY MAP</p>
-          <h2 id="map-stage-title">任务活动图</h2>
+          <p id="canvas-eyebrow" class="eyebrow">路线</p>
+          <h2 id="map-stage-title">从结果倒推的路线图</h2>
         </div>
         <div class="toolbar-actions">
-          <button id="toggle-inspector" type="button" class="quiet-button" aria-expanded="false" aria-controls="inspector">旅程详情</button>
+          <button id="toggle-inspector" type="button" class="quiet-button" aria-expanded="false" aria-controls="inspector">查看依据</button>
           <button id="fit-map" type="button" class="quiet-button">适配视野</button>
           <button id="relayout-map" type="button" class="quiet-button">重新布图</button>
         </div>
@@ -93,21 +128,21 @@
           <span><i class="legend-activity active"></i>进行中</span>
           <span><i class="legend-activity verified"></i>已完成任务</span>
           <span><i class="legend-node milestone"></i>里程碑</span>
-          <span><i class="legend-node fog"></i>迷雾</span>
-          <span><i class="legend-node gap"></i>缺口</span>
+          <span><i class="legend-node fog"></i>还没弄清</span>
+          <span><i class="legend-node gap"></i>路线缺口</span>
         </div>
     </section>
 
     <aside id="inspector" class="inspector" tabindex="-1" aria-labelledby="inspector-title" hidden>
       <div class="panel-heading inspector-heading">
         <div>
-          <p class="eyebrow">JOURNEY DETAIL</p>
-          <h2 id="inspector-title">旅程详情</h2>
+          <p class="eyebrow">依据与详情</p>
+          <h2 id="inspector-title">为什么这样判断</h2>
         </div>
-        <span class="read-only-chip">只读</span>
+        <span class="read-only-chip">高级详情</span>
       </div>
       <details class="object-browser">
-        <summary><span>任务与里程碑</span><span id="visible-count" class="mono">0</span></summary>
+        <summary><span>全部任务与里程碑</span><span id="visible-count" class="mono">0</span></summary>
         <div id="element-list" class="element-list" aria-live="polite"></div>
       </details>
       <div id="inspector-content" class="inspector-content"></div>
@@ -116,7 +151,7 @@
 
   <details class="history-drawer">
     <summary>
-      <span><b>地图演化与历史</b><small>按需回看事实、证据和路线变化</small></span>
+      <span><b>过程记录</b><small>按需回看判断依据、完成证据和路线变化</small></span>
       <span id="freshness" class="freshness">等待第一次同步</span>
     </summary>
     <div class="history-content">

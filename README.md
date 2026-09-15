@@ -13,7 +13,7 @@ Arrival 不是地图的永久终点。它会固化成不可变检查点；人明
 
 Mapflow 不建设协作空间，也不取代 Jira、Git、PR、CI、测试平台、发布平台或团队沟通。Task Brief 中的小型 `handoff` 合同负责接入真实岗位；`context` 合同与 `mapflow context` 负责渐进式披露和注意力预算。
 
-当前发布版本为 `0.9.2`。版本号只标识源码与用户级安装包，不代表已经部署或获得真实团队采用。
+当前发布版本为 `0.10.0`。版本号只标识源码与用户级安装包，不代表已经部署或获得真实团队采用。
 
 ## 最小用法
 
@@ -21,46 +21,52 @@ Mapflow 不建设协作空间，也不取代 Jira、Git、PR、CI、测试平台
 
 ```bash
 node tools/mapflow.mjs enable --root D:/path/to/workspace --json
-node tools/mapflow.mjs context --root D:/path/to/workspace --layer focus --json
-node tools/mapflow.mjs next-actions --root D:/path/to/workspace --json
+node tools/mapflow.mjs snapshot --root D:/path/to/workspace --json
+node tools/mapflow.mjs context --root D:/path/to/workspace --layer focus --expected-revision <snapshot.head.revision> --json
+node tools/mapflow.mjs next-actions --root D:/path/to/workspace --expected-revision <snapshot.head.revision> --json
 ```
+
+`current/head.json` 是当前提交 revision 的唯一指针。每个 Mapflow 回合先运行 `snapshot --root`；每次正式写入前再运行一次，并把刚读到的 `head.revision` 作为 `--expected-revision`。写入会在本机排他锁内比较 revision，成功后更新 Head、强制 readback 并返回 `write_receipt.revision`；旧上下文不能覆盖新地图。
 
 没有正式地图时：
 
 ```bash
 node tools/mapflow.mjs validate --map path/to/blueprint.yaml
 node tools/mapflow.mjs prove --map path/to/blueprint.yaml --json
-node tools/mapflow.mjs init --root D:/path/to/workspace
+node tools/mapflow.mjs init --root D:/path/to/workspace --expected-revision <latest-head.revision>
 ```
 
 普通、无额外授权要求的 proven/ready 边可直接启动：
 
 ```bash
-node tools/mapflow.mjs start --root D:/path/to/workspace --edge implement-contract
+node tools/mapflow.mjs start --root D:/path/to/workspace --edge implement-contract --expected-revision <latest-head.revision>
 ```
 
 只有 Task Brief 明确声明授权要求的边才请求授权：
 
 ```bash
 node tools/mapflow.mjs request-authorization --root D:/path/to/workspace \
-  --edge publish-release --question "是否授权执行本次发布？" --decision-owner human:owner
+  --edge publish-release --question "是否授权执行本次发布？" --decision-owner human:owner \
+  --expected-revision <latest-head.revision>
 ```
 
 执行证据必须来自冻结 verifier、外部 readback 或子地图 receipt；reported pass 只是一条观察，不能更新 Fact。
 
 ```bash
 node tools/mapflow.mjs issue-action --root D:/path/to/workspace \
-  --edge implement-contract --verifier contract-test --json
+  --edge implement-contract --verifier contract-test --expected-revision <latest-head.revision> --json
 node tools/mapflow.mjs verify-executed --root D:/path/to/workspace \
   --edge implement-contract --verifier contract-test --capability <one-use-token> \
-  --evidence "合同测试实际通过" --outcome-ref command:contract-test --executor tool:mapflow
+  --evidence "合同测试实际通过" --outcome-ref command:contract-test --executor tool:mapflow \
+  --expected-revision <latest-head.revision>
 ```
 
 到达后开始下一航段：
 
 ```bash
 node tools/mapflow.mjs continue --root D:/path/to/workspace \
-  --map path/to/successor-blueprint.yaml --reason "开始下一航段" --actor human:owner
+  --map path/to/successor-blueprint.yaml --reason "开始下一航段" --actor human:owner \
+  --expected-revision <latest-head.revision>
 ```
 
 Successor Blueprint 的 `continuity` 必须绑定前一 Arrival Checkpoint 的 ID/receipt、前一目的地节点、导入 Predicate 和需要重新观测的易漂移 Predicate。命令只接受同一 `map_id` 的追加式拓扑；历史节点、边、Brief、证据和 Arrival 都保持不变。
@@ -89,8 +95,10 @@ mapflow/
 ├─ templates/                          # 可选 Blueprint / Task Brief 起点
 ├─ tools/mapflow-core.mjs              # 模型校验、反向闭包、正向证明
 ├─ tools/mapflow-proof.mjs             # 推导图与证明摘要
+├─ tools/mapflow-head.mjs              # 唯一 Workspace Head、CAS 与本机写锁
+├─ tools/mapflow-snapshot.mjs          # Head 校验后的统一回合快照
 ├─ tools/mapflow.mjs                   # 运行态、证据与写入门
-├─ tools/mapflow-board*.mjs            # 只读实时投影与 SSE 变化通知
+├─ tools/mapflow-board*.mjs            # 人类旅程面板；只读投影、窄回答入口与 SSE 通知
 └─ tests/                               # 合同与回归验证
 ```
 
