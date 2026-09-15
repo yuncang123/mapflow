@@ -2110,6 +2110,26 @@ test("a cold board keeps the registered Task Brief when the live Brief changed",
   assert.doesNotMatch(projected, /UNREGISTERED BRIEF CHANGE/);
 });
 
+test("Brief line-ending and trailing-newline formatting does not create a false stale map", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-brief-formatting-"));
+  const mapPath = makeMap(directory);
+  const briefPath = path.join(directory, "briefs", "settle-audience.md");
+  const original = fs.readFileSync(briefPath, "utf8").replace(/\n+$/u, "\n\n");
+  fs.writeFileSync(briefPath, original, "utf8");
+  const state = path.join(directory, "state.json");
+  assertExit(runCli(state, "init", "--map", mapPath));
+
+  fs.writeFileSync(briefPath, original.replaceAll("\n", "\r\n").replace(/(?:\r\n)+$/u, "\r\n"), "utf8");
+  const status = runCli(state, "status", "--json");
+  assertExit(status);
+  assert.equal(JSON.parse(status.stdout).map_changed, false);
+  const reader = createBoardSnapshotReader({ mapPath, statePath: state });
+  assert.equal(reader().model.projection.source_status, "current");
+
+  fs.appendFileSync(briefPath, "UNREGISTERED SEMANTIC CHANGE\n", "utf8");
+  assert.equal(reader().model.projection.source_status, "stale");
+});
+
 test("a branch failure action waits for fresh authorization before starting the alternative edge", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mapflow-v04-branch-"));
   const mapPath = makeMap(directory, (blueprint) => {
@@ -2316,7 +2336,7 @@ test("global installer provides explicit-enable runtime and keeps workspace stat
   assert.doesNotMatch(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: true/);
   assert.match(entry, /disable-model-invocation: true/);
   const globalManifest = JSON.parse(fs.readFileSync(path.join(globalRoot, "mapflow", "install-manifest.json"), "utf8"));
-  assert.equal(globalManifest.version, "0.9.0");
+  assert.equal(globalManifest.version, "0.9.1");
   assert.equal(globalManifest.runtime, "mapflow/runtime/mapflow.mjs");
   assert.equal(globalManifest.workspace_schema, "mapflow.workspace/v1");
   assert.ok(globalManifest.capabilities.includes("workspace-sidecar"));

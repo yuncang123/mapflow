@@ -1,3 +1,25 @@
+# Mapflow v0.9.1
+
+Mapflow v0.9.1 makes the live Board legible as a task activity map: the first screen answers destination, current position, and next action, while advanced evidence and history stay available on demand.
+
+## Highlights
+
+- Simplifies the Board hierarchy by keeping the complete route visible and moving gap and goal-regression lenses into a secondary view.
+- Rewrites next-action copy around user decisions and outcomes instead of internal Edge, Brief, and Agent terminology.
+- Projects Work Edges as task activity cards between typed milestones, with distinct start, join, decision, and end markers.
+- Preserves parallel branches and live route recomputation while keeping the Board read-only and truthful about stale sources.
+
+## Verification
+
+- `npm test`: 140/140 passed.
+- `npm run benchmark:doctor`: all seven case packages and the impact map passed contract validation.
+- Board API returned `source_status=current` after restart; the temporary sample Board was stopped.
+- `git diff --check`: passed, with Windows line-ending conversion warnings only.
+
+## Evidence Boundary
+
+This release is backed by deterministic local tests, fixtures, and a local read-only Board. It does not prove deployment, production behavior, long-running enterprise use, accessibility, market demand, or product value.
+
 # Mapflow v0.9.0
 
 Mapflow v0.9.0 turns the audited map into a living navigation field: an Arrival becomes an immutable historical checkpoint, a human-confirmed successor continues from that checkpoint in the same map identity, and trusted Fact changes re-compute current route state without rewriting history.

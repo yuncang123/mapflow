@@ -147,6 +147,9 @@ const dom = typeof document === "undefined" ? {} : {
   actionQuestion: document.querySelector("#current-action-question"),
   actionState: document.querySelector("#current-action-state"),
   actionTitle: document.querySelector("#current-action-title"),
+  currentPosition: document.querySelector("#current-position"),
+  currentPositionDetail: document.querySelector("#current-position-detail"),
+  currentPositionTitle: document.querySelector("#current-position-title"),
   arrival: document.querySelector("#arrival-value"),
   canvasEmpty: document.querySelector("#canvas-empty"),
   cy: document.querySelector("#cy"),
@@ -173,6 +176,7 @@ const dom = typeof document === "undefined" ? {} : {
   freshness: document.querySelector("#freshness"),
   inspector: document.querySelector("#inspector"),
   inspectorContent: document.querySelector("#inspector-content"),
+  inspectorToggle: document.querySelector("#toggle-inspector"),
   lensButtons: [...document.querySelectorAll("[data-lens]")],
   mapCounts: document.querySelector("#map-counts"),
   phase: document.querySelector("#phase-value"),
@@ -184,6 +188,7 @@ const dom = typeof document === "undefined" ? {} : {
   syncState: document.querySelector("#sync-state"),
   timeline: document.querySelector("#timeline"),
   visibleCount: document.querySelector("#visible-count"),
+  workbench: document.querySelector("#workbench"),
   wayfindingRail: document.querySelector("#wayfinding-rail"),
   canvasExplanation: document.querySelector("#canvas-explanation"),
   canvasEyebrow: document.querySelector("#canvas-eyebrow"),
@@ -296,6 +301,15 @@ function ledgerSection(title, items, emptyMessage = "没有记录。") {
   return section;
 }
 
+function ledgerDisclosure(title, sections, meta = "") {
+  const details = element("details", "ledger-disclosure");
+  const summary = element("summary");
+  summary.append(element("span", "", title));
+  if (meta) summary.append(element("span", "mono", meta));
+  details.append(summary, ...sections);
+  return details;
+}
+
 function statusLabel(value) {
   return STATUS_LABELS[value] ?? asText(value);
 }
@@ -337,11 +351,11 @@ export function currentActionView(model) {
   if (model.projection?.mode === "empty") {
     return result({
       state: "agent-next",
-      state_label: "Agent 下一步",
-      title: "勘探当前工作现场",
+      state_label: "先建立起点",
+      title: "确认当前起点",
       owner: "当前会话 Agent",
-      question: "读取当前环境的权威来源，把始发事实记录为 true / false / unknown / conflict。",
-      after: "建立有来源的始发候选，再把唯一问题切换到目的地定形。",
+      question: "从权威来源确认现在已经具备什么，记录为事实后再开始规划。",
+      after: "有来源的起点建立后，地图才会给出目的地和下一步。",
     });
   }
   if (model.projection?.mode === "wayfinding") {
@@ -351,8 +365,8 @@ export function currentActionView(model) {
     if (question) {
       return result({
         state: "waiting-human",
-      state_label: "待人工回答",
-      title: `回答${TARGET_KIND_LABELS[question.target?.kind] ?? question.target?.kind ?? "建模对象"}问题：${question.target?.label ?? question.target?.id}`,
+        state_label: "等待你的回答",
+        title: `回答：${question.target?.label ?? question.target?.id}`,
         owner: decisionOwnerLabel(question),
         requested_by: question.requested_by ?? null,
         target_id: question.target?.id ?? question.id,
@@ -362,7 +376,7 @@ export function currentActionView(model) {
     }
     return result({
       state: "agent-next",
-      state_label: "Agent 下一步",
+      state_label: "继续收敛",
       title: "推进当前建模阶段",
       owner: "当前会话 Agent",
       question: model.empty_state?.next_steps?.[0] ?? wayfindingNextAction(model.wayfinding?.phase),
@@ -374,7 +388,7 @@ export function currentActionView(model) {
   if (ownerless) {
     return result({
       state: "agent-next",
-      state_label: "Agent 下一步",
+      state_label: "需要补责任人",
       title: `补登${ownerless.kind}责任人`,
       owner: "当前会话 Agent",
       target_id: ownerless.request.id,
@@ -387,7 +401,7 @@ export function currentActionView(model) {
   if (pendingArrival) {
     return result({
       state: "waiting-human",
-      state_label: "待人工审计",
+      state_label: "等待到达确认",
       title: "审计实际到达",
       owner: decisionOwnerLabel(pendingArrival),
       requested_by: pendingArrival.requested_by,
@@ -399,23 +413,23 @@ export function currentActionView(model) {
   const pendingAuthorization = (model.authorization_requests ?? []).find((request) => request.status === "pending");
   if (pendingAuthorization) {
     const edge = model.edges?.find((item) => item.id === pendingAuthorization.edge);
-    return result({
-      state: "waiting-human",
-      state_label: "待人工授权",
-      title: `授权工作边：${edge?.title ?? pendingAuthorization.edge}`,
+      return result({
+        state: "waiting-human",
+      state_label: "等待授权",
+      title: `确认可以开始：${edge?.title ?? pendingAuthorization.edge}`,
       owner: decisionOwnerLabel(pendingAuthorization),
       requested_by: pendingAuthorization.requested_by,
       target_id: pendingAuthorization.edge,
       question: pendingAuthorization.question,
-      after: "只激活这条受保护工作边的一次 Edge Run；其他边仍按各自 Brief 决定是否需要授权。",
+      after: "确认后只会开放这一项任务；其他任务保持原状态。",
     });
   }
   const pendingProposal = (model.proposals ?? []).find((proposal) => proposal.status === "pending");
   if (pendingProposal) {
-    return result({
-      state: "waiting-human",
-      state_label: "待人工确认",
-      title: `确认事实 Proposal：${pendingProposal.fact}`,
+      return result({
+        state: "waiting-human",
+      state_label: "等待确认",
+      title: `确认事实：${pendingProposal.fact}`,
       owner: decisionOwnerLabel(pendingProposal),
       target_id: pendingProposal.id,
       question: `是否确认 ${pendingProposal.fact} = ${pendingProposal.value}？`,
@@ -426,8 +440,8 @@ export function currentActionView(model) {
     const drifted = model.map.current_destination?.status === "drifted";
     return result({
       state: drifted ? "agent-next" : "complete",
-      state_label: drifted ? "事实已漂移" : "Arrival 已固定",
-      title: drifted ? "曾经到达，当前事实已经漂移" : "本航段已完成到达审计",
+      state_label: drifted ? "事实已漂移" : "本航段已完成",
+      title: drifted ? "曾经到达，但当前事实已经变化" : "本航段已完成到达审计",
       owner: drifted ? "当前会话 Agent 与任务所有者" : "任务所有者",
       question: drifted ? `重新核验：${asText(model.map.current_destination.missing)}` : "是否开始一个已确认的新 Destination？",
       after: "历史 Arrival 保持不变；用 continue 将新 Destination 绑定为后继航段。",
@@ -435,24 +449,24 @@ export function currentActionView(model) {
   }
   const activeEdge = model.edges?.find((edge) => edge.id === model.summary?.active_edge);
   if (activeEdge) {
-    return result({
-      state: "in-progress",
-      state_label: "工作进行中",
-      title: `执行并验收：${activeEdge.title}`,
+      return result({
+        state: "in-progress",
+        state_label: "工作进行中",
+        title: `继续：${activeEdge.title}`,
       owner: activeEdge.latestRun?.executor ?? "当前工作边执行者",
       target_id: activeEdge.id,
-      question: "当前没有待回答的人工门；执行范围以该边的 Task Brief 为准。",
-      after: "登记通过或失败证据，再决定到达审计、下一条授权或局部修图。",
+        question: "按这项任务的约定继续工作，并提交可以核验的完成证据。",
+        after: "证据到达后，地图会重新判断下一项任务和目的地状态。",
     });
   }
   if (model.projection?.mode === "definition") {
     return result({
       state: "agent-next",
-      state_label: "Agent 下一步",
-      title: "登记已证明的 Blueprint",
+      state_label: "准备地图",
+      title: "登记这张路线图",
       owner: "当前会话 Agent",
-      question: "当前只是定义态；首次使用 init 登记地图，已有地图变化使用 replan。",
-      after: "登记后从全部 proven/ready 工作边中选择；只有 Brief 声明受保护动作时才请求授权。",
+      question: "这张图还没有进入运行；登记后才能沿任务推进并接收事实变化。",
+      after: "登记后，地图会从当前事实中找出可开始的任务。",
     });
   }
   const readyEdges = model.edges?.filter((edge) => edge.status === "ready" && edge.proven) ?? [];
@@ -461,11 +475,11 @@ export function currentActionView(model) {
     return result({
       state: "agent-next",
       state_label: parallelCount > 1 ? "并行分支已就绪" : "需要选择路线",
-      title: parallelCount > 1 ? `${parallelCount} 条独立工作边可推进` : `${readyEdges.length} 条工作边等待选择`,
+      title: parallelCount > 1 ? `${parallelCount} 项任务可以并行推进` : `${readyEdges.length} 项任务等待选择`,
       owner: "当前会话 Agent 与任务所有者",
       target_id: readyEdges.map((edge) => edge.id).join(","),
-      question: `比较并选择下一条工作边：${readyEdges.map((edge) => edge.title).join("；")}`,
-      after: "为选中的普通边直接 start；只有声明受保护动作的边才请求授权。其余独立分支保持就绪。",
+      question: `选择要先推进的任务：${readyEdges.map((edge) => edge.title).join("；")}`,
+      after: "选中的任务开始后，其他独立任务仍保持可开始。",
     });
   }
   const readyEdge = readyEdges[0];
@@ -473,12 +487,12 @@ export function currentActionView(model) {
     const protectedEdge = requiresEdgeAuthorization(readyEdge);
     return result({
       state: "agent-next",
-      state_label: "Agent 下一步",
-      title: protectedEdge ? `为受保护工作边请求授权：${readyEdge.title}` : `启动工作边：${readyEdge.title}`,
+      state_label: protectedEdge ? "需要授权" : "可以开始",
+      title: protectedEdge ? `等待授权：${readyEdge.title}` : `开始：${readyEdge.title}`,
       owner: "当前会话 Agent",
       target_id: readyEdge.id,
-      question: protectedEdge ? "按 Task Brief 中声明的授权要求创建一次请求。" : "这条边前置已满足且不要求额外授权，可直接创建 active Edge Run。",
-      after: protectedEdge ? "责任人回答后只激活这一条边。" : "执行边合同并用可信 verifier/readback 证明 effects。",
+      question: protectedEdge ? "这项任务需要责任人确认后才能开始。" : "前置条件已满足，可以开始这项任务。",
+      after: protectedEdge ? "责任人确认后，这项任务才会进入进行中。" : "完成后提交可核验的证据，地图会据此刷新。",
     });
   }
   const destinationObserved = (model.map?.destination?.requires ?? []).every((predicateId) => (
@@ -489,21 +503,86 @@ export function currentActionView(model) {
   if (destinationObserved && acceptanceObserved) {
     return result({
       state: "agent-next",
-      state_label: "Agent 下一步",
+      state_label: "准备确认到达",
       title: "请求到达审计",
       owner: "当前会话 Agent",
-      question: "冻结已观察的 Destination Predicate、Acceptance 证据、非目标和遗留风险，交给指定的人或 Agent 审计。",
-      after: "审计者在后续回答中消费一次性请求后，地图才记录实际 Arrival。",
+      question: "成果看起来已满足目的地；请交给责任人确认是否真的到达。",
+      after: "确认后会留下不可改写的到达记录，并允许开始下一航段。",
     });
   }
   return result({
     state: "agent-next",
-    state_label: "Agent 下一步",
-    title: model.proof?.reachability === "unreachable" ? "根据证明缺口局部修图" : "刷新证明并确定下一门",
+    state_label: model.proof?.reachability === "unreachable" ? "需要修图" : "等待事实刷新",
+    title: model.proof?.reachability === "unreachable" ? "补齐路线缺口" : "重新判断下一步",
     owner: "当前会话 Agent",
-    question: model.proof?.reachability === "unreachable" ? "定位最接近目的地的首个证明缺口。" : "当前没有待回答的人工门。",
-    after: model.proof?.reachability === "unreachable" ? "只修订受影响的最小子图，再重新执行正向证明。" : "生成一个明确目标的人工问题或报告真实阻塞。",
+    question: model.proof?.reachability === "unreachable" ? "定位离目的地最近、但还没有被事实接通的缺口。" : "当前没有新的事实或人工决定可以推进路线。",
+    after: model.proof?.reachability === "unreachable" ? "只修订受影响的局部路线，再重新判断可达性。" : "事实变化后，地图会重新计算可推进任务。",
   });
+}
+
+export function navigationPositionView(model) {
+  if (model.projection?.mode === "empty") {
+    return { label: "尚未建立地图", detail: "先勘探有来源的起始事实", state: "fog" };
+  }
+  if (model.projection?.mode === "wayfinding") {
+    const target = model.wayfinding?.current_target;
+    return {
+      label: target?.label ?? wayfindingPhaseTitle(model),
+      detail: target ? `${TARGET_KIND_LABELS[target.kind] ?? target.kind} · ${target.id}` : "正在收敛可执行路线",
+      state: target ? "active" : "waiting",
+    };
+  }
+
+  const destinationNode = model.nodes?.find((node) => node.id === model.map?.current_destination?.node_id)
+    ?? model.nodes?.find((node) => node.kind === "destination");
+  if (model.map?.actual_arrival === "audited") {
+    return {
+      label: destinationNode?.label ?? model.map?.destination?.statement ?? "本航段目的地",
+      detail: "本航段已审计到达，可从这里开始下一航段",
+      state: "complete",
+    };
+  }
+
+  const activeEdge = model.edges?.find((edge) => edge.id === model.summary?.active_edge);
+  if (activeEdge) {
+    const source = model.nodes?.find((node) => node.id === activeEdge.from)?.label ?? activeEdge.from;
+    const target = model.nodes?.find((node) => node.id === activeEdge.to)?.label ?? activeEdge.to;
+    return { label: activeEdge.title, detail: `${source} -> ${target}`, state: "active" };
+  }
+
+  if ((model.arrival_audit_requests ?? []).some((request) => request.status === "pending")) {
+    return {
+      label: destinationNode?.label ?? model.map?.destination?.statement ?? "本航段目的地",
+      detail: "工作已完成，等待到达审计",
+      state: "waiting",
+    };
+  }
+
+  const readyEdges = model.edges?.filter((edge) => edge.status === "ready" && edge.proven) ?? [];
+  if (readyEdges.length) {
+    const sourceIds = [...new Set(readyEdges.map((edge) => edge.from))];
+    const sourceLabels = sourceIds.map((id) => model.nodes?.find((node) => node.id === id)?.label ?? id);
+    return {
+      label: sourceLabels.length === 1 ? sourceLabels[0] : `${sourceLabels.length} 个可推进起点`,
+      detail: `${readyEdges.length} 项任务已满足前置条件`,
+      state: "ready",
+    };
+  }
+
+  if (destinationNode?.satisfied) {
+    return {
+      label: destinationNode.label,
+      detail: "目的地事实已满足，等待下一道可信门",
+      state: "waiting",
+    };
+  }
+
+  const frontier = model.nodes?.find((node) => node.satisfied && model.edges?.some((edge) => edge.from === node.id && edge.status !== "verified"));
+  return {
+    label: frontier?.label ?? "路线暂未接通",
+    detail: model.proof?.reachability === "unreachable" ? "需要从最近的证明缺口局部修图" : "等待事实刷新后重新计算路线",
+    state: model.proof?.reachability === "unreachable" ? "blocked" : "waiting",
+  };
 }
 
 function statusTone(value) {
@@ -1055,6 +1134,19 @@ function nodeClasses(node) {
   ].filter(Boolean).join(" ");
 }
 
+function flowRoleClasses(node, model = runtime.model) {
+  if (node.kind === "submap") return "terrain-node";
+  const edges = model?.edges ?? [];
+  const hasIncoming = edges.some((edge) => edge.to === node.id && !edge.projection_hidden);
+  return [
+    "milestone-node",
+    !hasIncoming && !node.parent && node.kind !== "destination" ? "flow-start" : "",
+    node.kind === "destination" && node.status !== "destination-fog" ? "flow-end" : "",
+    node.kind === "join" ? "flow-join" : "",
+    node.kind === "decision" ? "flow-decision" : "",
+  ].filter(Boolean).join(" ");
+}
+
 export function parallelEdgeLane(edge, model = runtime.model) {
   const siblings = (model?.edges ?? [])
     .filter((candidate) => candidate.from === edge.from && candidate.to === edge.to)
@@ -1090,30 +1182,103 @@ function edgeClasses(edge, model = runtime.model) {
   ].filter(Boolean).join(" ");
 }
 
-function graphElements(model) {
-  return [
-    ...model.nodes.map((node) => ({
-      group: "nodes",
-      data: { id: node.id, label: node.label, kind: node.kind, status: node.status, ...(node.parent ? { parent: node.parent } : {}) },
-      classes: nodeClasses(node),
-    })),
-    ...model.edges.map((edge) => {
-      const lane = parallelEdgeLane(edge, model);
-      return {
+function activityNodeId(edgeId) {
+  return `activity::${edgeId}`;
+}
+
+function activityConnectorId(edgeId, side) {
+  return `connector::${edgeId}::${side}`;
+}
+
+function activityStatusLabel(edge) {
+  if (edge.status === "verified") return "已完成";
+  if (edge.status === "active") return "进行中";
+  if (edge.status === "ready") return "可开始";
+  if (edge.status === "blocked") return "前置未满足";
+  if (edge.status === "waiting") return "等待中";
+  return statusLabel(edge.status);
+}
+
+export function activityGraphElements(model) {
+  const nodeById = new Map(model.nodes.map((node) => [node.id, node]));
+  const elements = model.nodes.map((node) => ({
+    group: "nodes",
+    data: {
+      id: node.id,
+      refId: node.id,
+      refType: "node",
+      label: node.label,
+      kind: node.kind,
+      status: node.status,
+      ...(node.parent ? { parent: node.parent } : {}),
+    },
+    classes: `${nodeClasses(node)} ${flowRoleClasses(node, model)}`,
+  }));
+
+  for (const edge of model.edges) {
+    const classes = edgeClasses(edge, model);
+    if (edge.projection_only) {
+      elements.push({
         group: "edges",
         data: {
-          id: edge.id,
+          id: activityConnectorId(edge.id, "projection"),
+          refId: edge.id,
+          refType: "edge",
           source: edge.from,
           target: edge.to,
           label: edge.title,
           status: edge.status,
-          parallelOffset: lane.offset,
-          parallelLabelOffset: lane.labelOffset,
         },
-        classes: edgeClasses(edge, model),
-      };
-    }),
-  ];
+        classes: `activity-connector projection-connector ${classes}`,
+      });
+      continue;
+    }
+
+    const sourceParent = nodeById.get(edge.from)?.parent;
+    const targetParent = nodeById.get(edge.to)?.parent;
+    const parent = sourceParent && sourceParent === targetParent ? sourceParent : null;
+    const id = activityNodeId(edge.id);
+    elements.push({
+      group: "nodes",
+      data: {
+        id,
+        refId: edge.id,
+        refType: "edge",
+        label: `${edge.title}\n${activityStatusLabel(edge)}`,
+        kind: "activity",
+        status: edge.status,
+        ...(parent ? { parent } : {}),
+      },
+      classes: `activity-node ${classes}`,
+    });
+    elements.push(
+      {
+        group: "edges",
+        data: {
+          id: activityConnectorId(edge.id, "in"),
+          refId: edge.id,
+          refType: "edge",
+          source: edge.from,
+          target: id,
+          status: edge.status,
+        },
+        classes: `activity-connector ${classes}`,
+      },
+      {
+        group: "edges",
+        data: {
+          id: activityConnectorId(edge.id, "out"),
+          refId: edge.id,
+          refType: "edge",
+          source: id,
+          target: edge.to,
+          status: edge.status,
+        },
+        classes: `activity-connector ${classes}`,
+      },
+    );
+  }
+  return elements;
 }
 
 function cytoscapeStyles() {
@@ -1123,24 +1288,41 @@ function cytoscapeStyles() {
       style: {
         "background-color": "#f9fbfa",
         "border-color": "#82938f",
-        "border-width": 1.5,
+        "border-width": 2,
         color: "#18252d",
         "font-family": "Bahnschrift, Segoe UI, sans-serif",
-        "font-size": 11,
+        "font-size": 10,
         "font-weight": 600,
-        height: 62,
+        height: 28,
         label: "data(label)",
-        padding: 10,
-        shape: "round-rectangle",
+        padding: 4,
+        shape: "ellipse",
         "text-halign": "center",
-        "text-max-width": 125,
-        "text-valign": "center",
+        "text-margin-y": 8,
+        "text-max-width": 112,
+        "text-valign": "bottom",
         "text-wrap": "wrap",
-        width: 154,
+        width: 28,
       },
     },
-    { selector: "node.kind-destination", style: { shape: "diamond", height: 94, width: 130, "text-max-width": 96 } },
-    { selector: "node.kind-join", style: { shape: "hexagon", width: 142 } },
+    {
+      selector: "node.activity-node",
+      style: {
+        "background-color": "#f9fbfa",
+        "border-color": "#82938f",
+        "border-width": 1.5,
+        "font-size": 12,
+        height: 66,
+        padding: 10,
+        shape: "round-rectangle",
+        "text-margin-y": 0,
+        "text-max-width": 158,
+        "text-valign": "center",
+        width: 188,
+      },
+    },
+    { selector: "node.kind-destination", style: { shape: "diamond", height: 48, width: 48, "text-max-width": 126 } },
+    { selector: "node.kind-join", style: { shape: "hexagon", height: 34, width: 38 } },
     { selector: "node.kind-submap", style: { shape: "round-rectangle", "background-opacity": 0.12, "background-color": "#cfe7e3", "border-color": "#16766f", "border-style": "dashed", "border-width": 2, padding: 28, "text-valign": "top", "text-margin-y": -12 } },
     { selector: "node.kind-submap.is-collapsed-submap", style: { "background-opacity": 1, "background-color": "#dcebea", "border-style": "solid", "font-size": 10, height: 92, padding: 10, "text-max-width": 166, "text-valign": "center", "text-margin-y": 0, width: 190 } },
     { selector: "node.kind-fog, node.status-fog", style: { "background-color": "#e1dfeb", "border-color": "#817c9d", "border-style": "dashed" } },
@@ -1150,6 +1332,15 @@ function cytoscapeStyles() {
     { selector: "node.status-arrived", style: { "background-color": "#16766f", "border-color": "#0b504b", color: "#ffffff", "border-width": 3 } },
     { selector: "node.status-historical-arrival", style: { "background-color": "#dcebea", "border-color": "#16766f", "border-style": "double", "border-width": 4 } },
     { selector: "node.status-drifted, node.status-conflict, node.has-gap", style: { "background-color": "#f1d5d2", "border-color": "#c8564f", "border-width": 2.5 } },
+    { selector: "node.activity-node.status-verified", style: { "background-color": "#dcebe7", "border-color": "#16766f", color: "#17423f" } },
+    { selector: "node.activity-node.status-active", style: { "background-color": "#f8e6c5", "border-color": "#bd731d", "border-width": 3 } },
+    { selector: "node.activity-node.status-ready", style: { "background-color": "#fffaf0", "border-color": "#bd731d", "border-width": 2.5 } },
+    { selector: "node.activity-node.status-blocked", style: { "background-color": "#eef1f0", "border-color": "#a8b2af", color: "#68767b", opacity: 0.78 } },
+    { selector: "node.activity-node.status-failed, node.activity-node.status-stale", style: { "background-color": "#f1d5d2", "border-color": "#c8564f", "border-style": "dashed" } },
+    { selector: "node.flow-start", style: { "background-color": "#18252d", "border-color": "#18252d", height: 18, width: 18, "text-margin-y": 12 } },
+    { selector: "node.flow-end", style: { "background-color": "#f9fbfa", "border-color": "#18252d", "border-style": "double", "border-width": 4, height: 34, width: 34, "text-margin-y": 14 } },
+    { selector: "node.flow-join", style: { "background-color": "#53636a", "border-color": "#53636a", height: 12, width: 44, "text-margin-y": 12, "text-max-width": 136 } },
+    { selector: "node.flow-decision", style: { "background-color": "#fffaf0", "border-color": "#bd731d", shape: "diamond", height: 34, width: 34, "text-margin-y": 10 } },
     {
       selector: "edge",
       style: {
@@ -1170,6 +1361,8 @@ function cytoscapeStyles() {
         width: 1.5,
       },
     },
+    { selector: "edge.activity-connector", style: { label: "", "curve-style": "bezier", width: 1.5 } },
+    { selector: "edge.projection-connector", style: { label: "data(label)", "font-size": 8, "line-style": "dotted" } },
     {
       selector: "edge.parallel-lane",
       style: {
@@ -1215,7 +1408,10 @@ function initGraph() {
     selectionType: "single",
     style: cytoscapeStyles(),
   });
-  runtime.cy.on("tap", "node, edge", (event) => selectMapElement(event.target.id(), true));
+  runtime.cy.on("tap", "node, edge", (event) => {
+    const refId = event.target.data("refId") ?? event.target.id();
+    selectMapElement(refId, true);
+  });
   runtime.cy.on("dblclick", "node.kind-submap", (event) => {
     const node = runtime.model?.nodes.find((item) => item.id === event.target.id());
     const bindingPath = node?.submap?.path ?? node?.submap?.id;
@@ -1238,7 +1434,7 @@ function syncGraph(model, topologyChanged) {
   cy.batch(() => {
     if (topologyChanged) {
       cy.nodes().forEach((node) => runtime.positionLedger.set(node.id(), { ...node.position() }));
-      const desired = graphElements(model);
+      const desired = activityGraphElements(model);
       const desiredIds = new Set(desired.map((item) => item.data.id));
       cy.elements().filter((item) => !desiredIds.has(item.id())).remove();
       const existingIds = new Set(cy.elements().map((item) => item.id()));
@@ -1246,27 +1442,34 @@ function syncGraph(model, topologyChanged) {
       if (additions.length) cy.add(additions);
     }
     for (const node of model.nodes) {
-      const graphNode = cy.getElementById(node.id);
-      graphNode.data({ label: node.label, kind: node.kind, status: node.status });
-      graphNode.classes(nodeClasses(node));
+       const graphNode = cy.getElementById(node.id);
+       graphNode.data({ refId: node.id, refType: "node", label: node.label, kind: node.kind, status: node.status });
+       graphNode.classes(`${nodeClasses(node)} ${flowRoleClasses(node, model)}`);
       const remembered = runtime.positionLedger.get(node.id);
       if (remembered && topologyChanged) graphNode.position(remembered);
     }
     for (const edge of model.edges) {
-      let graphEdge = cy.getElementById(edge.id);
-      if (graphEdge.length && (graphEdge.source().id() !== edge.from || graphEdge.target().id() !== edge.to)) {
-        graphEdge.remove();
-        cy.add(graphElements({ nodes: [], edges: [edge] }));
-        graphEdge = cy.getElementById(edge.id);
+      const classes = edgeClasses(edge, model);
+      if (edge.projection_only) {
+        const graphEdge = cy.getElementById(activityConnectorId(edge.id, "projection"));
+        graphEdge.data({ refId: edge.id, refType: "edge", label: edge.title, status: edge.status });
+        graphEdge.classes(`activity-connector projection-connector ${classes}`);
+        continue;
       }
-      const lane = parallelEdgeLane(edge, model);
-      graphEdge.data({
-        label: edge.title,
+      const graphNode = cy.getElementById(activityNodeId(edge.id));
+      graphNode.data({
+        refId: edge.id,
+        refType: "edge",
+        label: `${edge.title}\n${activityStatusLabel(edge)}`,
+        kind: "activity",
         status: edge.status,
-        parallelOffset: lane.offset,
-        parallelLabelOffset: lane.labelOffset,
       });
-      graphEdge.classes(edgeClasses(edge, model));
+      graphNode.classes(`activity-node ${classes}`);
+      for (const side of ["in", "out"]) {
+        const connector = cy.getElementById(activityConnectorId(edge.id, side));
+        connector.data({ refId: edge.id, refType: "edge", status: edge.status });
+        connector.classes(`activity-connector ${classes}`);
+      }
     }
   });
 }
@@ -1361,20 +1564,22 @@ function layoutGraph() {
     fit: true,
     padding: 52,
     roots: roots.length ? roots : undefined,
-    spacingFactor: isReverseRegression ? 1.22 : 0.78,
+    avoidOverlap: true,
+    nodeDimensionsIncludeLabels: true,
+    spacingFactor: isReverseRegression ? 1.18 : 1.08,
     animate: false,
   }).run();
-  if (isReverseRegression && visibleNodes.length > 1) {
-    // Rotate breadth-first ranks into the normal map reading direction:
-    // observed origin on the left, regressed milestones in the middle, goal on the right.
+  if (visibleNodes.length > 1) {
+    // Turn breadth-first ranks into a left-to-right activity flow.
     const bounds = visibleNodes.boundingBox();
     const centerX = (bounds.x1 + bounds.x2) / 2;
     const centerY = (bounds.y1 + bounds.y2) / 2;
+    const direction = isReverseRegression ? -1 : 1;
     visibleNodes.positions((node) => ({
-      x: centerX - (node.position("y") - centerY),
+      x: centerX + direction * (node.position("y") - centerY),
       y: centerY + (node.position("x") - centerX),
     }));
-    const origin = originId ? runtime.cy.getElementById(originId) : null;
+    const origin = isReverseRegression && originId ? runtime.cy.getElementById(originId) : null;
     const visibleOriginEdges = origin?.length
       ? origin.connectedEdges().filter((edge) => !edge.hasClass("is-hidden"))
       : null;
@@ -1388,7 +1593,7 @@ function layoutGraph() {
         });
       }
     }
-    runtime.cy.fit(visible, 52);
+    runtime.cy.fit(visible, 36);
   }
   runtime.layoutCount += 1;
   rememberVisiblePositions(visibleNodes);
@@ -1410,23 +1615,27 @@ function focusSubmap(bindingPath) {
 function updateView({ fit = false } = {}) {
   if (!runtime.model || !runtime.cy) return;
   const selection = selectElementIds(runtime.model, runtime.lens, runtime.query);
-  const visible = new Set([...selection.nodes, ...selection.edges]);
+  const visibleNodes = new Set(selection.nodes);
+  const visibleEdges = new Set(selection.edges);
   for (const edge of runtime.model.edges) {
-    if (edge.projection_hidden) visible.delete(edge.id);
+    if (edge.projection_hidden) visibleEdges.delete(edge.id);
   }
   const parentByNode = new Map(runtime.model.nodes.filter((node) => node.parent).map((node) => [node.id, node.parent]));
-  for (const nodeId of [...visible]) {
+  for (const nodeId of [...visibleNodes]) {
     let parentId = parentByNode.get(nodeId);
     while (parentId) {
-      visible.add(parentId);
+      visibleNodes.add(parentId);
       parentId = parentByNode.get(parentId);
     }
   }
   const matches = new Set(selection.matches);
   runtime.cy.batch(() => {
     runtime.cy.elements().forEach((item) => {
-      item.toggleClass("is-hidden", !visible.has(item.id()));
-      item.toggleClass("search-match", matches.has(item.id()));
+      const refId = item.data("refId") ?? item.id();
+      const refType = item.data("refType") ?? (item.isNode() ? "node" : "edge");
+      const visible = refType === "edge" ? visibleEdges.has(refId) : visibleNodes.has(refId);
+      item.toggleClass("is-hidden", !visible);
+      item.toggleClass("search-match", item.isNode() && matches.has(refId));
     });
   });
   dom.canvasEmpty.textContent = runtime.model?.projection.mode === "empty"
@@ -1434,10 +1643,10 @@ function updateView({ fit = false } = {}) {
     : runtime.model?.projection.mode === "wayfinding"
       ? "当前显示待确认建模对象；正式图仍未建立。"
       : "当前镜头没有匹配对象。";
-  dom.canvasEmpty.hidden = visible.size !== 0;
+  dom.canvasEmpty.hidden = visibleNodes.size + visibleEdges.size !== 0;
   dom.visibleCount.textContent = String(selection.nodes.length + selection.edges.length);
   renderElementList(selection);
-  if (runtime.selected?.type === "element" && !visible.has(runtime.selected.id)) {
+  if (runtime.selected?.type === "element" && !visibleNodes.has(runtime.selected.id) && !visibleEdges.has(runtime.selected.id)) {
     const selectedEdge = runtime.model.edges.find((edge) => edge.id === runtime.selected.id);
     const expandedParent = selectedEdge?.submap?.path && runtime.expandedSubmaps.has(selectedEdge.submap.path);
     if (!expandedParent) selectOverview();
@@ -1489,6 +1698,13 @@ function canvasEyebrow(model) {
     return phase === "survey" ? "SURVEY CANVAS" : phase === "shaping" ? "DESTINATION SHAPING" : "GOAL REGRESSION";
   }
   return model.map.phase === "implementation" ? "LIVE WORK MAP" : "MAP CANVAS";
+}
+
+function destinationContextText(model) {
+  if (model.projection.mode === "wayfinding") return `Intent：${model.map.intent.statement}`;
+  if (model.map.current_destination?.status === "drifted") return "历史到达仍保留 · 当前事实变化，路线正在重算";
+  if ((model.summary.arrival_checkpoints ?? 0) > 0) return `已有 ${model.summary.arrival_checkpoints} 个历史到达 · 当前航段随事实刷新`;
+  return "地图随事实和证据刷新 · 到达需要责任人确认";
 }
 
 function renderWayfindingChrome(model) {
@@ -1560,11 +1776,9 @@ function renderCounts(model) {
   if (model.projection.mode === "wayfinding") {
     const phase = model.wayfinding?.phase ?? model.map.wayfinding_phase;
     const counts = [
-      [model.summary.nodes, "正式节点"],
-      [model.summary.edges, "正式工作边"],
-      [model.summary.draft_nodes ?? 0, "候选节点"],
-      [model.summary.draft_edges ?? 0, "候选工作边"],
-      [model.summary.open_questions ?? 0, "待收敛问题"],
+      [`${model.summary.draft_edges ?? 0}`, "候选任务"],
+      [`${model.summary.draft_nodes ?? 0}`, "候选里程碑"],
+      [`${model.summary.open_questions ?? 0}`, "待回答"],
       [WAYFINDING_PHASE_LABELS[phase] ?? "探路建模", "当前阶段"],
     ];
     dom.mapCounts.replaceChildren(...counts.map(([value, label]) => {
@@ -1578,13 +1792,10 @@ function renderCounts(model) {
     + (model.summary.pending_arrival_audits ?? 0)
     + (model.summary.pending_proposals ?? 0);
   const counts = [
-    [model.summary.satisfied_nodes, `满足节点 / ${model.summary.nodes}`],
-    [model.summary.verified_edges, `已完成工作边 / ${model.summary.edges}`],
-    [`${model.summary.parallel_ready_edges ?? 0}/${model.summary.ready_edges?.length ?? 0}`, "可独立推进 / 前置就绪"],
-    [model.summary.proof_gaps, "证明缺口"],
-    [`${model.summary.acceptance_passed}/${model.summary.acceptance_total}`, "验收通过"],
-    [pendingHuman, "待人工处理"],
-    [model.summary.submaps ?? 0, `子地图 · stale ${model.summary.stale_submaps ?? 0}`],
+    [`${model.summary.verified_edges}/${model.summary.edges}`, "任务完成"],
+    [model.summary.ready_edges?.length ?? 0, "可开始"],
+    [model.summary.proof_gaps, "待补缺口"],
+    [pendingHuman, "待你处理"],
   ];
   dom.mapCounts.replaceChildren(...counts.map(([value, label]) => {
     const card = element("div", "count-card");
@@ -1605,11 +1816,27 @@ function renderCurrentAction(model) {
   dom.actionAfter.textContent = action.after;
 }
 
+function renderCurrentPosition(model) {
+  const position = navigationPositionView(model);
+  dom.currentPosition.dataset.state = position.state;
+  dom.currentPositionTitle.textContent = position.label;
+  dom.currentPositionDetail.textContent = position.detail;
+}
+
 function renderElementList(selection) {
   const matches = new Set(selection.matches);
   const nodes = runtime.model.nodes.filter((node) => selection.nodes.includes(node.id));
   const edges = runtime.model.edges.filter((edge) => selection.edges.includes(edge.id));
   const buttons = [];
+  for (const edge of edges) {
+    buttons.push(elementButton({
+      id: edge.id,
+      name: edge.title,
+      meta: `${edge.draft ? "候选任务" : "任务"} · ${edgeExecutionLabel(edge, runtime.model)}`,
+      symbol: edge.draft ? "⇢" : "→",
+      matched: matches.has(edge.id),
+    }));
+  }
   for (const node of nodes) {
     buttons.push(elementButton({
       id: node.id,
@@ -1618,15 +1845,6 @@ function renderElementList(selection) {
       symbol: node.draft ? "◇" : "○",
       matched: matches.has(node.id),
       submapPath: node.kind === "submap" ? node.submap?.path ?? node.submap?.id : null,
-    }));
-  }
-  for (const edge of edges) {
-    buttons.push(elementButton({
-      id: edge.id,
-      name: edge.title,
-      meta: `${edge.draft ? "候选工作边" : "工作边"} · ${edgeExecutionLabel(edge, runtime.model)}`,
-      symbol: edge.draft ? "⇢" : "→",
-      matched: matches.has(edge.id),
     }));
   }
   if (!buttons.length) dom.elementList.replaceChildren(element(
@@ -1662,13 +1880,29 @@ function elementButton({ id, name, meta, symbol, matched, submapPath = null }) {
   return button;
 }
 
+function setInspectorOpen(open, { fit = true } = {}) {
+  dom.inspector.hidden = !open;
+  dom.inspectorToggle.setAttribute("aria-expanded", String(open));
+  dom.workbench.classList.toggle("has-inspector", open);
+  window.requestAnimationFrame(() => {
+    runtime.cy?.resize();
+    if (fit) fitGraph();
+  });
+}
+
 function selectMapElement(id, focusInspector = false) {
   const node = runtime.model?.nodes.find((item) => item.id === id);
   const edge = runtime.model?.edges.find((item) => item.id === id);
   if (!node && !edge) return;
+  if (focusInspector) setInspectorOpen(true);
   runtime.selected = { type: "element", id };
   runtime.cy?.elements().unselect();
-  runtime.cy?.getElementById(id).select();
+  const graphId = edge && !edge.projection_only
+    ? activityNodeId(edge.id)
+    : edge
+      ? activityConnectorId(edge.id, "projection")
+      : id;
+  runtime.cy?.getElementById(graphId).select();
   renderElementList(selectElementIds(runtime.model, runtime.lens, runtime.query));
   if (node) renderNodeInspector(node);
   else renderEdgeInspector(edge);
@@ -1824,88 +2058,87 @@ function renderOverview(model) {
     return;
   }
   const proof = model.proof;
+  const action = currentActionView(model);
+  const position = navigationPositionView(model);
   const content = [hero({
-    eyebrow: "MAP OVERVIEW",
-    title: model.map.destination.statement,
+    eyebrow: "CURRENT POSITION",
+    title: position.label,
     id: model.map.id,
     chips: [
-      makeChip(REACHABILITY_LABELS[proof.reachability] ?? proof.reachability, proof.reachability === "unreachable" ? "coral" : "amber"),
+      makeChip(position.detail, statusTone(position.state)),
+      makeChip(REACHABILITY_LABELS[proof.reachability] ?? proof.reachability, proof.reachability === "unreachable" ? "coral" : "teal"),
       makeChip(ARRIVAL_LABELS[model.map.actual_arrival] ?? model.map.actual_arrival, model.map.actual_arrival === "audited" ? "teal" : ""),
-      makeChip("只读投影", "teal"),
     ],
   })];
 
-  content.push(ledgerSection("正向可达性证明", [
-    labeledValue("结构", STRUCTURAL_LABELS[proof.structural] ?? proof.structural),
-    labeledValue("逻辑结论", REACHABILITY_LABELS[proof.reachability] ?? proof.reachability, proof.reachability === "unreachable" ? "bad" : "warn"),
-    labeledValue("候选工作边", proof.candidate_edges),
-    labeledValue("逻辑路线工作边（推演）", proof.proven_edges),
-    labeledValue("使用的假设", proof.assumptions_used),
+  content.push(ledgerSection("下一步", [
+    labeledValue(action.state_label, `${action.title}\n${action.question}`, ["waiting-human", "in-progress"].includes(action.state) ? "warn" : action.state === "complete" ? "good" : ""),
+    labeledValue("责任人", action.requested_by ? `${action.owner}\n发起者：${action.requested_by}` : action.owner),
+    labeledValue("完成后", action.after),
   ]));
-  content.push(ledgerSection("证据层级", Object.entries(model.evidence_levels ?? proof.evidence_levels ?? {}).map(([id, level]) => labeledValue(
-    EVIDENCE_LEVEL_LABELS[id] ?? id,
-    `${statusLabel(level.status)}${level.basis ? `\n${level.basis}` : ""}`,
-    ["established", "complete", "logical", "ready", "active"].includes(level.status) ? "good" : level.status === "failed" || level.status === "blocked" ? "bad" : "warn",
-  ))));
-  content.push(ledgerSection("当前可并行性", [
-    labeledValue("前置已满足", model.summary.ready_edges?.length ? model.summary.ready_edges : "无"),
-    labeledValue(
-      "独立可推进",
-      model.summary.parallel_ready_groups?.length
-        ? model.summary.parallel_ready_groups.map((group) => group.join(" ↔ ")).join("\n")
-        : "当前没有两条同时就绪且无产出依赖的工作边",
-      model.summary.parallel_ready_edges > 1 ? "good" : "",
-    ),
-    labeledValue("执行约束", "个人工作流仍保持一个 active Run；完成或挂起一条分支后，另一条独立分支仍保持就绪。"),
+  content.push(ledgerSection("路线进度", [
+    labeledValue("任务", `${model.summary.verified_edges}/${model.summary.edges} 已完成`, model.summary.verified_edges === model.summary.edges ? "good" : "warn"),
+    labeledValue("可开始", model.summary.ready_edges?.length
+      ? model.edges.filter((edge) => model.summary.ready_edges.includes(edge.id)).map((edge) => edge.title)
+      : "无"),
+    labeledValue("目的地验收", `${model.summary.acceptance_passed}/${model.summary.acceptance_total} 通过`, model.summary.acceptance_passed === model.summary.acceptance_total ? "good" : "warn"),
+    labeledValue("路线缺口", model.proof_gaps.length ? `${model.proof_gaps.length} 个` : "无", model.proof_gaps.length ? "bad" : "good"),
   ]));
-  content.push(ledgerSection("航段连续性", [
-    labeledValue("当前 Destination", `${model.map.current_destination?.node_id ?? "尚未登记"} · ${statusLabel(model.map.current_destination?.status)}`, model.map.current_destination?.status === "drifted" ? "bad" : "good"),
-    labeledValue("当前缺失", model.map.current_destination?.missing?.length ? model.map.current_destination.missing : "无"),
-    labeledValue("历史 Arrival", model.arrival_checkpoints?.length
-      ? model.arrival_checkpoints.map((checkpoint) => `${checkpoint.id} · ${checkpoint.destination.statement} · ${formatTimestamp(checkpoint.recorded_at)}`)
-      : "尚无"),
-    labeledValue("后继航段", model.successor_bindings?.length
-      ? model.successor_bindings.map((binding) => `${binding.id} · ${binding.origin_node} → ${binding.destination_node.id}`)
-      : "尚无"),
-  ]));
-  content.push(regressionSection(model));
-  content.push(ledgerSection("Intent 与确认门", [
-    labeledValue(`Intent · ${model.map.intent.status}`, `${model.map.intent.statement}\n开放问题：${asText(model.map.intent.open_questions)}`, model.map.intent.status === "shaped" && model.map.intent.open_questions.length === 0 ? "good" : "warn"),
-    labeledValue("待确认 Proposal", model.proposals.filter((proposal) => proposal.status === "pending").map((proposal) => `${proposal.id}: ${proposal.fact}=${proposal.value}`)),
-  ]));
-  content.push(ledgerSection("工作边授权与到达审计", [
-    ...model.authorization_requests.filter((request) => request.status === "pending").map((request) => labeledValue(
-      `${request.id} · 待回答`,
-      `工作边：${request.edge}\n问题：${request.question}\n责任人：${decisionOwnerLabel(request)}\n请求者：${request.requested_by}`,
-      "warn",
-    )),
-    ...(model.arrival_audit_requests ?? []).map((request) => labeledValue(
-      `${request.id} · ${request.status === "pending" ? "到达待审计" : request.status === "granted" ? "到达已审计" : request.status}`,
-      `问题：${request.question}\n责任人：${decisionOwnerLabel(request)}\n冻结验收：${asText(request.acceptance)}\n请求者：${request.requested_by}\n回答：${request.answer ?? "尚未回答"}\n审计人：${request.audited_by ?? "尚未记录"}`,
-      request.status === "granted" ? "good" : request.status === "pending" ? "warn" : request.status === "stale" ? "bad" : "",
-    )),
-  ], "当前没有施工授权或到达审计请求。"));
-  content.push(ledgerSection("子地图", (model.submaps ?? []).map((binding) => labeledValue(
-    `${binding.id} · ${statusLabel(binding.source_status)}`,
-    `${binding.map_id}\n阶段：${PHASE_LABELS[binding.phase] ?? binding.phase} · 到达：${ARRIVAL_LABELS[binding.actual_arrival] ?? binding.actual_arrival}\n验收：${binding.acceptance_passed}/${binding.acceptance_total} · 迷雾：${binding.fog_nodes}\n回执：${statusLabel(binding.receipt_status)}`,
-    binding.source_status === "stale" || binding.receipt_status === "stale" ? "bad" : binding.actual_arrival === "audited" ? "good" : "warn",
-  )), "当前地图没有绑定子地图。"));
-  content.push(ledgerSection("目的地验收", model.acceptance.map((acceptance) => labeledValue(
-    `${acceptance.id} · ${acceptance.status === "passed" ? "通过" : "待验"}`,
-    `${acceptance.proof}\n证明：${asText(acceptance.proves)}${acceptance.missing?.length ? `\n缺少：${asText(acceptance.missing)}` : ""}`,
-    acceptance.status === "passed" ? "good" : "warn",
-  ))));
-  content.push(ledgerSection("全局证明缺口", model.proof_gaps.map((gap) => labeledValue(
-    gap.type ?? "proof gap",
-    asText(gap),
-    "bad",
-  )), "当前逻辑链没有发现证明缺口。"));
-  content.push(ledgerSection("工作边界", [
-    labeledValue("范围内", model.map.boundaries.in_scope),
-    labeledValue("范围外", model.map.boundaries.out_of_scope),
-    labeledValue("授权", model.map.boundaries.authorization),
-    labeledValue("全程不变量", model.map.destination.invariants),
-  ]));
+
+  const advanced = [
+    ledgerSection("正向可达性证明", [
+      labeledValue("结构", STRUCTURAL_LABELS[proof.structural] ?? proof.structural),
+      labeledValue("逻辑结论", REACHABILITY_LABELS[proof.reachability] ?? proof.reachability, proof.reachability === "unreachable" ? "bad" : "good"),
+      labeledValue("候选任务", proof.candidate_edges),
+      labeledValue("证明路线任务", proof.proven_edges),
+      labeledValue("使用的假设", proof.assumptions_used),
+    ]),
+    ledgerSection("证据层级", Object.entries(model.evidence_levels ?? proof.evidence_levels ?? {}).map(([id, level]) => labeledValue(
+      EVIDENCE_LEVEL_LABELS[id] ?? id,
+      `${statusLabel(level.status)}${level.basis ? `\n${level.basis}` : ""}`,
+      ["established", "complete", "logical", "ready", "active"].includes(level.status) ? "good" : level.status === "failed" || level.status === "blocked" ? "bad" : "warn",
+    ))),
+    ledgerSection("航段连续性", [
+      labeledValue("当前 Destination", `${model.map.current_destination?.node_id ?? "尚未登记"} · ${statusLabel(model.map.current_destination?.status)}`, model.map.current_destination?.status === "drifted" ? "bad" : "good"),
+      labeledValue("当前缺失", model.map.current_destination?.missing?.length ? model.map.current_destination.missing : "无"),
+      labeledValue("历史 Arrival", model.arrival_checkpoints?.length
+        ? model.arrival_checkpoints.map((checkpoint) => `${checkpoint.id} · ${checkpoint.destination.statement} · ${formatTimestamp(checkpoint.recorded_at)}`)
+        : "尚无"),
+      labeledValue("后继航段", model.successor_bindings?.length
+        ? model.successor_bindings.map((binding) => `${binding.id} · ${binding.origin_node} -> ${binding.destination_node.id}`)
+        : "尚无"),
+    ]),
+    regressionSection(model),
+    ledgerSection("人工门", [
+      ...model.authorization_requests.filter((request) => request.status === "pending").map((request) => labeledValue(
+        `${request.id} · 待回答`,
+        `任务：${request.edge}\n问题：${request.question}\n责任人：${decisionOwnerLabel(request)}\n请求者：${request.requested_by}`,
+        "warn",
+      )),
+      ...(model.arrival_audit_requests ?? []).map((request) => labeledValue(
+        `${request.id} · ${request.status === "pending" ? "到达待审计" : request.status === "granted" ? "到达已审计" : request.status}`,
+        `问题：${request.question}\n责任人：${decisionOwnerLabel(request)}\n冻结验收：${asText(request.acceptance)}\n请求者：${request.requested_by}\n回答：${request.answer ?? "尚未回答"}\n审计人：${request.audited_by ?? "尚未记录"}`,
+        request.status === "granted" ? "good" : request.status === "pending" ? "warn" : request.status === "stale" ? "bad" : "",
+      )),
+    ], "当前没有施工授权或到达审计请求。"),
+    ledgerSection("目的地验收", model.acceptance.map((acceptance) => labeledValue(
+      `${acceptance.id} · ${acceptance.status === "passed" ? "通过" : "待验"}`,
+      `${acceptance.proof}\n证明：${asText(acceptance.proves)}${acceptance.missing?.length ? `\n缺少：${asText(acceptance.missing)}` : ""}`,
+      acceptance.status === "passed" ? "good" : "warn",
+    ))),
+    ledgerSection("子地图", (model.submaps ?? []).map((binding) => labeledValue(
+      `${binding.id} · ${statusLabel(binding.source_status)}`,
+      `${binding.map_id}\n阶段：${PHASE_LABELS[binding.phase] ?? binding.phase} · 到达：${ARRIVAL_LABELS[binding.actual_arrival] ?? binding.actual_arrival}\n验收：${binding.acceptance_passed}/${binding.acceptance_total} · 迷雾：${binding.fog_nodes}\n回执：${statusLabel(binding.receipt_status)}`,
+      binding.source_status === "stale" || binding.receipt_status === "stale" ? "bad" : binding.actual_arrival === "audited" ? "good" : "warn",
+    )), "当前地图没有绑定子地图。"),
+    ledgerSection("工作边界", [
+      labeledValue("范围内", model.map.boundaries.in_scope),
+      labeledValue("范围外", model.map.boundaries.out_of_scope),
+      labeledValue("授权", model.map.boundaries.authorization),
+      labeledValue("全程不变量", model.map.destination.invariants),
+    ]),
+  ];
+  content.push(ledgerDisclosure("证据、验收与边界", advanced, `${model.summary.acceptance_passed}/${model.summary.acceptance_total}`));
   dom.inspectorContent.replaceChildren(...content);
 }
 
@@ -2176,6 +2409,7 @@ function renderTimeline(model) {
     button.type = "button";
     button.append(element("strong", "", eventTitle), element("span", "", `${formatTimestamp(entry.at)} · ${entry.kind === "evidence" ? "凭据" : "状态"}`));
     button.addEventListener("click", () => {
+      setInspectorOpen(true);
       runtime.selected = { type: "timeline", id: entry.id };
       const content = [hero({
         eyebrow: "CHANGE SOUNDING",
@@ -2235,11 +2469,10 @@ function renderCompositeModel(model) {
 
   if (model.projection.mode === "wayfinding") {
     dom.destination.textContent = wayfindingPhaseTitle(model);
-    dom.destinationContext.textContent = `Intent：${model.map.intent.statement}`;
   } else {
     dom.destination.textContent = model.map.destination.statement;
-    dom.destinationContext.textContent = `Destination：${model.map.destination.id ?? model.map.id}`;
   }
+  dom.destinationContext.textContent = destinationContextText(model);
   document.title = `${model.map.id} · Mapflow Board`;
   dom.phase.textContent = model.projection.mode === "wayfinding"
     ? WAYFINDING_PHASE_LABELS[model.wayfinding?.phase ?? model.map.wayfinding_phase] ?? "探路建模"
@@ -2253,6 +2486,7 @@ function renderCompositeModel(model) {
       : ARRIVAL_LABELS[model.map.actual_arrival] ?? model.map.actual_arrival;
   dom.revision.textContent = model.projection.revision.slice(0, 12);
   dom.revision.title = model.projection.revision;
+  renderCurrentPosition(model);
   renderCurrentAction(model);
   if (model.evolution?.historical) {
     dom.actionGate.dataset.state = "historical";
@@ -2610,6 +2844,7 @@ function connectBoardStream() {
 
 function bindControls() {
   dom.lensButtons.forEach((button) => button.addEventListener("click", () => setLens(button.dataset.lens)));
+  dom.inspectorToggle.addEventListener("click", () => setInspectorOpen(dom.inspector.hidden));
   dom.search.addEventListener("input", () => {
     runtime.query = dom.search.value;
     updateView();

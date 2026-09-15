@@ -13,6 +13,7 @@ import {
   predicateSatisfied,
   proveBlueprint,
   readBlueprint,
+  registeredBriefFormattingEquivalent,
   validateBlueprint,
 } from "./mapflow-core.mjs";
 import { readWayfinding, validateWayfinding } from "./mapflow-wayfinding.mjs";
@@ -1566,7 +1567,14 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
       }
 
       const state = stateResult.state;
-      const registeredMismatch = state && loaded && loaded.digest !== state.map_digest;
+      const registeredEquivalent = state && loaded && loaded.digest !== state.map_digest
+        && registeredBriefFormattingEquivalent({
+          mapPath: resolvedMap,
+          blueprint: loaded.blueprint,
+          briefs: loaded.briefs,
+          state,
+        });
+      const registeredMismatch = state && loaded && loaded.digest !== state.map_digest && !registeredEquivalent;
       if ((loadError || registeredMismatch) && state?.blueprint_snapshot) {
         const snapshot = validateBlueprint(clone(state.blueprint_snapshot));
         const sourceError = loadError
@@ -1592,19 +1600,28 @@ export function createBoardSnapshotReader({ mapPath = null, statePath = null } =
       }
       if (loadError) throw loadError;
 
-      const submaps = loaded.blueprint.submaps.map((binding) => childSnapshot(resolvedMap, binding, state, {
+      const projection = registeredEquivalent
+        ? {
+            ...loaded,
+            digest: state.map_digest,
+            brief_digests: clone(state.brief_digests),
+            briefs: clone(state.brief_snapshots),
+          }
+        : loaded;
+
+      const submaps = projection.blueprint.submaps.map((binding) => childSnapshot(resolvedMap, binding, state, {
         bindingPath: binding.id,
         includeSubmaps: false,
       }).summary);
       const model = compileBoardModel({
-        blueprint: loaded.blueprint,
-        digest: loaded.digest,
-        briefs: loaded.briefs,
+        blueprint: projection.blueprint,
+        digest: projection.digest,
+        briefs: projection.briefs,
         state,
         stateDigest: stateResult.digest,
         submaps,
       });
-      lastBriefs = loaded.briefs;
+      lastBriefs = projection.briefs;
       lastGood = model;
       latestContext = { resolvedMap, blueprint: loaded.blueprint, state };
       return { model, etag: `"${model.projection.revision}"` };

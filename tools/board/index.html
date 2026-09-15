@@ -10,186 +10,171 @@
   <script src="/app.js" type="module"></script>
 </head>
 <body>
-  <a class="skip-link" href="#inspector">跳到地图检查器</a>
+  <a class="skip-link" href="#map-stage">跳到任务活动图</a>
   <div id="source-banner" class="source-banner" role="status" hidden></div>
 
-  <header class="masthead">
-    <div class="brand-block">
+  <header class="topbar">
+    <div class="brand-lockup">
       <div class="brand-mark" aria-hidden="true"><span></span><span></span></div>
-      <div>
-        <p class="eyebrow">MAPFLOW / FIELD VIEW</p>
-        <h1 id="destination-title">正在读取地图…</h1>
-        <p id="destination-context" class="destination-context"></p>
-      </div>
+      <div><strong>Mapflow</strong><span>事实 → 下一步 → 到达</span></div>
     </div>
     <div class="status-rack" aria-label="地图状态摘要">
-      <div class="status-cell">
-        <span class="status-label">阶段</span>
-        <strong id="phase-value">—</strong>
-      </div>
-      <div class="status-cell">
-        <span class="status-label">可达性</span>
-        <strong id="reachability-value">—</strong>
-      </div>
-      <div class="status-cell">
-        <span class="status-label">实际到达</span>
-        <strong id="arrival-value">—</strong>
-      </div>
-      <div class="status-cell status-cell-wide">
-        <span class="status-label">真相版本</span>
-        <strong id="revision-value" class="mono">—</strong>
-      </div>
+      <span><i aria-hidden="true"></i><small>当前</small><strong id="phase-value">—</strong></span>
+      <span>可达性 <strong id="reachability-value">—</strong></span>
+      <span>到达 <strong id="arrival-value">—</strong></span>
+      <span class="revision-status">真相 <strong id="revision-value" class="mono">—</strong></span>
     </div>
   </header>
 
-  <section id="current-action" class="current-action" aria-labelledby="current-action-title" aria-live="polite">
-    <div class="current-action-heading">
-      <p class="eyebrow">CURRENT GATE</p>
-      <span id="current-action-state" class="current-action-state">读取中</span>
+  <section class="journey-overview" aria-label="当前导航">
+    <div class="destination-panel">
+      <p class="eyebrow">DESTINATION / 目的地</p>
+      <h1 id="destination-title">正在读取地图…</h1>
+      <p id="destination-context" class="destination-context"></p>
+    </div>
+    <div id="current-position" class="position-panel" data-state="loading">
+      <p class="eyebrow">CURRENT POSITION / 当前位置</p>
+      <strong id="current-position-title">正在定位…</strong>
+      <span id="current-position-detail">—</span>
+    </div>
+    <section id="current-action" class="current-action" aria-labelledby="current-action-title" aria-live="polite">
+      <div class="current-action-heading">
+        <p class="eyebrow">NEXT / 下一步</p>
+        <span id="current-action-state" class="current-action-state">读取中</span>
+      </div>
       <h2 id="current-action-title">正在确定下一动作…</h2>
-    </div>
-    <div class="current-action-field current-action-question">
-      <span>当前问题</span>
-      <strong id="current-action-question">—</strong>
-    </div>
-    <div class="current-action-field">
-      <span>责任人</span>
-      <strong id="current-action-owner">—</strong>
-    </div>
-    <div class="current-action-field">
-      <span>完成后</span>
-      <strong id="current-action-after">—</strong>
-    </div>
+      <strong id="current-action-question" class="current-action-question">—</strong>
+      <div class="current-action-meta">
+        <span><b>责任人</b><strong id="current-action-owner">—</strong></span>
+        <span><b>完成后</b><strong id="current-action-after">—</strong></span>
+      </div>
+    </section>
   </section>
 
-  <main class="workbench">
-    <aside class="route-lens" aria-labelledby="route-lens-title">
-      <div class="panel-heading">
-        <div>
-          <p class="eyebrow">ROUTE LENS</p>
-          <h2 id="route-lens-title">路线镜头</h2>
-        </div>
-        <span id="sync-state" class="sync-state">连接中</span>
-      </div>
-
-      <label class="search-field" for="map-search">
-        <span>搜索地图</span>
-        <input id="map-search" type="search" placeholder="节点、边或 Predicate" autocomplete="off">
-        <kbd>/</kbd>
-      </label>
-
-      <div class="lens-switch" role="group" aria-label="地图视图">
-        <button type="button" class="lens-button" data-lens="proven" aria-pressed="false">推荐路线</button>
-        <button type="button" class="lens-button is-active" data-lens="all" aria-pressed="true">完整路线集</button>
-        <button type="button" class="lens-button" data-lens="fog" aria-pressed="false">迷雾与缺口</button>
-        <button type="button" class="lens-button" data-lens="goal-regression" aria-pressed="false">目标回归</button>
-      </div>
-
-      <p class="count-scope-label">主地图真相计数</p>
-      <div id="map-counts" class="map-counts" aria-label="主地图真相计数"></div>
-
-      <div class="element-list-heading">
-        <span>当前视图对象</span>
-        <span id="visible-count" class="mono">0</span>
-      </div>
-      <div id="element-list" class="element-list" aria-live="polite"></div>
-    </aside>
-
-    <section class="map-stage" aria-labelledby="map-stage-title">
+  <main id="workbench" class="workbench">
+    <section id="map-stage" class="map-stage" aria-labelledby="map-stage-title">
       <div class="map-toolbar">
         <div>
-          <p id="canvas-eyebrow" class="eyebrow">MAP CANVAS</p>
-          <h2 id="map-stage-title">当前地图</h2>
+          <p id="canvas-eyebrow" class="eyebrow">LIVE ACTIVITY MAP</p>
+          <h2 id="map-stage-title">任务活动图</h2>
         </div>
         <div class="toolbar-actions">
+          <button id="toggle-inspector" type="button" class="quiet-button" aria-expanded="false" aria-controls="inspector">旅程详情</button>
           <button id="fit-map" type="button" class="quiet-button">适配视野</button>
           <button id="relayout-map" type="button" class="quiet-button">重新布图</button>
         </div>
       </div>
+      <div class="map-controls">
+        <div class="lens-switch" role="group" aria-label="地图视图">
+          <button type="button" class="lens-button" data-lens="proven" aria-pressed="false">当前推进</button>
+          <button type="button" class="lens-button is-active" data-lens="all" aria-pressed="true">完整路线</button>
+        </div>
+        <details class="lens-more">
+          <summary>更多视图</summary>
+          <div class="lens-secondary" role="group" aria-label="更多地图视图">
+            <button type="button" class="lens-button" data-lens="fog" aria-pressed="false">需要补齐</button>
+            <button type="button" class="lens-button" data-lens="goal-regression" aria-pressed="false">目标回溯</button>
+          </div>
+        </details>
+        <label class="search-field" for="map-search">
+          <span class="sr-only">搜索地图</span>
+          <input id="map-search" type="search" placeholder="搜索任务或里程碑" autocomplete="off">
+          <kbd>/</kbd>
+        </label>
+        <span id="sync-state" class="sync-state">连接中</span>
+      </div>
+      <div id="map-counts" class="map-counts" aria-label="任务进度"></div>
       <div class="canvas-frame">
         <div id="wayfinding-rail" class="wayfinding-rail" hidden aria-label="建模阶段"></div>
         <div id="canvas-explanation" class="canvas-explanation" hidden></div>
-        <div class="bearing bearing-top" aria-hidden="true">N · 000°</div>
-        <div class="bearing bearing-side" aria-hidden="true">E · 090°</div>
-        <div id="cy" role="application" aria-label="Mapflow 状态节点和工作边地图"></div>
+        <div id="cy" role="application" aria-label="Mapflow 任务活动与里程碑地图"></div>
         <div id="canvas-empty" class="canvas-empty" hidden>当前镜头没有匹配对象。</div>
         <div class="map-legend" aria-label="地图图例">
-          <span><i class="legend-line active"></i>活动边</span>
-          <span><i class="legend-line verified"></i>已验证</span>
-              <span><i class="legend-node fog"></i>迷雾</span>
-              <span><i class="legend-node destination-fog"></i>目的地迷雾</span>
-              <span><i class="legend-node gap"></i>缺口</span>
-              <span><i class="legend-line regression"></i>反向回归候选</span>
+          <span><i class="legend-activity active"></i>进行中</span>
+          <span><i class="legend-activity verified"></i>已完成任务</span>
+          <span><i class="legend-node milestone"></i>里程碑</span>
+          <span><i class="legend-node fog"></i>迷雾</span>
+          <span><i class="legend-node gap"></i>缺口</span>
         </div>
-      </div>
     </section>
 
-    <aside id="inspector" class="inspector" tabindex="-1" aria-labelledby="inspector-title">
+    <aside id="inspector" class="inspector" tabindex="-1" aria-labelledby="inspector-title" hidden>
       <div class="panel-heading inspector-heading">
         <div>
-          <p class="eyebrow">FIELD LEDGER</p>
-          <h2 id="inspector-title">证据检查器</h2>
+          <p class="eyebrow">JOURNEY DETAIL</p>
+          <h2 id="inspector-title">旅程详情</h2>
         </div>
         <span class="read-only-chip">只读</span>
       </div>
+      <details class="object-browser">
+        <summary><span>任务与里程碑</span><span id="visible-count" class="mono">0</span></summary>
+        <div id="element-list" class="element-list" aria-live="polite"></div>
+      </details>
       <div id="inspector-content" class="inspector-content"></div>
     </aside>
   </main>
 
-  <section id="evolution-player" class="evolution-player" aria-labelledby="evolution-title">
-    <div class="evolution-heading">
-      <div>
-        <p class="eyebrow">EVOLUTION LENS</p>
-        <h2 id="evolution-title">地图演化镜头</h2>
-        <div class="evolution-stream-line">
-          <button id="evolution-parent" type="button" class="stream-back" hidden>返回父图</button>
-          <span id="evolution-breadcrumb" class="evolution-breadcrumb">主地图</span>
+  <details class="history-drawer">
+    <summary>
+      <span><b>地图演化与历史</b><small>按需回看事实、证据和路线变化</small></span>
+      <span id="freshness" class="freshness">等待第一次同步</span>
+    </summary>
+    <div class="history-content">
+      <section id="evolution-player" class="evolution-player" aria-labelledby="evolution-title">
+        <div class="evolution-heading">
+          <div>
+            <p class="eyebrow">EVOLUTION LENS</p>
+            <h2 id="evolution-title">地图演化</h2>
+            <div class="evolution-stream-line">
+              <button id="evolution-parent" type="button" class="stream-back" hidden>返回父图</button>
+              <span id="evolution-breadcrumb" class="evolution-breadcrumb">主地图</span>
+            </div>
+          </div>
+          <div class="evolution-status-line">
+            <span id="evolution-mode" class="evolution-mode is-live">实时态</span>
+            <span id="evolution-coverage" class="evolution-coverage">正在读取演化记录</span>
+          </div>
         </div>
-      </div>
-      <div class="evolution-status-line">
-        <span id="evolution-mode" class="evolution-mode is-live">实时态</span>
-        <span id="evolution-coverage" class="evolution-coverage">正在读取演化记录</span>
-      </div>
-    </div>
-    <div class="evolution-controls" role="group" aria-label="地图演化播放控制">
-      <button id="evolution-first" type="button" class="quiet-button" title="第一帧">|◀</button>
-      <button id="evolution-previous" type="button" class="quiet-button" title="上一帧">◀</button>
-      <button id="evolution-play" type="button" class="evolution-play" aria-pressed="false">播放</button>
-      <button id="evolution-next" type="button" class="quiet-button" title="下一帧">▶</button>
-      <button id="evolution-live" type="button" class="quiet-button">回到实时</button>
-      <label class="evolution-slider-field" for="evolution-slider">
-        <span class="sr-only">选择演化帧</span>
-        <input id="evolution-slider" type="range" min="0" max="0" value="0" step="1" disabled aria-valuetext="尚无可回放帧">
-      </label>
-      <label class="evolution-speed-field" for="evolution-speed">
-        <span>速度</span>
-        <select id="evolution-speed">
-          <option value="2000">0.5×</option>
-          <option value="1000" selected>1×</option>
-          <option value="500">2×</option>
-        </select>
-      </label>
-    </div>
-    <div class="evolution-reading" aria-live="polite">
-      <div>
-        <span id="evolution-counter" class="mono">实时</span>
-        <strong id="evolution-summary">当前真相持续刷新</strong>
-        <span id="evolution-meta">历史回放不会写入 Sidecar</span>
-      </div>
-      <p id="evolution-diff">选择任一历史帧查看节点、边、Fact、Evidence 与验收的变化。</p>
-    </div>
-  </section>
+        <div class="evolution-controls" role="group" aria-label="地图演化播放控制">
+          <button id="evolution-first" type="button" class="quiet-button" title="第一帧">|◀</button>
+          <button id="evolution-previous" type="button" class="quiet-button" title="上一帧">◀</button>
+          <button id="evolution-play" type="button" class="evolution-play" aria-pressed="false">播放</button>
+          <button id="evolution-next" type="button" class="quiet-button" title="下一帧">▶</button>
+          <button id="evolution-live" type="button" class="quiet-button">回到实时</button>
+          <label class="evolution-slider-field" for="evolution-slider">
+            <span class="sr-only">选择演化帧</span>
+            <input id="evolution-slider" type="range" min="0" max="0" value="0" step="1" disabled aria-valuetext="尚无可回放帧">
+          </label>
+          <label class="evolution-speed-field" for="evolution-speed">
+            <span>速度</span>
+            <select id="evolution-speed">
+              <option value="2000">0.5×</option>
+              <option value="1000" selected>1×</option>
+              <option value="500">2×</option>
+            </select>
+          </label>
+        </div>
+        <div class="evolution-reading" aria-live="polite">
+          <div>
+            <span id="evolution-counter" class="mono">实时</span>
+            <strong id="evolution-summary">当前真相持续刷新</strong>
+            <span id="evolution-meta">历史回放不会写入 Sidecar</span>
+          </div>
+          <p id="evolution-diff">选择任一历史帧查看节点、边、Fact、Evidence 与验收的变化。</p>
+        </div>
+      </section>
 
-  <footer class="soundings" aria-labelledby="soundings-title">
-    <div class="soundings-heading">
-      <div>
-        <p class="eyebrow">CHANGE SOUNDINGS</p>
-        <h2 id="soundings-title">变化测深</h2>
-      </div>
-      <p id="freshness" class="freshness">等待第一次同步</p>
+      <footer class="soundings" aria-labelledby="soundings-title">
+        <div class="soundings-heading">
+          <div>
+            <p class="eyebrow">CHANGE HISTORY</p>
+            <h2 id="soundings-title">最近变化</h2>
+          </div>
+        </div>
+        <div id="timeline" class="timeline"></div>
+      </footer>
     </div>
-    <div id="timeline" class="timeline"></div>
-  </footer>
+  </details>
 
   <div id="announcer" class="sr-only" aria-live="polite"></div>
 </body>

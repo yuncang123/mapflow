@@ -21,6 +21,7 @@ import {
   predicateSatisfied,
   proveBlueprint,
   readBlueprint,
+  registeredBriefFormattingEquivalent,
   validateSubmapTree,
 } from "./mapflow-core.mjs";
 import { WorkspaceError, resolveWorkspace } from "./mapflow-workspace.mjs";
@@ -531,6 +532,20 @@ function readStateBlueprint(statePath, state) {
   const loaded = readBlueprint(absolute);
   if (loaded.blueprint.map_id !== state.map_id) {
     fail(`map identity changed from ${state.map_id} to ${loaded.blueprint.map_id}; use replan`);
+  }
+  if (loaded.digest !== state.map_digest && registeredBriefFormattingEquivalent({
+    mapPath: absolute,
+    blueprint: loaded.blueprint,
+    briefs: loaded.briefs,
+    state,
+  })) {
+    return {
+      ...loaded,
+      absolute,
+      digest: state.map_digest,
+      brief_digests: structuredClone(state.brief_digests),
+      briefs: structuredClone(state.brief_snapshots),
+    };
   }
   return { ...loaded, absolute };
 }

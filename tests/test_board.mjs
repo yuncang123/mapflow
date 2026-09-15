@@ -7,9 +7,11 @@ import test from "node:test";
 import { compileBoardModel, createBoardSnapshotReader } from "../tools/mapflow-board-core.mjs";
 import { createBoardServer } from "../tools/mapflow-board.mjs";
 import {
+  activityGraphElements,
   collapsedSubmapElements,
   currentActionView,
   edgeExecutionLabel,
+  navigationPositionView,
   parallelEdgeLane,
   selectElementIds,
   timelineEventLabel,
@@ -929,7 +931,7 @@ test("the board distinguishes directly startable and protected ready edges", () 
   assert.equal(edgeExecutionLabel(edge, model), "前置已满足，可直接启动");
   const action = currentActionView(model);
   assert.equal(action.state, "agent-next");
-  assert.equal(action.title, "启动工作边：明确文章读者");
+  assert.equal(action.title, "开始：明确文章读者");
 
   const protectedEdge = structuredClone(edge);
   protectedEdge.brief.metadata.contract.authorization.required = ["任务所有者明确授权"];
@@ -951,9 +953,9 @@ test("the current action exposes multiple independent ready branches instead of 
     authorization_requests: [], arrival_audit_requests: [],
   });
   assert.equal(action.state_label, "并行分支已就绪");
-  assert.equal(action.title, "2 条独立工作边可推进");
+  assert.equal(action.title, "2 项任务可以并行推进");
   assert.match(action.question, /构建目录与搜索.*构建借还生命周期/);
-  assert.match(action.after, /其余独立分支保持就绪/);
+  assert.match(action.after, /其他独立任务仍保持可开始/);
 });
 
 test("parallel work edges receive distinct fork-and-join visual lanes", () => {
@@ -973,6 +975,85 @@ test("parallel work edges receive distinct fork-and-join visual lanes", () => {
   assert.notEqual(catalog.offset, 0);
   assert.notEqual(catalog.labelOffset, circulation.labelOffset);
   assert.deepEqual(integrate, { className: "", offset: 0, labelOffset: 0 });
+});
+
+test("the activity graph projects work edges as task nodes between milestone states", () => {
+  const model = {
+    projection: { mode: "runtime" },
+    nodes: [
+      { id: "origin", label: "需求已确认", kind: "state", status: "satisfied", predicates: [], proof_gaps: [] },
+      { id: "joined", label: "实现已汇合", kind: "join", status: "unsatisfied", predicates: [], proof_gaps: [] },
+      { id: "destination", label: "目标已验收", kind: "destination", status: "unsatisfied", predicates: [], proof_gaps: [] },
+    ],
+    edges: [
+      { id: "build-api", title: "实现 API", from: "origin", to: "joined", status: "active", proven: true, proof_gaps: [] },
+      { id: "build-ui", title: "实现界面", from: "origin", to: "joined", status: "ready", proven: true, proof_gaps: [] },
+      { id: "accept", title: "验收核心旅程", from: "joined", to: "destination", status: "blocked", proven: true, proof_gaps: [] },
+    ],
+  };
+
+  const elements = activityGraphElements(model);
+  const milestoneNodes = elements.filter((item) => item.group === "nodes" && item.classes.includes("milestone-node"));
+  const activityNodes = elements.filter((item) => item.group === "nodes" && item.classes.includes("activity-node"));
+  const connectors = elements.filter((item) => item.group === "edges" && item.classes.includes("activity-connector"));
+
+  assert.equal(milestoneNodes.length, 3);
+  assert.equal(activityNodes.length, 3);
+  assert.equal(connectors.length, 6);
+  assert.equal(elements.some((item) => item.data.id === "build-api"), false);
+  assert.deepEqual(
+    activityNodes.find((item) => item.data.refId === "build-api").data,
+    {
+      id: "activity::build-api",
+      refId: "build-api",
+      refType: "edge",
+      label: "实现 API\n进行中",
+      kind: "activity",
+      status: "active",
+    },
+  );
+  assert.ok(connectors.some((item) => item.data.source === "origin" && item.data.target === "activity::build-api"));
+  assert.ok(connectors.some((item) => item.data.source === "activity::build-api" && item.data.target === "joined"));
+  assert.match(milestoneNodes.find((item) => item.data.refId === "origin").classes, /flow-start/);
+  assert.match(milestoneNodes.find((item) => item.data.refId === "joined").classes, /flow-join/);
+  assert.match(milestoneNodes.find((item) => item.data.refId === "destination").classes, /flow-end/);
+});
+
+test("navigation position distinguishes current work, waiting gates, and completed arrival", () => {
+  const base = {
+    projection: { mode: "runtime" },
+    map: { actual_arrival: "not-audited", current_destination: { node_id: "destination", status: "satisfied" } },
+    summary: { active_edge: "build-api", pending_arrival_audits: 0 },
+    nodes: [
+      { id: "origin", label: "需求已确认" },
+      { id: "destination", label: "目标已验收" },
+    ],
+    edges: [{ id: "build-api", title: "实现 API", from: "origin", to: "destination", status: "active" }],
+    arrival_audit_requests: [],
+  };
+  assert.deepEqual(navigationPositionView(base), {
+    label: "实现 API",
+    detail: "需求已确认 -> 目标已验收",
+    state: "active",
+  });
+
+  const waiting = structuredClone(base);
+  waiting.summary.active_edge = null;
+  waiting.summary.pending_arrival_audits = 1;
+  waiting.arrival_audit_requests = [{ status: "pending" }];
+  assert.deepEqual(navigationPositionView(waiting), {
+    label: "目标已验收",
+    detail: "工作已完成，等待到达审计",
+    state: "waiting",
+  });
+
+  const arrived = structuredClone(waiting);
+  arrived.map.actual_arrival = "audited";
+  assert.deepEqual(navigationPositionView(arrived), {
+    label: "目标已验收",
+    detail: "本航段已审计到达，可从这里开始下一航段",
+    state: "complete",
+  });
 });
 
 test("an arrived legacy fixture keeps old approval events as history only", () => {
@@ -1158,8 +1239,18 @@ test("board server serves a read-only ETag API and offline assets", async () => 
     const pageSource = await page.text();
     assert.match(pageSource, /Mapflow Board/);
     assert.match(pageSource, /id="current-action"/);
-    assert.match(pageSource, /主地图真相计数/);
-    assert.match(pageSource, /当前视图对象/);
+    assert.match(pageSource, /目的地/);
+    assert.match(pageSource, /当前位置/);
+    assert.match(pageSource, /下一步/);
+    assert.match(pageSource, /任务与里程碑/);
+    assert.match(pageSource, /id="toggle-inspector"[^>]*aria-expanded="false"/);
+    assert.match(pageSource, /id="inspector"[^>]*hidden/);
+    assert.match(pageSource, /当前推进/);
+    assert.match(pageSource, /完整路线/);
+    assert.match(pageSource, /<details class="lens-more">/);
+    assert.doesNotMatch(pageSource, /<details class="lens-more"[^>]*open/);
+    assert.match(pageSource, /<details class="history-drawer"/);
+    assert.doesNotMatch(pageSource, /<details class="history-drawer"[^>]*open/);
     const app = await fetch(`${base}/app.js`);
     assert.equal(app.status, 200);
     const appSource = await app.text();
@@ -1177,8 +1268,8 @@ test("board server serves a read-only ETag API and offline assets", async () => 
     const styles = await fetch(`${base}/styles.css`);
     assert.equal(styles.status, 200);
     const stylesSource = await styles.text();
-    assert.match(stylesSource, /\.route-lens\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*overflow:\s*hidden;/s);
-    assert.match(stylesSource, /\.element-list\s*\{[^}]*flex:\s*1 1 auto;[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
+    assert.match(stylesSource, /\.workbench\.has-inspector\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(300px, 360px\)/s);
+    assert.match(stylesSource, /\.element-list\s*\{[^}]*overflow-y:\s*auto;/s);
     const vendor = await fetch(`${base}/vendor/cytoscape.min.js`);
     assert.equal(vendor.status, 200);
     assert.ok((await vendor.text()).length > 400000);

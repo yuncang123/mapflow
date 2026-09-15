@@ -592,6 +592,23 @@ export function readBlueprint(filePath) {
   };
 }
 
+function normalizeBriefFormatting(content) {
+  return String(content).replaceAll("\r\n", "\n").replace(/\n+$/u, "") + "\n";
+}
+
+export function registeredBriefFormattingEquivalent({ mapPath, blueprint, briefs, state }) {
+  if (!state?.map_digest || !state.brief_snapshots || !Object.keys(state.brief_snapshots).length) return false;
+  const digest = crypto.createHash("sha256").update(fs.readFileSync(path.resolve(mapPath), "utf8"));
+  for (const edge of [...blueprint.edges].sort((left, right) => left.id.localeCompare(right.id))) {
+    const current = briefs[edge.id];
+    const registered = state.brief_snapshots[edge.id];
+    if (!current || !registered || current.ref !== registered.ref) return false;
+    if (normalizeBriefFormatting(current.content) !== normalizeBriefFormatting(registered.content)) return false;
+    digest.update(`\0${edge.id}\0${edge.brief_ref}\0${registered.content}`);
+  }
+  return digest.digest("hex") === state.map_digest;
+}
+
 export function validateSubmapTree(filePath) {
   const rootPath = path.resolve(filePath);
   const seenMapIds = new Map();
