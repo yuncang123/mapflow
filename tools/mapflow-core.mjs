@@ -631,7 +631,7 @@ export function validateSubmapTree(filePath) {
         fail(`submap ${binding.id} expected map_id ${binding.expected_map_id}, found ${child.blueprint.map_id}`);
       }
       if (child.digest !== binding.expected_map_digest) {
-        fail(`submap ${binding.id} expected digest ${binding.expected_map_digest}, found ${child.digest}; restore the pinned child version or initialize a successor parent map`);
+        fail(`submap ${binding.id} expected digest ${binding.expected_map_digest}, found ${child.digest}; restore the pinned child version because an accepted receipt cannot be rebound in place`);
       }
       const acceptanceMap = new Map(child.blueprint.destination.acceptance.map((item) => [item.id, item]));
       const predicateIds = new Set(child.blueprint.predicates.map((item) => item.id));

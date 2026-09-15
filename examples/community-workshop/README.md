@@ -8,4 +8,4 @@ node tools/mapflow.mjs --state examples/community-workshop/.mapflow/state.json b
 
 浏览器打开 `http://127.0.0.1:4180`，选择“完成工作坊准备”并展开第一层；再选择子图里的“验收可读议程”，继续展开 `workshop-preparation/agenda-readability`。这些 state/events 只证明示例合同，不代表现实活动已经举办。
 
-每层仍保持独立 Blueprint、state、events 和到达回执；父图只能通过逐层 readback 接纳下一层事实。实际使用时，这些文件全部位于该工作区的仓库外 Workspace Sidecar。
+每层仍保持独立 Blueprint、state、events 和到达回执；父图只能通过逐层 readback 接纳下一层事实。实际使用时，这些文件全部位于目标工作区之外的 Workspace Sidecar。

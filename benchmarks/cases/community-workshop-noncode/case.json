@@ -9,7 +9,7 @@
   "critical_journey": ["非代码现场勘探", "目的地与非目标", "会议/文档/审批证据", "逐边交付", "不越权发送或预订"],
   "expected_first_value": "用户能在地图中看见预算、场地、内容和授权分别缺什么",
   "budget": { "max_turns": 12, "max_minutes": 75 },
-  "allowed_writes": ["目标仓库中的活动方案文档", "目标仓库外的 Mapflow Sidecar"],
+  "allowed_writes": ["目标仓库中的活动方案文档", "目标工作区之外的 Mapflow Sidecar"],
   "human_only_unknowns": ["参与者真实反馈", "实际到场率", "活动现场安全性"],
   "primary_risks": ["Mapflow 被误当成编码专用", "文档存在被当成审批", "未授权发送邀请或预订场地"],
   "fixture": "subject/fixture",

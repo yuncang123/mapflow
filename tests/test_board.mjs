@@ -1281,6 +1281,8 @@ test("board server serves a read-only ETag API and offline assets", async () => 
     assert.equal(page.status, 200);
     const pageSource = await page.text();
     assert.match(pageSource, /Mapflow Board/);
+    assert.match(pageSource, /为所有任务提供清晰可靠的导航图/);
+    assert.doesNotMatch(pageSource, /把复杂工作变成一条看得懂的路/);
     assert.match(pageSource, /id="current-action"/);
     assert.match(pageSource, /想完成的结果/);
     assert.match(pageSource, /现在需要你/);

@@ -1,6 +1,6 @@
 # Skill 路由
 
-Mapflow 只加载当前边需要的最窄能力。入口始终先取 `context --layer focus`，不会一次加载完整流程、所有历史或全部岗位资料。
+Mapflow 可以为任意任务建立导航图，但只加载当前位置需要的最窄能力。入口始终先取 `context --layer focus`，不会一次加载完整流程、所有历史或全部岗位资料。
 
 | 当前需要 | Skill | 产物 | 完成条件 |
 | --- | --- | --- | --- |
@@ -18,4 +18,4 @@ Mapflow 只加载当前边需要的最窄能力。入口始终先取 `context --
 - History：重建因果、审计或诊断 stale 时限量加载。
 - 企业岗位参考：只有 handoff 需要设计或发生交接争议时读取 `docs/integration/enterprise-handoffs.md`。
 
-非仓库工作直接从文档、会议、人员或外部系统固定 Fact，不加载 `repository-recon`。普通请求不自动进入 Mapflow；只有用户显式启用后，入口 Skill 才恢复仓库外 sidecar。
+非仓库任务直接从文档、会议、人员、现场观察或外部系统固定 Fact，不加载 `repository-recon`。任务类型和复杂度都不会自动触发 Mapflow；只有用户显式启用后，入口 Skill 才恢复目标工作区之外的 sidecar。

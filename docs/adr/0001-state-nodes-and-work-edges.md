@@ -11,4 +11,4 @@ Mapflow v0.3 使用四值 Fact 和 Predicate 派生 State Node，把独立工作
 - v0.2 state 与命令不兼容，旧模型只保存在 `archive/v0.2-action-node/`。
 - OR 通过替代 Work Edge 表达；AND 通过多 Predicate 的 State/Join Node 表达。
 - `expected effect` 只支持逻辑推演；Fact 只有在 Evidence Record 通过后才更新。
-- 图形看板和 Archify 都是 Map Projection，不是运行真源。
+- Board 和其他图形化视图都是 Map Projection，不是运行真源。

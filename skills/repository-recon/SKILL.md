@@ -1,6 +1,6 @@
 ---
 name: repository-recon
-description: "在目的地确定后勘探起始事实、调用关系、共享契约、生成物和回归面；当关键 Fact 仍是 unknown/conflict 或影响范围不清楚时使用。"
+description: "为仓库型任务勘探起始事实、调用关系、共享契约、生成物和回归面；当仓库事实会改变路线且关键 Fact 仍是 unknown/conflict 时使用。"
 ---
 
 # repository-recon：起始状态勘探

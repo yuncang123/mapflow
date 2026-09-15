@@ -2235,7 +2235,7 @@ function renderOverview(model) {
     content.push(ledgerSection("空白工作区说明", [
       labeledValue("事实", "尚未勘探，不存在可供推演的 true/false/unknown/conflict Fact。"),
       labeledValue("证明", "尚未运行；地图建立后才会计算结构完整性和正向可达性。"),
-      labeledValue("运行态", "没有 Blueprint、Brief、events 或 state；Mapflow sidecar 仍保持仓库外隔离。"),
+      labeledValue("运行态", "没有 Blueprint、Brief、events 或 state；Mapflow Sidecar 仍位于目标工作区之外。"),
     ]));
     dom.inspectorContent.replaceChildren(...content);
     return;

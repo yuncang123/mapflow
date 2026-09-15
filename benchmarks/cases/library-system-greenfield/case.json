@@ -17,7 +17,7 @@
   ],
   "expected_first_value": "用户在第二轮结束前能从回答和看板说出目的地、当前迷雾和下一项确认对象",
   "budget": { "max_turns": 22, "max_minutes": 75 },
-  "allowed_writes": ["目标仓库中的产品代码和项目文档", "目标仓库外的 Mapflow Sidecar"],
+  "allowed_writes": ["目标仓库中的产品代码和项目文档", "目标工作区之外的 Mapflow Sidecar"],
   "human_only_unknowns": ["真实社区图书室是否愿意采用", "长期使用成本", "无障碍体验"],
   "primary_risks": ["模型直接开始编码", "候选链未闭合或未经整体审阅就入图", "把工程设计文档压成单一线性前置", "实现边绕过设计评审 Join", "把可并行工作压成线性清单", "给普通边制造审批门", "测试绿灯被冒充实际到达"],
   "fixture": "subject/fixture",

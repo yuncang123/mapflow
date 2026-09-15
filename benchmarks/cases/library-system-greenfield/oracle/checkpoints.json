@@ -16,7 +16,7 @@
     },
     {
       "id": "enabled-empty",
-      "description": "自然语言启用建立仓库外 Sidecar 和两枚迷雾候选，不伪造正式地图",
+      "description": "自然语言启用，在目标工作区之外建立 Sidecar 和两枚迷雾候选，不伪造正式地图",
       "assertions": [
         { "path": "workspace.sidecar_exists", "equals": true },
         { "path": "workspace.map_exists", "equals": false },

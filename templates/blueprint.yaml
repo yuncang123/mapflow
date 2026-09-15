@@ -1,4 +1,4 @@
-# Mapflow v0.8 Blueprint 示例。Blueprint 是定义真源；实际使用时由用户级 runtime 保存到仓库外 Workspace Sidecar。
+# Mapflow schema 3 Blueprint 示例。Blueprint 是定义真源；实际使用时由用户级 runtime 保存到目标工作区之外的 Workspace Sidecar。
 schema_version: 3
 map_id: publish-article
 

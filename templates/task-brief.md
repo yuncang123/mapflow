@@ -12,12 +12,14 @@ contract:
   authorization:
     required: []
     allowed_actions: [待填写]
+  # 仅在这条边跨角色时保留 handoff。
   handoff:
     from_roles: [任务所有者]
     to_roles: [执行责任人]
     inputs: [本边所需的已接受产物或事实]
     outputs: [交给下一岗位的可观察产物或回执]
     decision_rights: [由谁在什么条件下作出哪项决定]
+  # 仅在默认 Focus 不足或材料容易超载时保留 context。
   context:
     focus: 只推进当前 Work Edge 并证明其 effects
     load_first: [本 Task Brief, 当前 Blueprint 中本边及相邻节点]
@@ -32,7 +34,7 @@ contract:
     commands:
       - id: observable-exit-check
         program: node
-        args: [path/to/project-owned-verifier.mjs]
+        args: [path/to/workspace-owned-verifier.mjs]
         cwd: workspace
         timeout_seconds: 120
         success_exit_codes: [0]
@@ -85,11 +87,13 @@ contract:
 
 # Role handoff
 
+- 单一责任人且没有交接时省略本节和 frontmatter 中的 `handoff`。
 - 这不是协作空间：Mapflow 只保存当前边与真实岗位之间的输入、输出和决策权接口。
 - 默认只把 handoff 摘要交给相关岗位；具体实现和历史按 Context disclosure 条件加载。
 
 # Context disclosure
 
+- 简单边可省略本节和 frontmatter 中的 `context`；需要限制加载范围时再声明。
 - Focus：一句话限定当前注意力。
 - Load first：最多 5 个当前边必读入口。
 - Load on demand：每组引用都声明触发条件；未触发时不加载。

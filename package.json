@@ -1,9 +1,9 @@
 {
   "name": "mapflow",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "private": true,
   "type": "module",
-  "description": "Destination-regressed living navigation maps with executable evidence and audited arrival",
+  "description": "Clear, reliable navigation maps for every task",
   "scripts": {
     "test": "node --test tests/*.mjs",
     "test:oracle": "node tools/benchmark.mjs deterministic-test --level oracle",

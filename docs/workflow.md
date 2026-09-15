@@ -1,14 +1,20 @@
-# Mapflow 工作流
+# Mapflow 行为规则
 
 本文是 Mapflow 行为唯一真源。README 只负责导航，Skills 只负责把当前状态路由到本文的一小段行为。
 
 ## 1. 唯一主线
 
-Mapflow 只服务一个目标：
+Mapflow 只服务一个产品使命：
 
-> 从 Destination 反向演化出逻辑可推导的完整路线集，从当前 Fact 正向证明可达，再让人或 Agent 沿可信 Work Edge 推进；Evidence 更新 Fact，Arrival 固化历史，下一个 Destination 继续成为新航段。
+> 为所有任务提供清晰可靠的导航图。
 
-Mapflow 是单人电脑上的仓库外 sidecar，不是团队协作空间。人、Agent、前端、后端、产品、测试、技术支持、领导和外部系统都可以提供事实、执行工作或审计结果，但 Mapflow 不接管他们的系统。
+Task 是用户想完成的整项工作，可以是日常事务、写作、活动、研究、诊断或工程交付。Work Edge 只是导航图中的一段独立工作，不能用某条边、某个案例或某种生命周期反向定义 Mapflow 的适用范围。简单任务允许只有很小的地图；分支、Join、子地图和岗位合同只在真实复杂性出现时使用。
+
+清晰的导航图必须让不了解内部术语的人直接回答：想完成什么、现在在哪里、有哪些路线、哪些区域仍未弄清、下一步是什么及为什么、凭什么算到达。默认投影优先使用任务语言；Predicate、因果合同、digest 和内部 ID 按需披露。
+
+可靠的导航图必须把有来源的当前事实、模型内可达性、实际执行证据和审计到达分开。它从已确认的 Destination 反向形成逻辑可推导的完整路线集，从当前 Fact 正向证明可达，再让人或 Agent 沿可信 Work Edge 推进；Evidence 更新 Fact，Arrival 固化历史，下一个 Destination 继续成为新航段。
+
+Mapflow 是单人电脑上、位于目标工作区之外的 sidecar，不是团队协作空间。人、Agent、岗位和外部系统都可以提供事实、执行工作或审计结果，但 Mapflow 不接管他们的系统。
 
 每增加一个默认步骤，都必须指出它防止的具体失败模式。不能强化上述主线的功能、阶段或文档，不进入默认产品面。
 
@@ -29,14 +35,14 @@ current/
 ```
 
 - Blueprint 定义 Destination、Predicate、Fact 初值、State Node、Work Edge、Invariant、Loop 和 Submap Binding。
-- Task Brief 定义一条边的执行、证据、岗位交接与上下文合同。
-- `head.json` 是唯一 Workspace Head：它不复制领域状态，只把一个 current revision 绑定到当前 Wayfinding 或 runtime 事件头、地图/事件/state 摘要和精确 runtime build。
+- Task Brief 定义一条边的执行与证据合同，并按需增加岗位交接与上下文边界。
+- `head.json` 是唯一 Workspace Head：它不复制领域状态，只把当前 Mapflow revision 绑定到当前 Wayfinding 或 runtime 事件头、地图/事件/state 摘要和精确 runtime build。
 - Wayfinding、Blueprint、Brief、events 和 state 是 Head 指向并校验的内容；events 是不可变运行历史，state 是可重建投影，Arrival Checkpoint 固化某次到达。任何绕过事件日志直接改变源文件的行为都会让 Head 校验失败，不能被看板或 Agent 当成新真相。
 - Context Pack、BoardModel、地图画面和历史画面都是只读投影，不拥有 revision，也不能反向改变 Head。工作区面板只为当前待答的目的地问题提供一个窄的人类回答入口，写入仍由既有 `wayfinding-answer` 合同和事件日志完成，不能直接确认 Fact、启动 Work Edge、通过验收或登记 Arrival。
-- Git、Issue、PR、CI、测试、发布、监控和工单系统继续拥有各自事实。Mapflow 只保存稳定引用、digest、readback 或 receipt。
+- 文档、日历、消息、审批、Git、Issue、CI、监控和其他外部系统继续拥有各自事实。Mapflow 只保存稳定引用、digest、readback 或 receipt。
 - 旧 schema/state 可以兼容读取，但不会把旧 Activity、固定 SDLC 或 Route Approval 重新带回当前行为。
 
-静态代码、模型推演、本地测试、外部 readback、生产结果和业务验收是不同证据层，不能相互冒充。
+原始声明、模型推演、局部检查、外部 readback、现实结果和最终验收是不同证据层，不能相互冒充。
 
 ### 2.1 Workspace Head 与并发门
 
@@ -130,7 +136,7 @@ causal_contract:
 
 ## 5. Task Brief：施工、岗位交接与注意力
 
-一条 Work Edge 对应一个语义化 Task Brief。最小合同包括 scope、authorization、evidence、verification 和 failure。软件工程边还可声明：
+一条 Work Edge 对应一个语义化 Task Brief。最小合同包括 scope、authorization、evidence、verification 和 failure。需要跨角色或受注意力预算约束的边还可声明：
 
 - `handoff`：`from_roles`、`to_roles`、`inputs`、`outputs`、`decision_rights`；
 - `context`：一句 `focus`、最多五个 `load_first`、带触发条件的 `load_on_demand`、`max_files/max_chars` 预算。

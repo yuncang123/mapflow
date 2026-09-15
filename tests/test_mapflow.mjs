@@ -2206,7 +2206,7 @@ test("a parent edge accepts only an arrived child receipt and propagates stale s
 
   const invalidatingReplan = runCli(fixture.parentState, "replan", "--reason", "try to replace accepted child", "--scope", "observation:receipt-integrity", "--changes", "none");
   assertExit(invalidatingReplan, 1);
-  assert.match(invalidatingReplan.stderr, /cannot invalidate accepted submap receipts in place.*initialize a successor parent map/);
+  assert.match(invalidatingReplan.stderr, /cannot invalidate accepted submap receipts in place.*restore the pinned child version/);
   parent = JSON.parse(fs.readFileSync(fixture.parentState, "utf8"));
   assert.equal(parent.phase, "implementation");
   assert.deepEqual(parent.receipt_invalidations, []);
@@ -2218,10 +2218,10 @@ test("a parent edge accepts only an arrived child receipt and propagates stale s
   assert.equal(snapshot.model.edges[0].status, "stale");
   const invalidTree = runCli(fixture.parentState, "validate", "--map", fixture.parentMap);
   assertExit(invalidTree, 1);
-  assert.match(invalidTree.stderr, /restore the pinned child version or initialize a successor parent map/);
+  assert.match(invalidTree.stderr, /restore the pinned child version because an accepted receipt cannot be rebound in place/);
   const arrivalRequest = runCli(fixture.parentState, "request-arrival-audit", "--question", "May the parent map arrive?");
   assertExit(arrivalRequest, 1);
-  assert.match(arrivalRequest.stderr, /submap receipt is stale.*restore the pinned child Blueprint\/state revision or initialize a successor parent map/);
+  assert.match(arrivalRequest.stderr, /submap receipt is stale.*continue is available only after an audited Arrival/);
 });
 
 test("the board resolves nested submaps by semantic binding path", async () => {
@@ -2331,7 +2331,7 @@ test("global installer provides explicit-enable runtime and keeps workspace stat
   assert.match(entry, /行为真源：`references\/workflow\.md`/);
   assert.match(entry, /运行时：`runtime\/mapflow\.mjs`/);
   assert.match(entry, /enable --root <当前工作目录> --json/);
-  assert.match(entry, /服务人的仓库外 sidecar/);
+  assert.match(entry, /服务人的工作区外 sidecar/);
   assert.doesNotMatch(entry, /node \.mapflow\/mapflow\.mjs/);
   assert.match(entry, /阶段参考：`references\/skills\/<name>\.md`/);
   assert.doesNotMatch(entry, /`\.\.\/<name>\/SKILL\.md`/);
@@ -2339,7 +2339,7 @@ test("global installer provides explicit-enable runtime and keeps workspace stat
   assert.doesNotMatch(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: true/);
   assert.doesNotMatch(entry, /disable-model-invocation/);
   const globalManifest = JSON.parse(fs.readFileSync(path.join(globalRoot, "mapflow", "install-manifest.json"), "utf8"));
-  assert.equal(globalManifest.version, "0.10.0");
+  assert.equal(globalManifest.version, "0.10.1");
   assert.deepEqual(globalManifest.skills, ["mapflow"]);
   assert.deepEqual(globalManifest.phase_references, ["destination-shaping", "repository-recon", "blueprint-planning", "edge-slicing", "edge-delivery"]);
   assert.equal(globalManifest.runtime, "mapflow/runtime/mapflow.mjs");

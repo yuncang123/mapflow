@@ -46,7 +46,7 @@ function parseOptions(argv) {
 function printHelp() {
   process.stdout.write("usage: node tools/install.mjs --global [--force] [--dry-run]\n\n");
   process.stdout.write("Install the user-level Mapflow entry, runtime, references, templates, and phase references.\n");
-  process.stdout.write("Project installation is intentionally unsupported; workspace data lives in a repository-external sidecar.\n");
+  process.stdout.write("Per-workspace installation is intentionally unsupported; Mapflow data lives in a sidecar outside the target workspace.\n");
 }
 
 function globalSourceEntries() {
@@ -236,7 +236,7 @@ export function main(argv) {
     return 0;
   }
   if (options.has("target")) {
-    fail("--target is no longer supported; install once with --global and let `enable` create a repository-external workspace sidecar");
+    fail("--target is no longer supported; install once with --global and let `enable` create a sidecar outside the target workspace");
   }
   if (!options.has("global")) fail("--global is required; project-local installation is intentionally unsupported");
   const target = path.join(process.env.USERPROFILE || os.homedir(), ".agents", "skills");

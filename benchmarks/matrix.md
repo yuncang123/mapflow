@@ -2,6 +2,8 @@
 
 `●` 是该案例的主验收目标，`○` 是伴随覆盖，空白表示不以该案例下结论。
 
+矩阵是当前样本覆盖，不是 Mapflow “所有任务”使命的穷举证明；未列出的任务类型保持未验证。
+
 | 案例 | 从零建图 | 目的地定形 | 人工确认 | 反向回归 | 正向证明 | 图分支/并行 | 实际施工 | 迷雾/修图 | 范围控制 | 子地图 | 子图历史 | 非代码证据 | 跨会话 | 看板可读性 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | library-system-greenfield | ● | ● | ● | ● | ● | ● | ● | ○ | ● |  |  |  |  | ● |
@@ -28,7 +30,7 @@
 
 ## 确定性内核硬门
 
-`tests/test_core_contract.mjs` 固定默认产品只包含 Destination 回归、显式因果合同、五层证据和渐进式上下文；`tests/test_proof.mjs` 检查反向闭包、隔离事实世界、推导图与稳定 digest；`tests/test_mapflow.mjs` 用反例固定 reported pass 不改变 Fact、verifier 必须来自冻结 Brief、能力令牌绑定 map/brief/edge/run/verifier 且只能消费一次、实际非零退出码不能被调用方覆盖、多个 ready edge 由 `next-actions` 全量返回，以及普通边不产生多余授权门。这组 Runtime Oracle 不依赖模型，先于任何耗时 Agent 旅程运行。
+`tests/test_core_contract.mjs` 固定可靠性内核不重新引入旧 Activity、固定 SDLC 或 Route Approval，并保留 Destination 回归、显式因果合同、五层证据和渐进式上下文；`tests/test_proof.mjs` 检查反向闭包、隔离事实世界、推导图与稳定 digest；`tests/test_mapflow.mjs` 用反例固定 reported pass 不改变 Fact、verifier 必须来自冻结 Brief、能力令牌绑定 map/brief/edge/run/verifier 且只能消费一次、实际非零退出码不能被调用方覆盖、多个 ready edge 由 `next-actions` 全量返回，以及普通边不产生多余授权门。这组 Runtime Oracle 不依赖模型，先于任何耗时 Agent 旅程运行。
 
 ## 回归节奏
 

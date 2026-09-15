@@ -1282,7 +1282,7 @@ function assertLoopMayExecute(blueprint, state, edgeId) {
 
 function printHelp() {
   process.stdout.write("usage: mapflow [--state STATE] <command> [options]\n\n");
-  process.stdout.write("Evidence-driven state-node/work-edge map runtime\n\n");
+  process.stdout.write("Clear, reliable navigation maps for every task\n\n");
   process.stdout.write("workspace options:\n");
   process.stdout.write("  --root PATH          resolve the Git worktree or directory being assisted\n");
   process.stdout.write("  --mapflow-home PATH  override the user state home with an absolute path outside the workspace\n");
@@ -1311,7 +1311,7 @@ function printHelp() {
   process.stdout.write("  propose    record a Work Event and pending Fact Proposal\n");
   process.stdout.write("  confirm    confirm a Proposal and apply its Fact\n");
   process.stdout.write("  reject     reject a Proposal without changing Facts\n");
-  process.stdout.write("  verify     record an explicit pass/fail check and apply proven effects\n");
+  process.stdout.write("  verify     record a caller-reported pass/fail observation without changing Facts\n");
   process.stdout.write("  verify-executed  run one verifier under a one-use capability and record trusted Evidence\n");
   process.stdout.write("  verify-submap  verify child arrival and accept a Map Receipt\n");
   process.stdout.write("  replan     preserve evidence and return to wayfinding\n");
@@ -1319,7 +1319,7 @@ function printHelp() {
   process.stdout.write("  request-arrival-audit  freeze completed destination evidence for a human or Agent audit\n");
   process.stdout.write("  arrive     consume one pending audit answer and record Arrival\n");
   process.stdout.write("  rebuild    rebuild state projection from verified events\n");
-  process.stdout.write("  board      serve the human journey view and read-only map projection (--map MAP, --port PORT)\n");
+  process.stdout.write("  board      serve the human-readable task navigation map (--root ROOT or --map MAP, --port PORT)\n");
 }
 
 function sha256File(filePath) {
@@ -2552,7 +2552,7 @@ function commandVerifySubmap(statePath, options) {
     fail(`submap identity mismatch: expected ${binding.expected_map_id}, found ${childLoaded.blueprint.map_id}`);
   }
   if (childLoaded.digest !== binding.expected_map_digest) {
-    fail(`submap Blueprint is stale: expected ${binding.expected_map_digest}, found ${childLoaded.digest}; restore the pinned child version or initialize a successor parent map`);
+    fail(`submap Blueprint is stale: expected ${binding.expected_map_digest}, found ${childLoaded.digest}; restore the pinned child version because an accepted receipt cannot be rebound in place`);
   }
   const childState = loadState(childStatePath);
   if (childState.map_id !== binding.expected_map_id || childState.map_digest !== childLoaded.digest) fail("submap runtime is stale against its Blueprint");
@@ -2721,7 +2721,7 @@ function commandReplan(statePath, options) {
       .map((receipt) => receipt.receipt_id);
   });
   if (pinnedInvalidations.length > 0) {
-    fail(`replan cannot invalidate accepted submap receipts in place: ${pinnedInvalidations.join(", ")}; initialize a successor parent map`);
+    fail(`replan cannot invalidate accepted submap receipts in place: ${pinnedInvalidations.join(", ")}; restore the pinned child version before replanning`);
   }
   const cancelledRun = activeRun(state) ? transitionRun(state, "cancelled", { cancel_reason: `replan: ${reason}` }) : null;
   const submapDispositions = (state.blueprint_snapshot.submaps ?? []).map((binding) => {
@@ -2889,7 +2889,7 @@ function assertArrivalReady(statePath, state) {
     const childState = loadState(childStatePath);
     const revision = childState.event_stream?.head_digest ?? crypto.createHash("sha256").update(fs.readFileSync(childStatePath)).digest("hex");
     if (childLoaded.digest !== receipt.child.map_digest || revision !== receipt.child.state_revision) {
-      fail(`cannot audit arrival; submap receipt is stale: ${receipt.receipt_id}; restore the pinned child Blueprint/state revision or initialize a successor parent map`);
+      fail(`cannot audit arrival; submap receipt is stale: ${receipt.receipt_id}; restore the pinned child Blueprint/state revision because continue is available only after an audited Arrival`);
     }
   }
   const missingDestination = blueprint.destination.requires.filter((predicateId) => !predicateSatisfied(predicateId, state.facts, blueprint));

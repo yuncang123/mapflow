@@ -1,13 +1,15 @@
-# Mapflow v0.8 地图模型
+# Mapflow 地图模型
 
 本文件解释 `templates/blueprint.yaml` 与 `templates/blueprint.schema.json` 的领域关系；行为顺序以 `docs/workflow.md` 为准。
 
 JSON Schema 提供可移植结构合同，`mapflow-core.mjs` 负责跨引用、Fact 值、因果闭包、Task Brief 与文件绑定等语义校验。
 
+Task 是产品入口，Navigation Map 是面向人的产品对象；Intent、Destination、State Node、Work Edge、Fact、Evidence 和 Arrival 是生成可靠导航图的内部领域模型。不要把一条 Work Edge 称为用户的整个 Task，也不要用示例中的工程阶段缩窄地图可服务的任务类型。
+
 ## 核心关系
 
 ```text
-Intent -> confirmed Destination
+Task -> Intent -> confirmed Destination
                   |
                   v  goal regression
 Fact -> State Node -- Work Edge / Causal Contract --> State Node

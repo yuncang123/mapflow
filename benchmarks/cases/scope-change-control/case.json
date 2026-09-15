@@ -9,7 +9,7 @@
   "critical_journey": ["批准原目的地", "完成共享基础边", "提出范围变化", "确认最小差异", "验证新目标且不残留旧功能"],
   "expected_first_value": "变更发生时用户能看懂保留、删除、新增和待确认的地图差异",
   "budget": { "max_turns": 14, "max_minutes": 90 },
-  "allowed_writes": ["目标仓库中的 CLI 产品代码和测试", "目标仓库外的 Mapflow Sidecar"],
+  "allowed_writes": ["目标仓库中的 CLI 产品代码和测试", "目标工作区之外的 Mapflow Sidecar"],
   "human_only_unknowns": ["真实用户是否偏好 CSV", "后续同步需求"],
   "primary_risks": ["静默接受范围变化", "全图重画", "丢弃已验证证据", "旧分享能力残留"],
   "fixture": "subject/fixture",

@@ -1,8 +1,24 @@
 # Mapflow
 
-Mapflow 描述从目的地反向形成可推导路线、由实际证据推进到可审计到达、再从 Arrival 连续进入下一航段的工作领域。它以个人 sidecar 保存动态地图真相，并通过小型合同接入人、Agent 与企业岗位。
+Mapflow 的领域是为所有任务提供清晰可靠的导航图：从用户拥有的任务形成目的地和完整路线，以当前事实定位可达区域，由实际证据推进到可审计到达，并从 Arrival 连续进入下一航段。
 
 ## Language
+
+**Task**:
+用户希望从当前状态推进到一个可判断结果的整项工作；它可以简单或复杂，也不限于软件项目。
+_Avoid_: Work Edge, task title without an outcome
+
+**Navigation Map**:
+围绕一个 Task 组织起点、Destination、完整路线集、Fog、当前位置、Evidence 和 Arrival 的导航对象；Board 是它的一种人类可读投影。
+_Avoid_: Linear plan, workflow diagram, preferred route only
+
+**Navigation Clarity**:
+人无需学习内部 schema，就能识别任务结果、当前位置、可选路线、未知区域、下一步和完成标准。
+_Avoid_: Show every field, technical completeness
+
+**Navigation Reliability**:
+导航图中的当前陈述有来源且处于同一 revision，候选推演、已观察事实、执行证据和审计到达保持分层。
+_Avoid_: Plausible plan, model confidence, guaranteed success
 
 **Intent**:
 尚未完全定形的价值诉求、开放问题和期望方向。
@@ -42,14 +58,14 @@ _Avoid_: Sequential checklist
 
 **Work Edge**:
 把一个 State Node 推进到另一个 State Node 的独立有界工作。
-_Avoid_: Vague possibility, node task
+_Avoid_: Whole Task, vague possibility, node task
 
 **Causal Contract**:
 一条 Work Edge 的显式推导规则，绑定 premises、conclusions、rule basis、required witnesses 与 non-interference。
 _Avoid_: Feasibility claim, model intuition
 
 **Task Brief**:
-一条 Work Edge 的施工合同，记录范围、授权、证据、验证、失败、岗位交接与上下文边界。
+一条 Work Edge 的施工合同，记录范围、授权、证据、验证和失败，并在需要时记录岗位交接与上下文边界。
 _Avoid_: Ticket number, full project document
 
 **Role Handoff**:
@@ -149,7 +165,7 @@ _Avoid_: Child done boolean, path-only evidence
 _Avoid_: Workspace Head, source of truth, runtime
 
 **Workspace Head**:
-Sidecar 中唯一标识当前提交 revision 的小型记录；绑定当前 Wayfinding 或 runtime 事件头、源文件摘要和精确 runtime build。
+Sidecar 中唯一标识当前 Mapflow revision 的小型记录；绑定当前 Wayfinding 或 runtime 事件头、源文件摘要和精确 runtime build。
 _Avoid_: Board revision, chat memory, second map copy
 
 **Workspace Snapshot**:

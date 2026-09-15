@@ -1,13 +1,13 @@
 ---
 name: mapflow
-description: "把目的地反向演化为可推导地图，并沿可信工作边推进到可审计到达；仅在用户显式调用时使用。"
+description: "为显式启用的任务建立并维护清晰可靠的导航图；仅在用户明确调用 Mapflow 时使用。"
 ---
 
 # mapflow
 
 Mapflow 的用户级入口路由。本仓库维护副本：`docs/workflow.md`；用户级安装包：`references/workflow.md`。
 
-它是服务人的仓库外 sidecar，不介入普通任务。只有用户显式输入 `$mapflow`、`启用 mapflow` 或 `进入地图优先模式` 后才运行本流程。
+它是服务人的工作区外 sidecar，可以用于任意任务，但不会自动介入。只有用户显式输入 `$mapflow`、`启用 mapflow` 或 `进入地图优先模式` 后才运行本流程。
 
 维护仓库使用 `../../tools/mapflow.mjs`；用户级安装包使用 `runtime/mapflow.mjs`。
 
@@ -15,8 +15,8 @@ Mapflow 的用户级入口路由。本仓库维护副本：`docs/workflow.md`；
 
 1. **恢复 Sidecar**：首次启用运行 `enable --root <当前工作目录> --json`；已启用回合不要用聊天记忆判断状态。完成条件：身份与路径可回指，目标工作区未新增 `.mapflow` 或其他 Mapflow 文件。
 2. **加载唯一 Head**：首次 enable 后立即运行、以后每个 Mapflow 回合的第一项动作都运行 `snapshot --root <当前工作目录> --json`。只以这次返回的 `head.revision`、Focus、当前问题和下一动作作为本轮依据；runtime 不兼容时停止写入并报告版本/build digest。完成条件：Workspace Head、源文件摘要和 runtime identity 已验证。
-3. **只加载 Focus**：运行 `context --root <当前工作目录> --layer focus --expected-revision <head.revision> --json`；没有正式地图时读取 snapshot 指向的当前 Wayfinding 问题。完成条件：能够用一句 Destination、一个当前边/问题和一个证据层级说明现在应关注什么。
-4. **定形和建图**：无 Blueprint 时，仓库任务按顺序读取 `repository-recon`、`destination-shaping` 阶段参考，固定四值起始 Fact 并展示完整 Destination Contract，等待后续独立人工确认；只有这个对象需要建图前的强确认。确认后读取 `blueprint-planning`，把完整反向候选链一次投影给人审阅，再读取 `edge-slicing` 补齐各边合同。候选节点/边无需逐项审批。完成条件：Destination 已确认，候选链闭合，每条边有因果、Evidence、handoff 与 context 合同。
+3. **只加载 Focus**：运行 `context --root <当前工作目录> --layer focus --expected-revision <head.revision> --json`；没有正式地图时读取 snapshot 指向的当前 Wayfinding 问题。完成条件：能用普通任务语言说明想完成的结果、当前位置和唯一当前问题或下一步，不要求用户理解内部术语。
+4. **定形和建图**：无 Blueprint 时读取 `destination-shaping`，从与任务相关的文档、现场观察、人员或外部系统固定四值起始 Fact；只有仓库事实会改变路线时才读取 `repository-recon`。展示完整 Destination Contract 并等待后续独立人工确认；只有这个对象需要建图前的强确认。确认后读取 `blueprint-planning`，把完整反向候选链一次投影给人审阅，再读取 `edge-slicing` 补齐各边合同。候选节点/边无需逐项审批。完成条件：Destination 已确认，候选链闭合，每条边有因果与 Evidence 合同；跨角色或上下文受限时再补 handoff/context，简单任务没有被强行展开。
 5. **登记证明**：运行 `validate/prove`；新地图用 `init`，已有地图只对精确 diff 用 `replan`。完成条件：结构完整、推导图 digest 已产生，至少一条路线为 logical/conditional，或者得到带 repair scope 的明确缺口。
 6. **确定性派发**：运行 `next-actions --expected-revision <head.revision> --json`。多条 ready edge 全部展示，由人选择；普通边执行 `start`，只有 Brief 声明授权要求时才创建 `request-authorization`。完成条件：最多一个 active Run，普通边没有被加上额外审批门。
 7. **按需施工**：有 active edge 时才加载 `context --layer work --expected-revision <head.revision>` 并读取 `edge-delivery` 阶段参考；失败诊断、证据判定或追责分别加载 Evidence/History，不预读。维护仓库中的阶段说明位于 `../<name>/SKILL.md`；用户级安装包内含阶段参考位于 `references/skills/<name>.md`。完成条件：可信 witness 更新 Fact，reported 观察不更新 Fact，上下文未越过 Brief 预算。

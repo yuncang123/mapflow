@@ -16,4 +16,4 @@ Accepted
 
 - 可追溯、可重建，并能明确显示 waiting/blocked/failed/cancelled。
 - 个人版事件携带完整投影快照，文件大于纯 reducer 事件，但避免引入数据库和迁移框架。
-- CLI 登记检查而不执行任意命令；`pass` 必须显式声明。
+- `verify` 只登记调用方报告，不改变 Fact；`verify-executed` 只运行 Edge Run 开始前冻结的 verifier，并以实际退出码和输出摘要决定是否应用 effects。

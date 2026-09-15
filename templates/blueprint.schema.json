@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/mapflow/blueprint.schema.json",
-  "title": "Mapflow Blueprint v0.8 (schema 3)",
+  "title": "Mapflow Blueprint (schema 3)",
   "type": "object",
   "required": ["schema_version", "map_id", "destination", "predicates", "initial_state", "assumptions", "invariants", "boundaries", "nodes", "edges", "loops"],
   "properties": {

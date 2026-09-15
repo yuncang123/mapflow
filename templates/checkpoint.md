@@ -1,6 +1,6 @@
 ---
 id: semantic-checkpoint
-map: 路线地图
+map: navigation-map-id
 status: paused
 updated: YYYY-MM-DD
 ---

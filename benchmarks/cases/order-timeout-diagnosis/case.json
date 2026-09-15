@@ -9,7 +9,7 @@
   "critical_journey": ["复现失败", "区分事实与假设", "批准诊断边", "根因证据触发最小修图", "修复与回退验收"],
   "expected_first_value": "用户看到失败事实、根因 unknown 和下一探针之间的明确关系",
   "budget": { "max_turns": 12, "max_minutes": 75 },
-  "allowed_writes": ["目标仓库中的诊断记录、代码和测试", "目标仓库外的 Mapflow Sidecar"],
+  "allowed_writes": ["目标仓库中的诊断记录、代码和测试", "目标工作区之外的 Mapflow Sidecar"],
   "human_only_unknowns": ["真实生产流量分布", "发布窗口"],
   "primary_risks": ["未复现先修复", "把超时症状当根因", "丢弃失败证据", "逻辑可达冒充恢复完成"],
   "fixture": "subject/fixture",

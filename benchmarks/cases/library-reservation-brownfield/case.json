@@ -9,7 +9,7 @@
   "critical_journey": ["既有仓库勘探", "兼容性进入目的地和不变量", "反向回归", "逐边实施", "新旧合同共同验收"],
   "expected_first_value": "第一次勘探后用户能看到哪些是代码事实、哪些预约语义仍需决定",
   "budget": { "max_turns": 12, "max_minutes": 90 },
-  "allowed_writes": ["目标仓库中的产品代码和测试", "目标仓库外的 Mapflow Sidecar"],
+  "allowed_writes": ["目标仓库中的产品代码和测试", "目标工作区之外的 Mapflow Sidecar"],
   "human_only_unknowns": ["真实管理员的通知偏好", "生产迁移窗口"],
   "primary_risks": ["忽略既有接口", "把需求假设成代码事实", "新增能力通过但回归失败"],
   "fixture": "subject/fixture",

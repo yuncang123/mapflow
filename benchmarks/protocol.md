@@ -4,7 +4,7 @@
 
 开始前记录：案例与版本、目标用户、核心工作、关键旅程、可观察接缝、首次价值、预算、决策人、允许写入范围以及只能由真人回答的问题。`case.json` 是这些字段的真源。
 
-完成条件：`benchmark prepare` 已返回唯一 run ID、固定 fixture/case digest、Git 基线、仓库外 case 快照和全新的目标目录。后续只读取 run 返回的冻结主线与 Oracle；评测期间源 case 升版不能改变当前 run。
+完成条件：`benchmark prepare` 已返回唯一 run ID、固定 fixture/case digest、Git 基线、目标目录之外的 case 快照和全新的目标目录。后续只读取 run 返回的冻结主线与 Oracle；评测期间源 case 升版不能改变当前 run。
 
 ## 2. 选择回归层
 

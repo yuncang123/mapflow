@@ -4,6 +4,8 @@
 
 > 没有获得标准答案、Mapflow 内部文档或完成态地图的人，能否只通过自然语言与 Codex 协作，在 Mapflow 的帮助下清晰、准确、流畅、可控地完成真实项目或任务？
 
+产品使命覆盖所有任务；本套件只抽样验证当前列出的任务类型。一个非编码案例或一组工程案例都不能证明普遍覆盖，新增任务族必须以独立结果 Oracle、过程硬门和真人可读性观察扩展证据。
+
 自动测试证明机制，基准旅程证明体验。二者不能互相替代。
 
 `library-system-greenfield` 的 `implementation-verified` 冻结包包含升级前的 Route Approval 历史事件，只用于证明新版运行时可把它们作为历史回放并继续 Arrival Audit；它不定义当前流程，也不允许恢复旧审批门。活动行为始终以 `docs/workflow.md` 和当前 Oracle 为准。
@@ -95,7 +97,7 @@ $target = Join-Path $env:TEMP ("mapflow-benchmark-" + [guid]::NewGuid().ToString
 node tools/benchmark.mjs prepare --case library-system-greenfield --target $target
 ```
 
-`prepare` 只把 `subject/fixture/` 复制到目标目录并建立基线 Git 提交，不启用 Mapflow，不把主线、Oracle 或评分表复制到目标项目。它会在仓库外的本次评测目录冻结完整 case 包，后续 `probe`、`check` 和 `report` 始终读取该快照，不受源仓库中的 case 升版影响。命令返回本次 `run_id`、目标目录和冻结后的测试者主线文档。
+`prepare` 只把 `subject/fixture/` 复制到目标目录并建立基线 Git 提交，不启用 Mapflow，不把主线、Oracle 或评分表复制到目标项目。它会在目标目录之外的本次评测目录冻结完整 case 包，后续 `probe`、`check` 和 `report` 始终读取该快照，不受源仓库中的 case 升版影响。命令返回本次 `run_id`、目标目录和冻结后的测试者主线文档。
 
 推荐用 `agent-turn` 驱动独立的持久化 Codex 会话。它会固定使用 `prepare` 返回的 `target_root` 作为工作目录，只向子进程下传本次 run 固定的 `MAPFLOW_HOME`，并自动加上记忆/多 Agent 隔离参数；原始 JSONL、stderr、末条回答、session ID 和轮次记录会保存到 run evidence。测试者只逐轮发送 `operator/mainline.md` 中的“用户输入”，不附带本仓库文档、后续台词、节点 ID、命令或期望路线：
 

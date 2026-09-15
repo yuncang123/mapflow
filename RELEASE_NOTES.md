@@ -1,4 +1,52 @@
-# Mapflow v0.9.2
+# Mapflow Release Notes
+
+> 本文件按版本保存当时已经发布的能力和证据边界。历史版本中的产品表述不定义当前使命；当前使命与行为分别以 `README.md`、`CONTEXT.md` 和 `docs/workflow.md` 为准。
+
+## Mapflow v0.10.1
+
+Mapflow v0.10.1 aligns the public story, domain language, Agent entry, templates, CLI messages, and Board around one mission: clear, reliable navigation maps for every task.
+
+### Highlights
+
+- Defines Task as the user's whole undertaking and Work Edge as one bounded part of its Navigation Map.
+- Makes clarity and reliability explicit product properties without narrowing Mapflow to software delivery or complex work.
+- Reduces README to product orientation, quick start, and document routing; `docs/workflow.md` remains the behavioral source of truth.
+- Separates current truth from dated Research, Wayfinding, self-bootstrap maps, and archived model snapshots without rewriting historical evidence.
+- Makes repository reconnaissance, role handoffs, context contracts, branches, joins, and submaps conditional on the task's actual shape.
+- Corrects stale ADR and CLI wording around executed verifiers, stale child receipts, Workspace Head, and sidecars for non-Git tasks.
+
+### Verification
+
+- `npm test`: 148 passed, 0 failed.
+- `npm run benchmark:doctor`: seven case packages and the impact map passed structural validation.
+- Markdown relative-link check: no broken targets.
+- `git diff --check`: passed apart from platform line-ending notices.
+
+### Evidence Boundary
+
+These checks prove the source contracts, fixtures, documentation links, and local Board response covered by this release. They do not prove complete coverage of every task type, a full Agent benchmark journey, installation refresh on another machine, production deployment, adoption, or business value.
+
+## Mapflow v0.10.0
+
+Mapflow v0.10.0 makes the Workspace Head the single current revision for the Board, CLI, and Agent entry, so stale context cannot overwrite the current navigation map.
+
+### Highlights
+
+- Adds one Workspace Head that binds Wayfinding or runtime events, source digests, state projection, and the exact runtime build.
+- Requires snapshot-based reads and `expected_revision` compare-and-swap writes with locked readback and recovery.
+- Makes the Board a direct projection of the same Head and source files, with explicit “recorded” versus “applied” feedback.
+- Detects source/runtime/installed-package version drift before writes.
+- Simplifies the first screen for people who do not know Mapflow's internal model while retaining evidence and advanced detail on demand.
+
+### Verification
+
+- Release commit `08d455d5bb02460ac9e5d2b879e38e2a9abe0684` was published as tag `v0.10.0`.
+
+### Evidence Boundary
+
+The release identity and repository state prove publication of this source revision. Deterministic tests and fixtures prove only their covered contracts; they do not prove every task type, long-running adoption, deployment, accessibility, market demand, or business value.
+
+## Mapflow v0.9.2
 
 Mapflow v0.9.2 keeps the user-level package to one explicit Mapflow router while retaining its five phase instructions as progressively disclosed references.
 
@@ -20,7 +68,7 @@ Mapflow v0.9.2 keeps the user-level package to one explicit Mapflow router while
 
 This release proves the local source, installer, package layout, deterministic fixtures, and demo path. It does not prove production deployment, external host refresh behavior, team adoption, or business value.
 
-# Mapflow v0.9.1
+## Mapflow v0.9.1
 
 Mapflow v0.9.1 makes the live Board legible as a task activity map: the first screen answers destination, current position, and next action, while advanced evidence and history stay available on demand.
 
@@ -42,7 +90,7 @@ Mapflow v0.9.1 makes the live Board legible as a task activity map: the first sc
 
 This release is backed by deterministic local tests, fixtures, and a local read-only Board. It does not prove deployment, production behavior, long-running enterprise use, accessibility, market demand, or product value.
 
-# Mapflow v0.9.0
+## Mapflow v0.9.0
 
 Mapflow v0.9.0 turns the audited map into a living navigation field: an Arrival becomes an immutable historical checkpoint, a human-confirmed successor continues from that checkpoint in the same map identity, and trusted Fact changes re-compute current route state without rewriting history.
 
@@ -65,7 +113,7 @@ Mapflow v0.9.0 turns the audited map into a living navigation field: an Arrival 
 
 This release is backed by deterministic local tests, fixtures, and a local read-only Board. It does not prove deployment, production behavior, long-running enterprise use, accessibility, market demand, or product value.
 
-# Mapflow v0.8.0
+## Mapflow v0.8.0
 
 Mapflow v0.8.0 refocuses the product on one contract: regress a destination into a causally valid map, prove a route forward from sourced Facts, let a human or Agent execute only trusted Work Edges, and finish with an independent Arrival audit.
 

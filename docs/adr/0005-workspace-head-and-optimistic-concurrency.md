@@ -6,11 +6,11 @@ Accepted
 
 ## Context
 
-Sidecar 已有 Wayfinding、Blueprint、事件流、state 和 BoardModel，但它们过去各自暴露 digest 或 projection revision。看板点击后会写入事件，Agent 也可能继续依赖聊天中的旧 Context Pack；两个客户端因此可能同时认为自己面对“当前地图”。单独的文件原子替换只能防半写，不能防 lost update，也不能证明仓库运行时与用户级安装运行时解释的是同一份合同。
+Sidecar 已有 Wayfinding、Blueprint、事件流、state 和 BoardModel，但它们过去各自暴露 digest 或 projection revision。看板点击后会写入事件，Agent 也可能继续依赖聊天中的旧 Context Pack；两个客户端因此可能同时认为自己面对“当前地图”。单独的文件原子替换只能防半写，不能防 lost update，也不能证明源码运行时与用户级安装运行时解释的是同一份合同。
 
 ## Decision
 
-在 `current/head.json` 建立唯一 `mapflow.workspace-head/v1`。Head revision 等于当前阶段的事件链头：建模期绑定 Wayfinding 事件头，正式运行期绑定 runtime 事件头；同时固定地图、事件和 state 摘要，以及 runtime version/build digest。Head 是 current commit pointer，不复制 Destination、节点、边或 Fact。
+在 `current/head.json` 建立唯一 `mapflow.workspace-head/v1`。Head revision 等于当前阶段的事件链头：建模期绑定 Wayfinding 事件头，正式运行期绑定 runtime 事件头；同时固定地图、事件和 state 摘要，以及 runtime version/build digest。Head 是当前 Mapflow revision 的指针，不复制 Destination、节点、边或 Fact。
 
 CLI 和工作区看板共用 Workspace Snapshot reader。reader 在本机排他锁内校验 Head 与源文件，再生成 Focus、当前问题、下一动作和 BoardModel。Context Pack 与 BoardModel 只是同一 revision 的投影，不拥有独立真相。
 

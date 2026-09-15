@@ -1,6 +1,6 @@
 interface:
   display_name: "Mapflow"
-  short_description: "把人的思路、决策和证据投影到仓库外的 sidecar"
-  default_prompt: "仅在用户显式调用 $mapflow 后使用；Mapflow 服务人的记录、查看和审计，不介入普通任务，也不替模型决定工作流程。"
+  short_description: "为显式启用的任务维护清晰可靠的导航图"
+  default_prompt: "仅在用户显式调用 $mapflow 后使用；Mapflow 可以服务任意任务，但未启用时不介入，也不替人决定目的地或把模型记忆当成地图真相。"
 policy:
   allow_implicit_invocation: false

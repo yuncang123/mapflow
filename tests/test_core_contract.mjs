@@ -33,18 +33,21 @@ function fixture() {
   };
 }
 
-test("the default product surface contains only the destination-derived causal flow", () => {
+test("the reliability kernel excludes retired lifecycle detours", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.10.0");
+  assert.equal(pkg.version, "0.10.1");
   for (const removed of ["tools/mapflow-activity.mjs", "tools/mapflow-sdlc.mjs", "tests/test_activity.mjs", "tests/test_sdlc.mjs", "examples/ai-native-sdlc"]) {
     assert.equal(fs.existsSync(path.join(ROOT, removed)), false, `${removed} must stay outside the default product`);
   }
 
   const help = spawnSync(process.execPath, [CLI, "--help"], { cwd: ROOT, encoding: "utf8" });
   assertExit(help);
+  assert.match(help.stdout, /Clear, reliable navigation maps for every task/);
+  assert.doesNotMatch(help.stdout, /Evidence-driven state-node\/work-edge map runtime/);
   assert.match(help.stdout, /prove\s+regress from Destination and build the forward derivation graph/);
   assert.match(help.stdout, /context\s+disclose bounded context/);
   assert.match(help.stdout, /start\s+activate one proven ready edge/);
+  assert.match(help.stdout, /verify\s+record a caller-reported pass\/fail observation without changing Facts/);
   assert.doesNotMatch(help.stdout, /request-route-approval|\bobserve\b|sdlc/i);
 
   for (const relative of ["README.md", "skills/mapflow/SKILL.md", "skills/blueprint-planning/SKILL.md", "skills/edge-delivery/SKILL.md", "docs/skill-routing.md"]) {
