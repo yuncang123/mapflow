@@ -1,3 +1,25 @@
+# Mapflow v0.9.2
+
+Mapflow v0.9.2 keeps the user-level package to one explicit Mapflow router while retaining its five phase instructions as progressively disclosed references.
+
+## Highlights
+
+- Installs only `mapflow/SKILL.md` as a discoverable skill; destination shaping, repository reconnaissance, blueprint planning, edge slicing, and edge delivery are ordinary references beneath the package.
+- Records the single entry skill and the five phase references separately in the installation manifest.
+- Uses `agents/openai.yaml` as the explicit-invocation control and removes the unsupported legacy invocation field from Skill frontmatter.
+- Extends the global installer regression to reject recursively discoverable phase skills.
+
+## Verification
+
+- `npm test`: 140/140 passed.
+- `npm run benchmark:doctor`: all seven case packages and the impact map passed contract validation.
+- `npm run demo:evolution -- --no-serve`: completed with an audited Arrival.
+- `git diff --check`: passed, with Windows line-ending conversion warnings only.
+
+## Evidence Boundary
+
+This release proves the local source, installer, package layout, deterministic fixtures, and demo path. It does not prove production deployment, external host refresh behavior, team adoption, or business value.
+
 # Mapflow v0.9.1
 
 Mapflow v0.9.1 makes the live Board legible as a task activity map: the first screen answers destination, current position, and next action, while advanced evidence and history stay available on demand.

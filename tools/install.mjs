@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
 const SOURCE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PACKAGE = JSON.parse(fs.readFileSync(path.join(SOURCE_ROOT, "package.json"), "utf8"));
 const VERSION = PACKAGE.version;
-const CORE_SKILLS = [
-  "mapflow",
+const ENTRY_SKILL = "mapflow";
+const PHASE_REFERENCES = [
   "destination-shaping",
   "repository-recon",
   "blueprint-planning",
@@ -43,7 +43,7 @@ function parseOptions(argv) {
 
 function printHelp() {
   process.stdout.write("usage: node tools/install.mjs --global [--force] [--dry-run]\n\n");
-  process.stdout.write("Install the user-level Mapflow entry, runtime, references, templates, and phase skills.\n");
+  process.stdout.write("Install the user-level Mapflow entry, runtime, references, templates, and phase references.\n");
   process.stdout.write("Project installation is intentionally unsupported; workspace data lives in a repository-external sidecar.\n");
 }
 
@@ -70,8 +70,8 @@ function globalSourceEntries() {
     ["examples/community-workshop", "mapflow/examples/community-workshop"],
     ["examples/library-system-evolution", "mapflow/examples/library-system-evolution"],
   ];
-  for (const skill of CORE_SKILLS.filter((name) => name !== "mapflow")) {
-    entries.push([`skills/${skill}`, `mapflow/skills/${skill}`]);
+  for (const reference of PHASE_REFERENCES) {
+    entries.push([`skills/${reference}/SKILL.md`, `mapflow/references/skills/${reference}.md`]);
   }
   return entries;
 }
@@ -90,7 +90,7 @@ function installableContent(relativeSource) {
     content = content
       .replace("本仓库维护副本：`docs/workflow.md`；用户级安装包：`references/workflow.md`。", "行为真源：`references/workflow.md`。")
       .replace("维护仓库使用 `../../tools/mapflow.mjs`；用户级安装包使用 `runtime/mapflow.mjs`。", "运行时：`runtime/mapflow.mjs`。")
-      .replace("维护仓库中的相邻 Skill 位于 `../<name>/SKILL.md`；用户级安装包内含 Skill 位于 `skills/<name>/SKILL.md`。", "内含 Skill：`skills/<name>/SKILL.md`。");
+      .replace("维护仓库中的阶段说明位于 `../<name>/SKILL.md`；用户级安装包内含阶段参考位于 `references/skills/<name>.md`。", "阶段参考：`references/skills/<name>.md`。");
   } else if (relativeSource === "docs/blueprint/map-model.md") {
     content = content.replace("`docs/workflow.md`", "`references/workflow.md`");
   } else if (relativeSource === "examples/community-workshop/README.md") {
@@ -188,7 +188,8 @@ function installGlobal(targetRoot, options) {
     version: VERSION,
     profile,
     installed_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-    skills: CORE_SKILLS,
+    skills: [ENTRY_SKILL],
+    phase_references: PHASE_REFERENCES,
     blueprint_schema: 3,
     workspace_schema: "mapflow.workspace/v1",
     event_schema: "mapflow.event/v1",

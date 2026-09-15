@@ -2309,8 +2309,10 @@ test("global installer provides explicit-enable runtime and keeps workspace stat
   assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "blueprint", "map-model.md")));
   assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "integration", "enterprise-handoffs.md")));
   assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "skill-routing.md")));
-  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "skills", "edge-slicing", "SKILL.md")));
-  assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "skills", "edge-delivery", "SKILL.md")));
+  for (const reference of ["destination-shaping", "repository-recon", "blueprint-planning", "edge-slicing", "edge-delivery"]) {
+    assert.ok(fs.existsSync(path.join(globalRoot, "mapflow", "references", "skills", `${reference}.md`)));
+  }
+  assert.equal(fs.existsSync(path.join(globalRoot, "mapflow", "skills")), false);
   assert.ok(fs.existsSync(runtime));
   assert.ok(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-workspace.mjs")));
   assert.equal(fs.existsSync(path.join(installedRoot, "runtime", "mapflow-sdlc.mjs")), false);
@@ -2330,13 +2332,15 @@ test("global installer provides explicit-enable runtime and keeps workspace stat
   assert.match(entry, /enable --root <当前工作目录> --json/);
   assert.match(entry, /服务人的仓库外 sidecar/);
   assert.doesNotMatch(entry, /node \.mapflow\/mapflow\.mjs/);
-  assert.match(entry, /内含 Skill：`skills\/<name>\/SKILL\.md`/);
+  assert.match(entry, /阶段参考：`references\/skills\/<name>\.md`/);
   assert.doesNotMatch(entry, /`\.\.\/<name>\/SKILL\.md`/);
   assert.match(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: false/);
   assert.doesNotMatch(fs.readFileSync(path.join(globalRoot, "mapflow", "agents", "openai.yaml"), "utf8"), /allow_implicit_invocation: true/);
-  assert.match(entry, /disable-model-invocation: true/);
+  assert.doesNotMatch(entry, /disable-model-invocation/);
   const globalManifest = JSON.parse(fs.readFileSync(path.join(globalRoot, "mapflow", "install-manifest.json"), "utf8"));
-  assert.equal(globalManifest.version, "0.9.1");
+  assert.equal(globalManifest.version, "0.9.2");
+  assert.deepEqual(globalManifest.skills, ["mapflow"]);
+  assert.deepEqual(globalManifest.phase_references, ["destination-shaping", "repository-recon", "blueprint-planning", "edge-slicing", "edge-delivery"]);
   assert.equal(globalManifest.runtime, "mapflow/runtime/mapflow.mjs");
   assert.equal(globalManifest.workspace_schema, "mapflow.workspace/v1");
   assert.ok(globalManifest.capabilities.includes("workspace-sidecar"));

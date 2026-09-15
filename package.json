@@ -1,6 +1,6 @@
 {
   "name": "mapflow",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "private": true,
   "type": "module",
   "description": "Destination-regressed living navigation maps with executable evidence and audited arrival",
